@@ -475,7 +475,7 @@ func (st *Store) Put(kind, id string, data []byte, expected *int64) error {
 					return false, invalid("chat parent does not exist")
 				}
 				if parent == "projects" {
-					if err := checkProjectRemoval(tx, row); err != nil {
+					if err := checkChatProject(tx, row); err != nil {
 						return false, err
 					}
 				}
@@ -539,7 +539,7 @@ func (st *Store) Import(batch Import) error {
 						return invalid("legacy chat parent is missing")
 					}
 					if parent == "projects" {
-						if err := checkProjectRemoval(tx, row); err != nil {
+						if err := checkChatProject(tx, row); err != nil {
 							return err
 						}
 					}
@@ -787,7 +787,7 @@ func (st *Store) ChatContext(id string) (*Chat, *Agent, *Project, error) {
 	if err = json.Unmarshal(data, &project); err != nil {
 		return nil, nil, nil, err
 	}
-	if err = checkProjectRemoval(tx, data); err != nil {
+	if err = checkChatProject(tx, data); err != nil {
 		return nil, nil, nil, err
 	}
 	return &chat, &agent, &project, tx.Commit()

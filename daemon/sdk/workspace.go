@@ -298,7 +298,7 @@ func (c *Client) resolveChat(op, chatID, selected, cwd string) (*orchestrator.Ag
 	if path == "" {
 		path = c.core.sup.CWD()
 	}
-	if err := c.core.registry.CheckProjectPath(path); err != nil {
+	if err := c.core.registry.CheckWorkPath(path); err != nil {
 		return nil, "", workspaceError(op, err)
 	}
 	ag, ok := c.core.sup.Resolve(selected)

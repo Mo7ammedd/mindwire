@@ -13,7 +13,7 @@ func (st *Store) InteractionCWD(chatID, agentType, cwd string) (string, error) {
 		}
 		cwd = project.Path
 	}
-	if err := st.CheckProjectPath(cwd); err != nil {
+	if err := st.CheckWorkPath(cwd); err != nil {
 		return "", err
 	}
 	return cwd, nil

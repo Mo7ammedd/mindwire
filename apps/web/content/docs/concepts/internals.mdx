@@ -168,11 +168,16 @@ auth/config are per type.
 ## Git operations
 
 Project Git operations use durable operation IDs and are serialized per repository.
-Staging, unstaging, and committing can run while a terminal is open or an agent is
-working. A commit records the staged snapshot without automatically staging newer
-edits. Git hooks and native index/ref locks still apply, and project synchronization
-reserves the repository against all Git mutations. Other Git actions retain the
-active-work guard for overlapping project paths.
+Staging, unstaging, committing, fetching, and pushing can run while a terminal is
+open or an agent is working. A commit records the staged snapshot without
+automatically staging newer edits. Fetch and push transfer committed objects;
+they also allow chats to open, start, and respond while the transfer runs.
+
+Git hooks, native index/ref locks, and non-fast-forward push protection still
+apply. Every managed Git operation reserves the repository against competing Git
+operations and project synchronization/removal. Local Git writes retain their
+existing guard on new agent turns. Pull, checkout, discard, restoration, and
+branch changes still require idle work in overlapping project paths.
 
 Git operation capability version 6 passes the selected project's credentials to
 commit hooks, using the same repository-scoped lease as push and pull. Ordinary

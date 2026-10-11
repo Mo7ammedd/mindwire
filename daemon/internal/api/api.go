@@ -445,12 +445,8 @@ func (a *API) turn(w http.ResponseWriter, r *http.Request) {
 		if path == "" {
 			path = a.sup.CWD()
 		}
-		if err := a.registry.CheckProjectPath(path); err != nil {
+		if err := a.registry.CheckWorkPath(path); err != nil {
 			workspaceError(w, err)
-			return
-		}
-		if a.gitBusyPath(path) {
-			workspaceError(w, registry.ErrConflict)
 			return
 		}
 	}
@@ -1230,7 +1226,7 @@ func (a *API) compactChat(w http.ResponseWriter, r *http.Request) {
 		if path == "" {
 			path = a.sup.CWD()
 		}
-		if err := a.registry.CheckProjectPath(path); err != nil {
+		if err := a.registry.CheckWorkPath(path); err != nil {
 			workspaceError(w, err)
 			return
 		}

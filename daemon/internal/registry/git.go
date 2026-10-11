@@ -30,6 +30,11 @@ type GitSpec struct {
 	ExpectedBranch string       `json:"expectedBranch,omitempty"`
 }
 
+// IsRemoteTransfer identifies operations that exchange committed objects without
+// replacing working files or the index. Pull also updates the checkout, so it
+// must retain the active-work guard.
+func (s GitSpec) IsRemoteTransfer() bool { return s.Action == "fetch" || s.Action == "push" }
+
 // GitIdentity is explicit, user-provided attribution for author settings.
 // Legacy commit intents may also carry a repository author so retries retain it.
 type GitIdentity struct {
@@ -79,17 +84,35 @@ ON CONFLICT(id) DO UPDATE SET status=excluded.status,updated_at=excluded.updated
 }
 
 func checkGitAtPath(q queryer, path string) error {
-	rows, err := q.Query("SELECT path FROM git_operations WHERE status IN ('queued','running','cancelling')")
+	return checkGitReservations(q, path, false)
+}
+
+func checkGitWorkAtPath(q queryer, path string) error {
+	return checkGitReservations(q, path, true)
+}
+
+func checkGitReservations(q queryer, path string, allowTransfers bool) error {
+	rows, err := q.Query("SELECT path,data FROM git_operations WHERE status IN ('queued','running','cancelling')")
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var active string
-		if err := rows.Scan(&active); err != nil {
+		var data []byte
+		if err := rows.Scan(&active, &data); err != nil {
 			return err
 		}
 		if workspacepath.Overlaps(active, path) {
+			if allowTransfers {
+				var operation GitOperation
+				if err := json.Unmarshal(data, &operation); err != nil {
+					return err
+				}
+				if operation.IsRemoteTransfer() {
+					continue
+				}
+			}
 			return fmt.Errorf("%w: a Git operation is using this repository", ErrConflict)
 		}
 	}
