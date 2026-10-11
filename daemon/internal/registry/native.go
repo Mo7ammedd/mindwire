@@ -168,7 +168,7 @@ func (st *Store) syncNativeSessions(in NativeInventory, native *session.Store, b
 		if path != in.CWD {
 			return false, nil
 		} // moved while listing
-		if err = checkProjectRemoval(tx, data); err != nil {
+		if err = checkChatProject(tx, data); err != nil {
 			return false, err
 		}
 

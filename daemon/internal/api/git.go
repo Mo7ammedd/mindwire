@@ -294,10 +294,10 @@ func (a *API) startGitOperation(ctx context.Context, projectID string, req gitOp
 	if a.gitBusyPath(spec.Path) {
 		return registry.GitOperation{}, gitBusyError("Another Git operation is running in this repository. Wait for it to finish and try again.")
 	}
-	// Staging and committing do not replace working files, so an editing agent
-	// or an open terminal is not a reason to reject them. Git's native index/ref
-	// locks and the durable Git/project-sync reservations still apply.
-	preservesWorkingFiles := spec.Action == "stage" || spec.Action == "unstage" || spec.Action == "commit"
+	// Staging, committing, fetching and pushing do not replace working files, so
+	// an editing agent or an open terminal is not a reason to reject them. Git's
+	// native locks and the durable Git/project-sync reservations still apply.
+	preservesWorkingFiles := spec.Action == "stage" || spec.Action == "unstage" || spec.Action == "commit" || spec.IsRemoteTransfer()
 	if !preservesWorkingFiles && a.BusyPath(spec.Path) {
 		return registry.GitOperation{}, gitBusyError("Close active terminals or wait for the agent or command to finish before running this Git operation.")
 	}
@@ -366,8 +366,8 @@ func (a *API) prepareGitRun(ctx context.Context, chatID, cwd string, auth *gitac
 			}
 		}
 	}
-	if a.gitBusyPath(cwd) {
-		return nil, registry.ErrConflict
+	if err := a.registry.CheckWorkPath(cwd); err != nil {
+		return nil, err
 	}
 	if a.gitAuthors != nil {
 		if err := a.gitAuthors.PrepareRepository(ctx, cwd); err != nil {

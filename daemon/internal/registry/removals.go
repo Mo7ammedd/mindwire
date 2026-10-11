@@ -21,11 +21,36 @@ func checkProjectRemoval(q queryer, data []byte) error {
 	return checkRemovalAtPath(q, path)
 }
 
-func checkRemovalAtPath(q queryer, path string) error {
-	if err := checkSyncAtPath(q, path, ""); err != nil {
+// Chat membership and interactions can continue during a fetch or push. Project
+// changes still use checkProjectRemoval and reserve against every Git operation.
+func checkChatProject(q queryer, data []byte) error {
+	var p Project
+	if err := json.Unmarshal(data, &p); err != nil {
 		return err
 	}
+	path, err := workspacepath.Canonical(p.Path)
+	if err != nil {
+		return nil
+	} // legacy metadata may reference an unavailable directory
+	return checkWorkAtPath(q, path)
+}
+
+func checkRemovalAtPath(q queryer, path string) error {
 	if err := checkGitAtPath(q, path); err != nil {
+		return err
+	}
+	return checkProtectedDirectory(q, path)
+}
+
+func checkWorkAtPath(q queryer, path string) error {
+	if err := checkGitWorkAtPath(q, path); err != nil {
+		return err
+	}
+	return checkProtectedDirectory(q, path)
+}
+
+func checkProtectedDirectory(q queryer, path string) error {
+	if err := checkSyncAtPath(q, path, ""); err != nil {
 		return err
 	}
 	o, err := conflictingOperation(q, path, false, "")
@@ -38,14 +63,25 @@ func checkRemovalAtPath(q queryer, path string) error {
 	return nil
 }
 
-// CheckProjectPath also gates legacy/unregistered chat turns by their working directory.
-// The transport serializes this check and turn start against reserving a removal.
+// CheckProjectPath protects project changes against all Git, sync and removal
+// reservations. Chat work uses CheckWorkPath so a transfer does not pause it.
 func (st *Store) CheckProjectPath(path string) error {
 	canonical, err := workspacepath.WorkingDirectory(path)
 	if err != nil {
 		return invalid(err.Error())
 	}
 	return checkRemovalAtPath(st.db, canonical)
+}
+
+// CheckWorkPath gates agent admission and interaction under the transport's
+// shared mutex. Fetch and push remain reserved against project changes and other
+// managed Git writes, but do not block work on the current checkout.
+func (st *Store) CheckWorkPath(path string) error {
+	canonical, err := workspacepath.WorkingDirectory(path)
+	if err != nil {
+		return invalid(err.Error())
+	}
+	return checkWorkAtPath(st.db, canonical)
 }
 
 func removalTarget(tx *sql.Tx, o ProjectOperation) error {

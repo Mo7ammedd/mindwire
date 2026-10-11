@@ -51,7 +51,7 @@ func (st *Store) projectForNativeSession(tx *sql.Tx, cwd string, revision int64)
 	if err != nil || !info.IsDir() {
 		return Project{}, false, invalid("this conversation's original folder is unavailable")
 	}
-	if err := checkRemovalAtPath(tx, path); err != nil {
+	if err := checkWorkAtPath(tx, path); err != nil {
 		return Project{}, false, err
 	}
 	project, err := projectAtPath(tx, path, "")
