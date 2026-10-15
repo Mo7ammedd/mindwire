@@ -1,0 +1,3 @@
+[install]
+# Keep workspace resolution and the production image layout consistent across Bun releases.
+linker = "isolated"

@@ -45,14 +45,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: '.nvmrc'
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.1
+          bun-version: 1.4.3
       - name: Install
         uses: ./.github/actions/bun-install
+      - name: Check dependency advisories
+        run: bun audit
       - name: Typecheck
         run: bun --filter='mindwire' run typecheck
       - name: Build
@@ -74,9 +76,12 @@ jobs:
         with:
           go-version-file: packages/daemon/go.mod
           cache-dependency-path: packages/daemon/go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.1
+          bun-version: 1.4.3
       - name: Install
         uses: ./.github/actions/bun-install
       - name: Build daemon for E2E
@@ -105,9 +110,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.1
+          bun-version: 1.4.3
       # The docs build's gen:reference step generates the Go SDK reference with gomarkdoc
       # (scripts/gen-go-docs.mjs), which needs a Go toolchain. The REST reference reads packages/daemon/openapi.json;
       # the agents reference generates directly from daemon source. There is no static-export or Pagefind
@@ -150,12 +158,12 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: '.nvmrc'
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.1
+          bun-version: 1.4.3
       - name: Install
         uses: ./.github/actions/bun-install
       # The console typechecks and bundles against the SDK's built type declarations (mindwire

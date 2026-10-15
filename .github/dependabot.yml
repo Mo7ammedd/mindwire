@@ -20,3 +20,10 @@ updates:
     schedule:
       interval: weekly
     labels: ["dependencies", "ci"]
+
+  # Production Docker base images and build runtimes
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "docker"]

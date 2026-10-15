@@ -9,7 +9,7 @@ export default defineConfig({
   outDir: "dist-server",
   format: ["esm"],
   platform: "node",
-  target: "node22",
+  target: "node24",
   clean: true,
   sourcemap: true,
   // Never bundle the SDK's optional native peers; keep the SDK itself external too.

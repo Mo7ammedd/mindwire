@@ -14,7 +14,7 @@ const sdkDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.resolve(sdkDir, "../../apps/web/content/docs/reference/sdk-ts");
 const PUBLIC_PATH = "/docs/reference/sdk-ts/";
 
-const typedoc = path.join(sdkDir, "node_modules/.bin/typedoc");
+const typedoc = path.resolve(sdkDir, "../../node_modules/.bin/typedoc");
 const bin = fs.existsSync(typedoc) ? typedoc : "typedoc";
 
 fs.rmSync(OUT, { recursive: true, force: true });

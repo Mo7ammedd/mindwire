@@ -42,10 +42,11 @@ docker build -f docker/web.Dockerfile -t mindwire-web:dev .
 
 The runtime build reads the Go module from `packages/daemon`. Console and website builds use the
 root Bun lockfile. Apple sources, screenshots, local environment files, dependencies, and build output
-are excluded from the image build context. The website builder includes Node.js 22 for SDK and
+are excluded from the image build context. The website builder includes Node.js 24 LTS for SDK and
 Next.js tools, the pinned Go toolchain for Go reference docs, and the same Bun version as CI for
-dependency installation. Its production image is built and started by the
-[website image check](../.github/workflows/web-image.yml).
+dependency installation. All three images are built and started by the
+[Docker image checks](../.github/workflows/web-image.yml), including native SQLite and authenticated
+runtime health checks.
 
 ## Managed cloud stack
 

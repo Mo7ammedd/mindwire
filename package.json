@@ -35,9 +35,17 @@
     "apple:generate": "cd apps/apple && xcodegen generate",
     "test:daemon": "go -C packages/daemon test ./..."
   },
-  "packageManager": "bun@1.3.1",
+  "packageManager": "bun@1.4.3",
   "engines": {
-    "bun": ">=1.1",
-    "node": ">=18"
+    "bun": ">=1.4.3",
+    "node": ">=24.11.0"
+  },
+  "devDependencies": {
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.14.0",
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "esbuild@<0.25.0": "^0.25.12"
   }
 }

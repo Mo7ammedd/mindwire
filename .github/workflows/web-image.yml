@@ -1,26 +1,32 @@
-name: Website Docker image
+name: Docker images
 
 on:
   push:
     branches: [main]
     paths:
-      - 'docker/web.Dockerfile'
+      - 'docker/**'
       - '.dockerignore'
       - 'package.json'
       - 'bun.lock'
+      - 'bunfig.toml'
+      - '.nvmrc'
       - 'apps/web/**'
       - 'packages/sdk/**'
+      - 'apps/console/**'
       - 'packages/daemon/**'
       - '.github/workflows/web-image.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'docker/web.Dockerfile'
+      - 'docker/**'
       - '.dockerignore'
       - 'package.json'
       - 'bun.lock'
+      - 'bunfig.toml'
+      - '.nvmrc'
       - 'apps/web/**'
       - 'packages/sdk/**'
+      - 'apps/console/**'
       - 'packages/daemon/**'
       - '.github/workflows/web-image.yml'
   workflow_dispatch:
@@ -65,3 +71,65 @@ jobs:
           for route in / /get-started/ /docs/ /llms.txt; do
             curl --fail --silent --show-error --location "http://127.0.0.1:14327${route}" >/dev/null
           done
+
+  console-image:
+    name: Build and start console container
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source-ref || github.ref }}
+      - name: Build production image
+        run: docker build --progress=plain -f docker/console.Dockerfile -t mindwire-console:check .
+      - name: Start image and verify API and SQLite
+        run: |
+          set -euo pipefail
+          docker run -d --name mindwire-console-check -p 127.0.0.1:18787:8787 \
+            -e CONSOLE_USERNAME=ci-review \
+            -e CONSOLE_PASSWORD=ci-image-smoke-password \
+            -e AUTH_SECRET=ci-image-smoke-auth-secret-at-least-32-characters \
+            -e SECRETS_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+            mindwire-console:check
+          trap 'docker logs mindwire-console-check; docker rm -f mindwire-console-check' EXIT
+          ready=0
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:18787/api/ping >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1
+          curl --fail --silent --show-error http://127.0.0.1:18787/api/public-config >/dev/null
+          docker exec mindwire-console-check node --input-type=module -e '
+            import Database from "better-sqlite3";
+            const db = new Database(":memory:");
+            if (db.prepare("select 1 as value").get().value !== 1) process.exit(1);
+            db.close();
+          '
+
+  runtime-image:
+    name: Build and start runtime container
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source-ref || github.ref }}
+      - name: Build runtime with pinned agent harnesses
+        run: docker build --progress=plain -f docker/runtime.Dockerfile -t mindwire-runtime:check .
+      - name: Start image and verify authenticated health
+        run: |
+          set -euo pipefail
+          docker run -d --name mindwire-runtime-check -p 127.0.0.1:18790:8790 -e DAEMON_TOKEN=ci-image-smoke-test mindwire-runtime:check
+          trap 'docker logs mindwire-runtime-check; docker rm -f mindwire-runtime-check' EXIT
+          ready=0
+          for attempt in {1..30}; do
+            if curl --fail --silent -H 'Authorization: Bearer ci-image-smoke-test' http://127.0.0.1:18790/healthz >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1

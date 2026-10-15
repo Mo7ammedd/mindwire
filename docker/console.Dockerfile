@@ -4,7 +4,7 @@
 #
 # This is a Vite SPA (dist/) plus a Hono/Node server (dist-server/) that drives the mindwire SDK on behalf
 # of each signed-in user. It runs as ONE Node process (`node dist-server/index.js`) and needs:
-#   - Node >= 22            — Better Auth and Drizzle use the stable `better-sqlite3` driver for the
+#   - Node >= 24            — Better Auth and Drizzle use the stable `better-sqlite3` driver for the
 #                             self-host SQLite fallback. The app's own `start` script runs flagless.
 #   - a persistent volume   — for AUTH_DB_PATH (the user/session SQLite), so accounts survive restarts.
 #   - the tsup-externalized runtime deps resolvable in node_modules: `mindwire` (the workspace SDK, linked)
@@ -14,23 +14,21 @@
 # workspace member and needs the root manifests + the SDK it links to.
 
 # ---- builder: install the workspace and build the SDK + console with bun --------------------------------
-# Pinned to the repo's packageManager (bun@1.3.1). Debian-based (glibc), same libc as the runner below,
+# Pinned to the repo's packageManager (bun@1.4.3). Debian-based (glibc), same libc as the runner below,
 # so any prebuilt node_modules we carry across stages stay ABI-compatible.
-FROM oven/bun:1.3.1 AS builder
+FROM node:24-bookworm AS builder
+COPY --from=oven/bun:1.4.3 /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 
 # Manifests first, so `bun install` is cached until a package.json or the lockfile actually changes.
 # All workspace members must be present for a frozen install to resolve the lockfile.
-COPY package.json bun.lock ./
+COPY package.json bun.lock bunfig.toml ./
 COPY packages/sdk/package.json packages/sdk/
 COPY apps/console/package.json apps/console/
 COPY apps/web/package.json apps/web/
-# --ignore-scripts: this slim image ships no C/C++ toolchain, so ssh2's OPTIONAL native dep `cpu-features`
-# can't compile (`node-gyp` → "Unable to detect compiler type") and would fail the whole install. It's
-# optional — ssh2 degrades gracefully without it — and nothing we build or run here relies on a lifecycle
-# script: the build tools (esbuild/rollup/lightningcss/@tailwindcss/oxide) and the runtime all use prebuilt
-# per-platform binaries that bun links directly, not postinstall compiles.
-RUN bun install --frozen-lockfile --ignore-scripts
+# Install native dependencies for the same Node version and glibc used by the runner.
+# The full Node builder provides the toolchain when a package needs a native build.
+RUN bun install --frozen-lockfile
 
 # Now the sources (node_modules/dist are excluded by .dockerignore, so the installed deps survive).
 COPY . .
@@ -41,8 +39,8 @@ COPY . .
 RUN bun --filter='mindwire' run build \
  && bun --filter='@mindwire/console' run build
 
-# ---- runner: a slim Node 22 image carrying only what the console needs at runtime ----------------------
-FROM node:22-slim AS runner
+# ---- runner: a slim Node 24 image carrying only what the console needs at runtime ----------------------
+FROM node:24-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=8787 \

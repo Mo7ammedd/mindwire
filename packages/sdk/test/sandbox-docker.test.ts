@@ -1,9 +1,10 @@
 import { test, expect } from "bun:test";
 import { EventEmitter } from "node:events";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { docker, provisionDocker, SDK_VERSION, type DockerodeLike, type EnsureEvent } from "../src/index.js";
+import { provisionDocker, SDK_VERSION, type DockerodeLike, type EnsureEvent } from "../src/index.js";
 
 // A fake dockerode: enough of the container/exec/modem surface for `provisionDocker` to run the
 // ensure-cycle end-to-end with no Docker engine. `exec` streams a scripted stdout (matched by the
@@ -213,10 +214,25 @@ test("provisionDocker: pulls a missing runtime image before creating its contain
   ]);
 });
 
-test("docker(): factory is inert until connect(); with no `dockerode` installed connect() fails with a targeted, remote-engine-aware error", async () => {
-  // Constructing the target (even with a remote `engine`) must not import the optional peer.
-  const target = docker({ image: "x", engine: { host: "10.0.0.5", port: 2375 } });
-  expect(target.name).toBe("docker");
-  // Only connect() touches `dockerode`; absent here, it surfaces the install hint (never a bare import error).
-  await expect(target.connect({})).rejects.toThrow(/optional `dockerode` package/);
+test("docker(): factory is inert and reports a missing optional peer without contacting the engine", async () => {
+  // Other workspaces may install dockerode. Exercise the published Node runtime
+  // from a temporary directory that actually has no optional peer installed.
+  const directory = mkdtempSync(join(tmpdir(), "mw-docker-no-peer-"));
+  try {
+    const build = await Bun.build({
+      entrypoints: [new URL("../src/target/docker.ts", import.meta.url).pathname],
+      target: "node", format: "esm", outdir: directory, external: ["dockerode"],
+    });
+    expect(build.success).toBe(true);
+    const result = spawnSync("node", ["--input-type=module", "--eval", `
+      import assert from "node:assert/strict";
+      import { docker } from ${JSON.stringify(join(directory, "docker.js"))};
+      const target = docker({ image: "x", engine: { host: "10.0.0.5", port: 2375 } });
+      assert.equal(target.name, "docker");
+      await assert.rejects(target.connect({}), /optional \x60dockerode\x60 package/);
+    `], { encoding: "utf8", timeout: 5000 });
+    expect(result.status, result.stderr).toBe(0);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

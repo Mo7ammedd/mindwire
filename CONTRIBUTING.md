@@ -22,8 +22,13 @@ By participating you agree to abide by our [Code of Conduct](./CODE_OF_CONDUCT.m
 ## Prerequisites
 
 - **Go 1.26.9+** — matching [`packages/daemon/go.mod`](./packages/daemon/go.mod).
-- **Bun** (or Node 18+) — for the SDK. We use Bun for install/build/test.
+- **Node.js 24 LTS** — run `nvm use` to select the version in [`.nvmrc`](./.nvmrc).
+- **Bun 1.4.3+** — for workspace installation, builds, and tests.
 - The **agent CLI** you're working with (e.g. `npm i -g @anthropic-ai/claude-code`).
+
+TypeScript 7 builds and checks the workspaces. TypeDoc currently requires the TypeScript 6 API;
+the root docs tools use that version while each workspace keeps its TypeScript 7 compiler. The
+root esbuild override updates the legacy Drizzle config loader to the patched release series.
 
 ## Development
 
