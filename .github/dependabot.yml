@@ -7,8 +7,8 @@ updates:
       interval: weekly
     labels: ["dependencies", "go"]
 
-  # TypeScript SDK + workspace root
-  - package-ecosystem: npm
+  # Bun workspaces and their shared lockfile
+  - package-ecosystem: bun
     directory: /
     schedule:
       interval: weekly
