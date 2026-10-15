@@ -343,6 +343,7 @@ struct WorkspaceDetailScreen: View {
         // implemented"); fall back to a generic message.
         let text: String = {
             if let detail = model.health?.detail, !detail.isEmpty { return detail }
+            if model.runtime.isLocal { return "Mindwire on this Mac is unavailable. Try starting it again." }
             if model.runtime.isServer { return t("workspace.unavailable.server") }
             return t("workspace.unavailable.cloud")
         }()

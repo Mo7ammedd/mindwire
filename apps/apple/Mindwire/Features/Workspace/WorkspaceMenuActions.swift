@@ -35,8 +35,10 @@ struct WorkspaceMenuActions: View {
                 Button("Reconnect Computer", icon: .refresh) { actions.recoveringComputer = computer }
             }
             Button(t("common.rename"), icon: .edit) { actions.rename(workspace) }
-            DestructiveButton(computer == nil ? t("common.delete") : "Remove Computer", icon: .trash) {
-                actions.remove(workspace)
+            if !workspace.runtime.isLocal {
+                DestructiveButton(computer == nil ? t("common.delete") : "Remove Computer", icon: .trash) {
+                    actions.remove(workspace)
+                }
             }
         }
         .disabled(actions.deleting)

@@ -25,6 +25,8 @@ Apple contributions carry the explicit copyright grant in section 5 of the licen
   `.buttonStyle(.glass)`, the glass `TabView` — are in the iOS 26 SDK).
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) — the
   `.xcodeproj` is generated from `project.yml` and is git-ignored.
+- **Go** is required for Mac builds, which compile and sign the local runtime from
+  `packages/daemon`. The declared toolchain is resolved by Go automatically; iOS builds skip it.
 - **OblienKit** is fetched from [oblien/swift-sdk](https://github.com/oblien/swift-sdk)
   at the merged revision pinned in `project.yml`. No separate SDK checkout is needed.
 
@@ -48,11 +50,15 @@ xcodebuild -scheme MindwireMac \
 
 ### Mac interface
 
-The Mac opens into chat, with a conversation sidebar, search, and a glass composer. Choose the
-computer/project context from the composer; existing computer pairing and subscription setup
-remain available through Computers. The Developer tools setting in Settings reveals
-Projects and Agent settings. Files, Git, ports, terminal, and remote desktop use the existing
-workspace and project screens.
+The Mac opens into chat and automatically uses **This Mac**. It reuses the current account's
+running Mindwire computer service, or starts the signed runtime bundled with the app. Local access
+uses authenticated loopback HTTP with the same request, streaming, files, Git and terminal services
+as the phone. Extra computers and cloud workspaces are optional.
+
+The default Personal context references the current user's home directory. Subscriptions remain
+available separately; the Developer tools setting in Settings reveals projects and their settings.
+The computer's existing service is retained when adopting a saved pairing to this same Mac. Local
+service updates are managed by the app or computer CLI, outside remote-workspace update batches.
 
 Chats share Mindwire's name and monochrome mark on iOS and Mac. Conversation rows remain text-first;
 provider identities belong in subscription setup and developer configuration. Navigation and actions

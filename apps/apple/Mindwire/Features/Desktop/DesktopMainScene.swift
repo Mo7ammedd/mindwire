@@ -44,6 +44,7 @@ struct DesktopMainScene: View {
     @State private var chats: [Chat] = []
     @State private var rowSnapshots: [String: ChatListRowSnapshot] = [:]
     @State private var restored = false
+    @State private var computer = DesktopComputer.shared
     @FocusState private var searching: Bool
     @SceneStorage("mindwire.desktop.destination") private var savedDestination = "new"
     @AppStorage("mindwire.desktop.developerTools") private var developerTools = false
@@ -79,11 +80,13 @@ struct DesktopMainScene: View {
             if case .chat(let id) = destination, stores.chats.get(id) == nil { return }
             app.selectDesktop(destination)
         }
+        .task { await computer.prepare(stores: stores, repository: repository) }
         .onChange(of: app.desktopDestination) { _, destination in savedDestination = destination.storageKey }
         .onChange(of: stores.chats.revision) { reloadSidebar() }
         .onChange(of: stores.projects.revision) { reloadSidebar() }
         .onChange(of: stores.agents.revision) { reloadSidebar() }
-        .onChange(of: repository.all.map(\.id)) { reloadSidebar() }
+        .onChange(of: repository.revision) { reloadSidebar() }
+        .onChange(of: stores.workspaces.revision) { reloadSidebar() }
         .observeWorkspaceCache {
             reloadSidebar()
             if case .chat(let id) = app.desktopDestination, stores.chats.get(id) == nil { app.selectDesktop(.newChat) }
@@ -91,7 +94,9 @@ struct DesktopMainScene: View {
     }
 
     private var selection: Binding<DesktopDestination?> {
-        Binding(get: { app.desktopDestination == .newChat ? nil : app.desktopDestination }, set: { if let destination = $0 { app.selectDesktop(destination) } })
+        Binding(get: { app.desktopDestination == .newChat ? nil : app.desktopDestination }, set: {
+            if let destination = $0, destination != app.desktopDestination { select(destination) }
+        })
     }
 
     private var sidebar: some View {
@@ -148,10 +153,10 @@ struct DesktopMainScene: View {
     private var navigationTools: some View {
         List(selection: selection) {
             Section {
-                destination(.workspaces, title: "Computers", icon: .monitor)
+                destination(.workspaces, title: "This Mac", icon: .monitor)
                 if developerTools {
                     destination(.projects, title: "Projects", icon: .project)
-                    destination(.agents, title: "Agents", icon: Icon.agents)
+                    destination(.agents, title: "Subscriptions", icon: .key)
                 }
                 destination(.settings, title: "Settings", icon: Icon.settings)
                     .keyboardShortcut(",", modifiers: .command)
@@ -176,7 +181,7 @@ struct DesktopMainScene: View {
     }
 
     private func destination(_ destination: DesktopDestination, title: String, icon: AppIconName) -> some View {
-        Button { app.selectDesktop(destination) } label: {
+        Button { select(destination) } label: {
             Label(title, icon: icon)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(.rect)
@@ -188,12 +193,17 @@ struct DesktopMainScene: View {
         .tag(destination)
     }
 
+    private func select(_ destination: DesktopDestination) {
+        if destination == .workspaces, let id = computer.workspaceId { app.openWorkspace(id) }
+        else { app.selectDesktop(destination) }
+    }
+
     @ViewBuilder private var detail: some View {
         switch app.desktopDestination {
         case .newChat: DesktopNewChatScreen(repository: repository)
         case .chat(let id): ChatScreen(chatId: id).id(id)
         case .projects: ProjectsScreen(repository: repository)
-        case .agents: AgentsListScreen(repository: repository)
+        case .agents: AgentsListScreen(repository: repository).navigationTitle("Subscriptions")
         case .workspaces: WorkspacesScreen(repository: repository)
         case .settings: SettingsScreen().readablePane()
         }

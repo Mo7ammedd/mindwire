@@ -709,7 +709,7 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
 @MainActor
 enum WorkspaceDaemonCredential {
     static func resolve(workspaceId: String, workspace: WorkspaceService) async -> String {
-        if let computer = workspace as? ComputerWorkspaceService { return computer.daemonToken ?? "" }
+        if let computer = workspace as? DaemonWorkspaceService { return computer.daemonToken ?? "" }
         let key = KeychainKey.runtimeToken(workspaceId)
         if let home = try? await workspace.homeDirectory(),
            let path = home.nilIfEmpty,

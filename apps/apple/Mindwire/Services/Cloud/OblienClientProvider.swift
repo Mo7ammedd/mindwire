@@ -31,7 +31,7 @@ struct WorkspaceNotificationScope: Sendable, Equatable {
         case .cloud(let id):
             guard let id, !id.isEmpty else { return nil }
             cloudWorkspaceID = id
-        case .server, .container:
+        case .local, .server, .container:
             cloudWorkspaceID = nil
         }
     }

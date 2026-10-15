@@ -65,6 +65,8 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
    system title, a composer that grows from one line, and its connection control. Avoid marketing
    taglines, suggestion chips, and a duplicate title menu. Scope monochrome text tints to toolbar
    controls; sidebar selection uses a neutral system fill and dynamic label colors.
+   Desktop starts on This Mac automatically. Local access never presents the phone's pairing form.
+   Keep additional computers optional and subscriptions separate from Mindwire's assistant identity.
 
 7. **Glass for floating chrome only.** Chat composer, terminal bars, FABs →
    `.glassEffect` / `GlassEffectContainer` / `.buttonStyle(.glass)`. Never put glass behind

@@ -69,12 +69,21 @@ final class LocalWorkspaceAdapter: WorkspaceAdapter {
         self.stores = stores
     }
 
-    func owns(_ workspace: Workspace) -> Bool { workspace.runtime.isServer && workspace.runtime.sandbox == nil }
+    func owns(_ workspace: Workspace) -> Bool { (workspace.runtime.isServer || workspace.runtime.isLocal && ApplePlatform.isDesktop) && workspace.runtime.sandbox == nil }
     func current() -> [Workspace] { stores.workspaces.list().filter(owns) }
     func refresh() async {}  // the local store is already the source of truth
 
     func adopt(name: String, runtime: AgentRuntime, spec: WorkspaceSpec?) async -> Workspace? {
-        guard runtime.isServer, runtime.sandbox == nil else { return nil }
+        guard runtime.isServer || runtime.isLocal && ApplePlatform.isDesktop, runtime.sandbox == nil else { return nil }
+        if case .local(let computerId) = runtime,
+           let connection = stores.connections.list().first(where: { $0.pairedComputer?.computerId == computerId }),
+           var existing = stores.workspaces(forServerId: connection.id).first(where: { $0.runtime.sandbox == nil }) {
+            // Adopt an existing pairing to this same Mac without duplicating its projects/chats.
+            existing.runtime = runtime
+            existing.name = "This Mac"
+            stores.workspaces.save(existing)
+            return existing
+        }
         return stores.createWorkspace(name: name, runtime: runtime, spec: spec)
     }
     func rename(_ id: String, to name: String) async { stores.renameWorkspace(id, name: name) }
@@ -453,6 +462,9 @@ final class WorkspaceRepository {
 
     func delete(_ id: String) async throws {
         guard let workspace = get(id) else { return }
+        guard !workspace.runtime.isLocal else {
+            throw BackendError.message("This Mac is Mindwire's built-in workspace.")
+        }
         if let serverId = workspace.runtime.serverId, workspace.runtime.sandbox == nil,
            stores.connections.get(serverId)?.pairedComputer != nil {
             forgetConnection(serverId)

@@ -13,7 +13,8 @@ struct WorkspaceRow: View {
             Text(subtitle)
         } icon: {
             EntityCardIcon {
-                WorkspaceImageIcon(image: workspace.image, catalog: catalog, size: 28)
+                if workspace.runtime.isLocal { AppIcon(.monitor, size: 28) }
+                else { WorkspaceImageIcon(image: workspace.image, catalog: catalog, size: 28) }
             }
         } accessory: {
             WorkspaceDaemonStatusLabel(workspaceId: workspace.id, compact: true)
@@ -24,7 +25,9 @@ struct WorkspaceRow: View {
 
     private var subtitle: String {
         let platform: String
-        if workspace.runtime.sandbox != nil {
+        if workspace.runtime.isLocal {
+            platform = "This Mac"
+        } else if workspace.runtime.sandbox != nil {
             platform = t("newWorkspace.sandbox")
         } else if let image = workspace.image, !image.isEmpty {
             platform = CloudImages.displayName(image, in: catalog)
