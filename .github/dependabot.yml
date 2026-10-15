@@ -27,3 +27,7 @@ updates:
     schedule:
       interval: weekly
     labels: ["dependencies", "docker"]
+    # Node follows the selected LTS line; review major moves with .nvmrc and CI.
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
