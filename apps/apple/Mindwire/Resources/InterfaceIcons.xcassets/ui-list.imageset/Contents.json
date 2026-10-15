@@ -1,0 +1,16 @@
+{
+  "images" : [
+    {
+      "filename" : "bulleted list-15-1663582874.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "template-rendering-intent" : "template"
+  }
+}

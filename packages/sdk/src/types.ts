@@ -1,6 +1,6 @@
 /**
  * Wire types for the mindwire daemon, mirrored 1:1 from the Go structs in
- * `daemon/internal/agent` and `daemon/internal/session`. The daemon normalizes every
+ * `packages/daemon/internal/agent` and `packages/daemon/internal/session`. The daemon normalizes every
  * agent's native output into these shapes, so the client renders one protocol regardless
  * of which harness (Claude Code, Codex, Copilot CLI, opencode, …) actually ran.
  *

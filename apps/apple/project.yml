@@ -1,0 +1,191 @@
+name: Mindwire
+
+options:
+  bundleIdPrefix: com.oblien
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  groupSortPosition: top
+
+packages:
+  RoyalVNCKit:
+    url: https://github.com/royalapplications/royalvnc
+    revision: 0a76294a7cdc8616b2eea5fba958415e544ed34b
+  OblienKit:
+    url: https://github.com/oblien/swift-sdk
+    revision: 1192dba436e41c6d630d2bd2e8053056aad07fcd
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    exactVersion: 1.18.0
+  SwiftNIO:
+    url: https://github.com/apple/swift-nio
+    from: "2.60.0"
+  SwiftNIOSSH:
+    url: https://github.com/apple/swift-nio-ssh
+    from: "0.13.0"
+  SwiftCrypto:
+    url: https://github.com/apple/swift-crypto.git
+    from: "4.0.0"
+  SVGView:
+    url: https://github.com/exyte/SVGView
+    from: "1.0.0"
+  Runestone:
+    url: https://github.com/simonbs/Runestone
+    from: "0.5.2"
+  TreeSitterLanguages:
+    url: https://github.com/simonbs/TreeSitterLanguages
+    from: "0.1.10"
+  MarkdownUI:
+    url: https://github.com/gonzalezreal/swift-markdown-ui
+    from: "2.4.0"
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "11.0.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "6"
+    DEVELOPMENT_LANGUAGE: en
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: "5Q877873WD" # Abdelhamed Mohamed; inherited by every target.
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+
+targets:
+  Mindwire:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Mindwire
+    dependencies:
+      - package: OblienKit
+      - package: RoyalVNCKit
+        embed: true
+      - package: SwiftTerm
+      - package: SwiftNIO
+        product: NIOCore
+      - package: SwiftNIO
+        product: NIOPosix
+      - package: SwiftNIOSSH
+        product: NIOSSH
+      - package: SwiftCrypto
+        product: Crypto
+      - package: SVGView
+      - package: Runestone
+      - package: TreeSitterLanguages
+        product: TreeSitterSwiftRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJavaScriptRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTypeScriptRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTSXRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterPythonRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterGoRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterRustRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJSONRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterYAMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterMarkdownRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterHTMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCSSRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterBashRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCPPRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJavaRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterRubyRunestone
+      - package: MarkdownUI
+        product: MarkdownUI
+      - package: Firebase
+        product: FirebaseMessaging
+      - target: NotifyService   # embed the notification service extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire
+        INFOPLIST_FILE: Mindwire/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Mindwire/Resources/Mindwire.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: Accent
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_PREVIEWS: YES
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG"
+
+  MindwireTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: MindwireTests
+    dependencies:
+      - target: Mindwire
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+  MindwireUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget:
+      iOS: "26.0"
+    sources:
+      - path: MindwireUITests
+    dependencies:
+      - target: Mindwire
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Mindwire
+
+  # Rewrites incoming pushes into communication notifications (agent logo as sender). Runs only
+  # when the push has mutable-content:1. Shares the app's asset catalog for the agent logos.
+  NotifyService:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: NotifyService
+      - path: Mindwire/Resources/Assets.xcassets
+      - path: Mindwire/Models/AgentBrand.swift
+      - path: Mindwire/Services/Notifications/CommunicationNotification.swift
+      - path: Mindwire/Services/Notifications/PushTarget.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire.notifyservice
+        INFOPLIST_FILE: NotifyService/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+
+schemes:
+  Mindwire:
+    build:
+      targets:
+        Mindwire: all
+        MindwireTests: [test]
+        MindwireUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MindwireTests
+        - MindwireUITests

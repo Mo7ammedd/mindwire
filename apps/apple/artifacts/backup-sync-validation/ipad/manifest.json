@@ -1,0 +1,83 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "D7F96C80-F74F-45CA-94BC-93CC42A1151B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Cached conversation with title-only refresh_0_7F5B30EA-6558-4AEE-A116-920F7AC65E90.png",
+        "timestamp" : 1791378396.914
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testCachedConversationUsesTitleIndicatorAndKeepsItsTranscriptOnReturn()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testCachedConversationUsesTitleIndicatorAndKeepsItsTranscriptOnReturn"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "152B4844-9607-4EE5-ABB0-C1E9EF8AA7AD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "What iCloud saves · light_0_00BE0399-2125-4CEF-B4F8-185A84EBEA8C.png",
+        "timestamp" : 1791378435.623
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "3FCD10F1-81EE-4785-8BEA-353247AFF2C0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "iCloud sync settings · light_0_CB688DE5-249E-4DB9-B440-CF19C87AC2CF.png",
+        "timestamp" : 1791378431.728
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "F1AF7B31-E21F-411A-9269-50CE4A70034F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "What iCloud saves · dark_0_C5724EE3-1B0A-4CF5-95BA-C83E0761A2E7.png",
+        "timestamp" : 1791378417.174
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "C8AB7F5D-280C-4EA2-9CC4-6D24DA33B7C9.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "iCloud sync settings · dark_0_006EE9FA-69F2-4F5F-A2FF-3E63DE6C5374.png",
+        "timestamp" : 1791378413.259
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testOptInCredentialControlsAndNativeDeletionKeepLocalConnections()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testOptInCredentialControlsAndNativeDeletionKeepLocalConnections"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "931EB27E-41FA-4680-980B-F56A27770A28.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Native Files destination picker_0_6A7C549A-592F-4055-A959-CADB975F44C8.png",
+        "timestamp" : 1791378455.537
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "CB9F1755-AD77-4A51-818E-19477935C01B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Password protected backup file_0_1B98CB16-AA6A-4ADF-BB0C-65A733E65206.png",
+        "timestamp" : 1791378451.604
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testPasswordProtectedFileExportOpensNativeFiles()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testPasswordProtectedFileExportOpensNativeFiles"
+  }
+]

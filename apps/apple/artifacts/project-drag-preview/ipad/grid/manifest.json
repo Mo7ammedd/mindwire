@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "61628C21-788F-4623-83DF-EDDC3B27AA45.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project grid preference restored in dark appearance_0_DBB0EABA-4CC0-4B64-A4B8-A45B218BE778.png",
+        "timestamp" : 1791385827.421
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "F1DC5610-4599-4FA2-8780-3AEA014650FA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project grid reordered inline_0_76E05F5F-EB58-4F79-882F-1401A9089736.png",
+        "timestamp" : 1791385805.962
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "611D08F7-424D-48B0-8E03-ECCEEA60B578.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project grid in light appearance_0_FA1C780D-44C4-4421-A8F9-07E4FAF6BEE3.png",
+        "timestamp" : 1791385800.471
+      }
+    ],
+    "testIdentifier" : "ProjectLibraryInteractionTests/testGridLayoutUsesNativeDragAndKeepsOrderWhenSwitchingToList()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/ProjectLibraryInteractionTests/testGridLayoutUsesNativeDragAndKeepsOrderWhenSwitchingToList"
+  }
+]

@@ -1,7 +1,7 @@
 # Computer address directory v1
 
 Implementation: the existing [Mindwire Console backend](../apps/console/README.md),
-the computer daemon/CLI, and iOS. The directory shares the website’s
+the computer packages/daemon/CLI, and iOS. The directory shares the website’s
 database, server and deployment, but uses computer and phone keys instead of login. Deploy the updated Console before enabling the
 hosted URL. Existing SSH, VPN, named tunnels and pairing remain independent.
 

@@ -1,0 +1,1278 @@
+// Package orchestrator is the daemon's per-sandbox SUPERVISOR. It hosts every
+// registered agent adapter as an Agent runtime (adapter + auth + per-turn runner +
+// namespaced cred/config view), routes a request to the selected one, and supervises
+// turn execution: one turn per chat, cancellation, timeout, and panic isolation so one
+// misbehaving adapter can't take down the daemon (or the other agents' in-flight turns).
+// It streams unified events to the hub and emits notifications. The HTTP layer (internal/api)
+// is thin glue over this.
+package orchestrator
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"log"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/oblien/mindwire/packages/daemon/internal/agent"
+	"github.com/oblien/mindwire/packages/daemon/internal/gitaccess"
+	"github.com/oblien/mindwire/packages/daemon/internal/nativesessions"
+	"github.com/oblien/mindwire/packages/daemon/internal/notify"
+	"github.com/oblien/mindwire/packages/daemon/internal/proc"
+	"github.com/oblien/mindwire/packages/daemon/internal/procmon"
+	"github.com/oblien/mindwire/packages/daemon/internal/runner"
+	"github.com/oblien/mindwire/packages/daemon/internal/session"
+	"github.com/oblien/mindwire/packages/daemon/internal/setup"
+	"github.com/oblien/mindwire/packages/daemon/internal/stream"
+	"github.com/oblien/mindwire/packages/daemon/internal/surface"
+	"github.com/oblien/mindwire/packages/daemon/internal/toolchain"
+	"github.com/oblien/mindwire/packages/daemon/internal/workspacepath"
+)
+
+// Resolve-mode bounds and the completion contract. resolveSentinel is the exact line an agent emits
+// to declare the whole task globally complete; the loop strips it from the surfaced text. The caps
+// (iterations + overall deadline) are the backstop when an agent never emits it — the loop then ends
+// with StopReason "capped" rather than running forever.
+const (
+	resolveMaxIterations = 20
+	resolveDeadline      = 2 * time.Hour
+	resolveSentinel      = "<<RESOLVE_DONE>>"
+	// resolveContract is appended to the FIRST iteration's message: it puts the agent in an unattended
+	// posture and defines the completion signal. Appended to the message (not a system prompt) so it is
+	// fully agent-agnostic — Codex has no append-system-prompt mechanism, and replacing the system
+	// prompt would strip an agent's own tool-use instructions.
+	resolveContract = "\n\n---\n[MindWire resolve mode: you are running UNATTENDED until this task is fully complete. " +
+		"Do not stop to ask for confirmation or permission — proceed with your best judgment on any decision. " +
+		"When the entire task is genuinely and completely done, end your final reply with a line containing exactly:\n" +
+		resolveSentinel + "]"
+	// resolveContinue drives every later iteration: it either advances the work or, if the agent is
+	// already finished, elicits the sentinel so the loop can stop.
+	resolveContinue = "Continue working toward fully completing the original task. " +
+		"If it is already completely done, reply with exactly " + resolveSentinel + " and nothing else."
+)
+
+// ResolveOptions bounds a resolve run. Zero values fall back to the package defaults
+// (resolveMaxIterations / resolveDeadline), so a caller can request resolve with an empty struct.
+type ResolveOptions struct {
+	MaxIterations int           // cap on auto-continued iterations before StopReason "capped"
+	Deadline      time.Duration // overall wall-clock budget for the whole resolve
+}
+
+// Agent is one hosted adapter and everything the supervisor needs to run it: its auth
+// module, per-turn runner, and namespaced cred/config view. One per registered adapter.
+type Agent struct {
+	Adapter agent.Adapter
+	Auth    agent.AuthModule
+	Runner  *runner.Runner
+	Creds   *CredView
+}
+
+// ID is the agent type (e.g. "claude-code").
+func (a *Agent) ID() string { return a.Adapter.ID() }
+
+func (a *Agent) Capabilities() agent.Capabilities {
+	c := a.Adapter.Capabilities()
+	_, c.AuthLogout = a.Auth.(agent.AuthLogoutModule)
+	return c
+}
+
+// CredView is a per-agent-type namespaced view of the shared store: every key is prefixed
+// with "<agentType>:", so each agent's creds AND settings (apiKey, oauthToken, authMethod,
+// model, …) are isolated. Implements agent.CredStore.
+//
+// The ONE exception is the provider-connection subtree ("provider:<id>:apiKey" / ":envVar"):
+// a connected LLM provider is SHARED across agents, so connect Google once and every agent that
+// supports it reads the same key. Those keys are routed to a fixed cross-agent namespace
+// (sharedCredNamespace) instead of "<agentType>:", so any agent's view — and thus any agent's
+// EnvForRun via ProviderEnvForRun — sees the same connection. Everything else stays per-agent.
+type CredView struct {
+	store  *session.Store
+	prefix string
+}
+
+func newCredView(store *session.Store, agentType string) *CredView {
+	return &CredView{store: store, prefix: agentType + ":"}
+}
+
+// sharedCredNamespace is the store prefix for cross-agent credentials (provider connections). '#'
+// can't begin an agent-type id (agent.ValidateProviderID / real adapter IDs are letter/digit-led),
+// so this never collides with a real agent's "<agentType>:" namespace.
+const sharedCredNamespace = "#shared:"
+
+// sharedCred reports whether a BARE key (prefix already stripped) belongs to the shared cross-agent
+// namespace rather than this agent's own settings. Only the provider-registry subtree is shared; the
+// single-slot auth keys ("apiKey"/"provider"/"envVar") never carry the "provider:<id>:" prefix, so
+// they stay per-agent as before.
+func sharedCred(bareKey string) bool { return strings.HasPrefix(bareKey, "provider:") }
+
+// ns maps a bare key to its fully-qualified store key: shared subtree → sharedCredNamespace, else the
+// per-agent-type prefix.
+func (v *CredView) ns(key string) string {
+	if sharedCred(key) {
+		return sharedCredNamespace + key
+	}
+	return v.prefix + key
+}
+
+func (v *CredView) Get(key string) string     { return v.store.Get(v.ns(key)) }
+func (v *CredView) Set(key, val string) error { return v.store.Set(v.ns(key), val) }
+
+func (v *CredView) SetMany(values map[string]string) error {
+	entries := make(map[string]string, len(values))
+	for key, value := range values {
+		entries[v.ns(key)] = value
+	}
+	return v.store.SetMany(entries)
+}
+
+// All returns this agent's keys with the prefix stripped (bare keys like "model", "apiKey"), unioned
+// with the shared cross-agent subtree (provider connections). Stale per-agent "provider:*" keys from
+// before providers were shared are ignored — the shared namespace is authoritative — so an old
+// connection simply needs re-connecting once.
+func (v *CredView) All() map[string]string {
+	out := map[string]string{}
+	for k, val := range v.store.Config() {
+		if rest, ok := strings.CutPrefix(k, sharedCredNamespace); ok {
+			out[rest] = val
+			continue
+		}
+		if rest, ok := strings.CutPrefix(k, v.prefix); ok {
+			if sharedCred(rest) {
+				continue // provider:* lives only in the shared namespace now
+			}
+			out[rest] = val
+		}
+	}
+	return out
+}
+
+// Supervisor hosts all agents and supervises their turns for one sandbox.
+type Supervisor struct {
+	nativeSessions *nativesessions.Service
+	authSource     *agent.AuthSource
+	prepareGit     GitPreparation
+	store          *session.Store
+	hub            *stream.Hub
+	notifier       notify.Notifier
+	notes          *notify.Stream   // local SSE broadcaster (in-app live notifications)
+	mon            *procmon.Monitor // on-demand per-turn CPU/mem sampler (idle until a client subscribes)
+	cwd            string
+	turnTimeout    time.Duration // zero: native harness lifetime, independent of connected viewers
+
+	agents map[string]*Agent // by agent type
+	def    string            // default agent type when a request omits ?agent=
+
+	mu                      sync.Mutex
+	notificationPreferences notify.Preferences
+	active                  map[string]string // chatId -> active turn's working directory
+	activeAgents            map[string]int    // harness -> live turns, under the same lock as setup admission
+	authChanging            map[string]bool
+	setup                   *setup.Tracker
+	toolchain               *toolchain.Manager
+	cancels                 map[string]context.CancelFunc // runId -> cancel the running turn
+	// User-in-loop ingress, parallel to cancels (same register-before-return + defer close). inputs
+	// holds each running turn's inbound channel (present only for agents declaring an ingress
+	// capability); pending records the run's respondable interactions so Respond can echo their
+	// adapter correlators (Interaction.Meta) back on the Inbound without the adapter keeping state.
+	inputs             map[string]chan agent.Inbound
+	voices             map[string]*agent.VoiceBridge
+	inputQueues        map[string]*runInputQueue
+	pending            map[string]map[string]agent.Interaction // runId -> interactionId -> interaction
+	answering          map[string]bool
+	runClosed          map[string]chan struct{}
+	interactionContext InteractionContext
+	// Drain accounting: inflight counts live execRun/execResolve goroutines (each decrements in a
+	// defer that runs AFTER its terminal SaveRun), and idle broadcasts when it reaches zero. Wait()
+	// parks on idle so a caller can Cancel every run and then tear down the state directory without
+	// racing a late persist. Guarded by mu, like the maps above.
+	surfaces          *surface.Service
+	serviceReplies    map[string]map[string]chan agent.InteractionResponse
+	serviceEmit       map[string]agent.Emit
+	inflight          int
+	serviceOperations int
+	updateLease       *ServiceUpdateLease
+	stopping          bool
+	idle              *sync.Cond
+}
+
+// New builds a supervisor over EVERY registered adapter (each with its own auth + runner +
+// namespaced creds). defaultAgent selects the agent for requests that omit ?agent=; if it
+// isn't registered, the first adapter by ID is used (deterministic).
+func New(store *session.Store, hub *stream.Hub, notifier notify.Notifier, cwd, defaultAgent string, options ...Option) *Supervisor {
+	s := &Supervisor{
+		nativeSessions: nativesessions.New(),
+		store:          store, hub: hub, notifier: notifier, notes: notify.NewStream(), mon: procmon.NewMonitor(), cwd: cwd,
+		agents: map[string]*Agent{}, def: defaultAgent,
+		serviceReplies: map[string]map[string]chan agent.InteractionResponse{}, serviceEmit: map[string]agent.Emit{},
+		active: map[string]string{}, cancels: map[string]context.CancelFunc{},
+		activeAgents: map[string]int{}, authChanging: map[string]bool{}, setup: setup.NewTracker(), toolchain: toolchain.New(agent.Version),
+		inputs: map[string]chan agent.Inbound{}, pending: map[string]map[string]agent.Interaction{},
+		voices:      map[string]*agent.VoiceBridge{},
+		inputQueues: map[string]*runInputQueue{},
+		answering:   map[string]bool{}, runClosed: map[string]chan struct{}{},
+	}
+	for _, option := range options {
+		option(s)
+	}
+	s.idle = sync.NewCond(&s.mu)
+	for _, ad := range agent.All() {
+		creds := newCredView(store, ad.ID())
+		au := agent.ManageAuth(ad.Auth(creds), creds)
+		au.SetAuthSource(s.authSource)
+		s.agents[ad.ID()] = &Agent{
+			Adapter: ad, Auth: au, Creds: creds,
+			Runner: runner.New(store, ad, au, creds, hub, cwd),
+		}
+	}
+	if s.agents[s.def] == nil {
+		if all := agent.All(); len(all) > 0 { // sorted by ID → deterministic
+			s.def = all[0].ID()
+		}
+	}
+	return s
+}
+
+// Resolve returns the agent runtime for a type (empty = the default). ok=false = unknown.
+func (s *Supervisor) Resolve(agentType string) (*Agent, bool) {
+	if agentType == "" {
+		agentType = s.def
+	}
+	a, ok := s.agents[agentType]
+	return a, ok
+}
+
+// Default is the agent type used when a request omits a selector.
+func (s *Supervisor) Default() string { return s.def }
+
+// Notes is the local notification SSE broadcaster (the API's /notify/stream subscribes here).
+func (s *Supervisor) Notes() *notify.Stream { return s.notes }
+
+// ProcMon is the on-demand per-turn CPU/mem sampler (the API's /processes/stream subscribes here).
+// It is idle until a client subscribes and stops when the last one leaves — no background work, no leak.
+func (s *Supervisor) ProcMon() *procmon.Monitor { return s.mon }
+
+// CWD is the daemon's default working directory (a turn may override it per request).
+func (s *Supervisor) CWD() string { return s.cwd }
+
+// StartTurnInput is one turn's request from the API layer. Bundled into a value object so the
+// StartTurn signature doesn't grow per-field as per-turn options expand.
+type StartTurnInput struct {
+	RequestID      string // stable client receipt; retrying returns the same durable run
+	QueueIfRunning bool   // native follow-up when busy; ordinary turn when idle
+	ChatID         string
+	Message        string
+	CWD            string // run this turn in a specific dir (a project workdir); else the daemon default
+	Options        agent.TurnOptions
+	GitAuth        *gitaccess.Auth // write-only; never session or transcript state
+	gitLease       *gitaccess.Lease
+	reply          *session.InteractionReply // internal: atomically commit a resumed async answer with the turn
+}
+
+// StartTurn records the user message, creates a running Run, registers cancellation, and
+// launches execution on a DETACHED context (survives app disconnect). It guards one turn
+// per chat: ok=false means that chat is busy or this harness is being installed/updated.
+func (s *Supervisor) StartTurn(a *Agent, req StartTurnInput) (session.Run, bool) {
+	return s.start(a, req, false)
+}
+
+// StartCompact runs an on-demand compaction as a first-class run through the IDENTICAL execRun path as
+// a turn, so the compaction boundary streams and records exactly like an auto-compaction. It differs
+// from StartTurn in two ways: it records no user message (the /compact trigger isn't a user turn) and
+// allocates no ingress channel (a compaction never pauses for the user). It still takes the per-chat
+// turn lock — a compaction is mutually exclusive with a turn. ok=false ⇒ that chat is busy or the
+// harness is being installed/updated. The API gates this on agent.CompactModule.
+func (s *Supervisor) StartCompact(a *Agent, req StartTurnInput) (session.Run, bool) {
+	return s.start(a, req, true)
+}
+
+// StartResolve launches a GLOBAL-RESOLVE run: instead of returning after one turn, the daemon holds
+// the run open and auto-continues the agent's own multi-step work until the task is globally complete
+// (the agent emits the completion sentinel), an unrecoverable error occurs, or a cap is hit. It
+// creates a PARENT run (Kind "resolve") the caller waits on and streams under; each auto-continued
+// iteration is a child run whose events publish onto the parent's topic (one merged stream). Like
+// start() it takes the per-chat turn lock for the whole resolve (ok=false ⇒ a turn is already running
+// for that chat) and records the user message once. It allocates NO ingress channel: resolve runs
+// unattended, and with no Inbound channel neither adapter can enter its pausing transport (both gate
+// persistent/app-server on Inbound != nil), so the loop can't stall on an approval.
+func (s *Supervisor) StartResolve(a *Agent, req StartTurnInput, ro ResolveOptions) (session.Run, bool) {
+	run, err := s.StartResolveChecked(a, req, ro)
+	return run, err == nil
+}
+
+func (s *Supervisor) StartResolveChecked(a *Agent, req StartTurnInput, ro ResolveOptions) (session.Run, error) {
+	if _, err := s.checkNativeSession(a, req, true); err != nil {
+		return session.Run{}, err
+	}
+	if req.Options.Command != nil {
+		return session.Run{}, errors.New("Run native commands as an ordinary turn, not a resolve loop.")
+	}
+	if req.Options.Voice != nil {
+		return session.Run{}, errors.New("Start live voice as a conversation, not an unattended resolve run.")
+	}
+	if err := s.checkSoftware(a); err != nil {
+		return session.Run{}, err
+	}
+	if ro.MaxIterations <= 0 {
+		ro.MaxIterations = resolveMaxIterations
+	}
+	if ro.Deadline <= 0 {
+		ro.Deadline = resolveDeadline
+	}
+	s.mu.Lock()
+	replayed, found, digest, replayErr := s.replayTurn(a, req, "resolve", &ro)
+	if found || replayErr != nil {
+		s.mu.Unlock()
+		return replayed, replayErr
+	}
+	if s.serviceUpdatingLocked() {
+		s.mu.Unlock()
+		return session.Run{}, ErrServiceUpdating
+	}
+	if _, busy := s.active[req.ChatID]; busy || s.setup.Status(a.ID()).Running {
+		s.mu.Unlock()
+		return session.Run{}, ErrChatBusy
+	}
+	if err := s.authAdmissionLocked(a); err != nil {
+		s.mu.Unlock()
+		return session.Run{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), ro.Deadline)
+	if s.prepareGit != nil {
+		var err error
+		req.gitLease, err = s.prepareGit(ctx, req.ChatID, req.CWD, req.GitAuth)
+		if err != nil {
+			cancel()
+			s.mu.Unlock()
+			return session.Run{}, err
+		}
+	}
+	req.GitAuth = nil
+	// The parent context bounds the WHOLE resolve (its explicit overall budget). Child turns inherit
+	// it, plus an optional configured turn limit. Register the cancel BEFORE returning, so a cancel
+	// can't race an unregistered run into a 404 (same anti-race as start()).
+	parent := session.Run{ID: newID(), ChatID: req.ChatID, Agent: a.ID(), Status: "running", Kind: "resolve", CreatedAt: nowISO()}
+	message := session.Message{ID: newID(), ChatID: req.ChatID, Role: "user", Text: req.Message, CreatedAt: nowISO(), Attachments: req.Options.Attachments}
+	if err := s.store.SaveTurnStart(parent, &message, req.RequestID, digest); err != nil {
+		req.closeGit()
+		cancel()
+		s.mu.Unlock()
+		return session.Run{}, err
+	}
+	s.active[req.ChatID] = s.activePath(req.CWD)
+	s.activeAgents[a.ID()]++
+	s.cancels[parent.ID] = cancel
+	s.inflight++ // paired with execResolve's deferred runDone; unconditional launch below
+	s.mu.Unlock()
+
+	// Resolve reuses one process group per child turn; the reporter re-Tracks under the parent id on
+	// each spawn (last spawn wins, which is the currently-live turn). execResolve's teardown Untracks.
+	ctx = proc.WithReporter(ctx, func(pid int) { s.mon.Track(parent.ID, a.ID(), parent.ChatID, pid) })
+
+	go s.execResolve(ctx, cancel, a, parent, req, ro)
+	return parent, nil
+}
+
+// start is the shared launch path for StartTurn (compact=false) and StartCompact (compact=true).
+func (s *Supervisor) start(a *Agent, req StartTurnInput, compact bool) (session.Run, bool) {
+	run, err := s.startChecked(a, req, compact)
+	return run, err == nil
+}
+
+func (s *Supervisor) startChecked(a *Agent, req StartTurnInput, compact bool) (session.Run, error) {
+	if req.Options.Command != nil && (req.QueueIfRunning || compact) {
+		return session.Run{}, errors.New("Wait for the current turn to finish before running a command.")
+	}
+	if req.Options.Command != nil {
+		if message, ok := agent.UnsupportedTurnOption(a.Capabilities(), req.Options); !ok {
+			return session.Run{}, errors.New(message)
+		}
+		req.Message = req.Options.Command.Text()
+	}
+	if req.Options.Voice != nil {
+		if msg, ok := agent.UnsupportedTurnOption(a.Capabilities(), req.Options); !ok {
+			return session.Run{}, errors.New(msg)
+		}
+		if compact || req.QueueIfRunning || strings.TrimSpace(req.Message) != "" {
+			return session.Run{}, errors.New("Start live voice separately from queued or typed messages.")
+		}
+	}
+	if req.QueueIfRunning && req.RequestID == "" {
+		return session.Run{}, ErrInvalidTurnRequest
+	}
+	softwareChecked, nativeOwner := false, false
+	for {
+		s.mu.Lock()
+		mode := "turn"
+		if compact {
+			mode = "compact"
+		}
+		replayed, found, digest, replayErr := s.replayTurn(a, req, mode, nil)
+		if found || replayErr != nil {
+			s.mu.Unlock()
+			return replayed, replayErr
+		}
+		if s.serviceUpdatingLocked() {
+			s.mu.Unlock()
+			return session.Run{}, ErrServiceUpdating
+		}
+		if req.Options.Voice != nil {
+			for id, voice := range s.voices {
+				if existing, ok := s.store.GetRun(id); ok && existing.Agent == a.ID() && voice.InputOpen() {
+					s.mu.Unlock()
+					return session.Run{}, errors.New("End the other voice conversation before starting one here.")
+				}
+			}
+		}
+		// The store can expose completion a moment before process/ingress teardown.
+		// A fresh send waits for that exact run, instead of returning a spurious busy error.
+		if _, busy := s.active[req.ChatID]; busy {
+			if last, ok := s.store.LatestRun(req.ChatID); ok && last.Status != "running" {
+				if closed := s.runClosed[last.ID]; closed != nil {
+					s.mu.Unlock()
+					<-closed
+					continue
+				}
+			}
+		}
+		if _, busy := s.active[req.ChatID]; busy && req.QueueIfRunning && !compact {
+			run, _ := s.store.LatestRun(req.ChatID)
+			if queue := s.inputQueues[run.ID]; queue != nil && !queue.accepting && !queue.cancelled {
+				closed := s.runClosed[run.ID]
+				s.mu.Unlock()
+				if closed != nil {
+					<-closed
+				}
+				return s.startChecked(a, req, compact)
+			}
+			queued, err := s.enqueueRunInputLocked(a, run, req, digest)
+			s.mu.Unlock()
+			return queued, err
+		}
+		if _, busy := s.active[req.ChatID]; busy || s.setup.Status(a.ID()).Running {
+			s.mu.Unlock()
+			return session.Run{}, ErrChatBusy
+		}
+		if !softwareChecked {
+			s.mu.Unlock()
+			var err error
+			nativeOwner, err = s.checkNativeSession(a, req, compact)
+			if err != nil {
+				return session.Run{}, err
+			}
+			if !nativeOwner {
+				if err := s.checkSoftware(a); err != nil {
+					return session.Run{}, err
+				}
+			}
+			softwareChecked = true
+			continue // Recheck admission after the unlocked executable probe.
+		}
+		if !nativeOwner {
+			if err := s.authAdmissionLocked(a); err != nil {
+				s.mu.Unlock()
+				return session.Run{}, err
+			}
+		}
+		ctx, cancel := s.turnContext(context.Background())
+		if s.prepareGit != nil && !compact && !nativeOwner {
+			var err error
+			req.gitLease, err = s.prepareGit(ctx, req.ChatID, req.CWD, req.GitAuth)
+			if err != nil {
+				cancel()
+				s.mu.Unlock()
+				return session.Run{}, err
+			}
+		}
+		req.GitAuth = nil
+		run := session.Run{ID: newID(), ChatID: req.ChatID, Agent: a.ID(), Status: "running", CreatedAt: nowISO()}
+		if req.Options.Voice != nil {
+			run.Kind = "voice"
+		}
+		if req.reply != nil {
+			message := session.Message{ID: newID(), ChatID: req.ChatID, Role: "user", Text: req.Message, CreatedAt: nowISO(), Attachments: req.Options.Attachments, Command: req.Options.Command}
+			if err := s.store.CommitInteractionReply(*req.reply, run.ID, message, &run); err != nil {
+				req.closeGit()
+				cancel()
+				s.mu.Unlock()
+				return session.Run{}, err
+			}
+		} else {
+			var message *session.Message
+			if !compact && req.Options.Voice == nil {
+				message = &session.Message{ID: newID(), ChatID: req.ChatID, Role: "user", Text: req.Message, CreatedAt: nowISO(), Attachments: req.Options.Attachments, Command: req.Options.Command}
+			}
+			if err := s.store.SaveTurnStart(run, message, req.RequestID, digest); err != nil {
+				req.closeGit()
+				cancel()
+				s.mu.Unlock()
+				return session.Run{}, err
+			}
+		}
+		s.active[req.ChatID] = s.activePath(req.CWD)
+		s.activeAgents[a.ID()]++
+		// Create + register the cancel func BEFORE returning the run id, so a client that
+		// cancels immediately after POST /turns can't race an unregistered run into a 404.
+		s.cancels[run.ID] = cancel
+		s.runClosed[run.ID] = make(chan struct{})
+		if req.Options.Voice != nil {
+			s.voices[run.ID] = agent.NewVoiceBridge(req.Options.Voice.ClientID)
+		}
+		// Same anti-race for user-in-loop: if the agent can take ingress (respond/input/interrupt),
+		// register its inbound channel + pending map now, so a client that answers an interaction
+		// immediately can't race an unallocated channel into a 404. A compaction takes no ingress, so
+		// it's allocated only for ordinary turns.
+		var inbound chan agent.Inbound
+		if !compact {
+			caps := a.Adapter.Capabilities()
+			if caps.Respond || caps.Input || caps.Interrupt || caps.SetModel || caps.SetPermissionMode {
+				inbound = make(chan agent.Inbound, 16)
+				s.inputs[run.ID] = inbound
+				s.pending[run.ID] = map[string]agent.Interaction{}
+			}
+			if caps.QueuedInput {
+				s.inputQueues[run.ID] = &runInputQueue{accepting: true}
+			}
+		}
+		s.inflight++ // paired with execRun's deferred runDone; unconditional launch below
+		s.mu.Unlock()
+
+		// Make this turn's process group visible to on-demand resource monitoring. The reporter rides on
+		// ctx (survives the driver's per-turn spawn) and Tracks the group leader pid the instant a spawn
+		// site reports it; execRun's teardown Untracks. No-op unless a client is watching /processes/stream.
+		ctx = proc.WithReporter(ctx, func(pid int) { s.mon.Track(run.ID, a.ID(), run.ChatID, pid) })
+
+		go s.execRun(ctx, cancel, a, run, req, inbound, compact)
+		return run, nil
+	}
+}
+
+// Busy reports whether a turn is currently running for a chat. The API uses it to 409 a delete or
+// fork while the chat is live (a rename is safe to proceed). Reads s.active under the same lock
+// StartTurn/execRun mutate it.
+func (s *Supervisor) Busy(chatID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, busy := s.active[chatID]
+	return busy
+}
+
+func (s *Supervisor) activePath(path string) string {
+	if path == "" {
+		path = s.cwd
+	}
+	if canonical, err := workspacepath.WorkingDirectory(path); err == nil {
+		return canonical
+	}
+	return path
+}
+
+// BusyPath prevents removing files underneath any live turn, even one started
+// through the legacy API without a saved project/chat relationship.
+func (s *Supervisor) BusyPath(path string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, cwd := range s.active {
+		if workspacepath.Overlaps(path, cwd) {
+			return true
+		}
+	}
+	return false
+}
+
+// runDone marks one supervised run goroutine finished and wakes any Wait once the last one exits.
+// Deferred first in execRun/execResolve so it runs after their terminal SaveRun and lock teardown —
+// the guarantee Wait relies on: when inflight hits zero, every persist has landed.
+func (s *Supervisor) runDone() {
+	s.mu.Lock()
+	s.inflight--
+	if s.inflight == 0 {
+		s.idle.Broadcast()
+	}
+	s.mu.Unlock()
+}
+
+// Wait blocks until every in-flight turn goroutine has fully finished — including its terminal
+// SaveRun — so a caller can Cancel all runs and then safely tear down the state directory without
+// racing a late persist. It does NOT itself cancel; a clean drain is Cancel-all followed by Wait.
+// Safe to call concurrently and repeatedly (a later turn that starts mid-drain is simply waited on
+// too, never a WaitGroup-style panic).
+func (s *Supervisor) Wait() {
+	s.mu.Lock()
+	for s.inflight > 0 {
+		s.idle.Wait()
+	}
+	s.mu.Unlock()
+}
+
+// Cancel stops an in-flight turn (cancels its context, killing the CLI). false = no turn
+// is currently running for that run id.
+func (s *Supervisor) Cancel(runID string) bool {
+	s.mu.Lock()
+	cancel := s.cancels[runID]
+	if cancel != nil {
+		if q := s.inputQueues[runID]; q != nil {
+			q.cancelled, q.accepting = true, false
+		}
+		cancel()
+	}
+	s.mu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	return true
+}
+
+// Respond delivers the user's answer to a mid-turn interaction (a permission approval, or an
+// AskUserQuestion / ExitPlanMode reply) into the running turn. It echoes the interaction's adapter
+// correlators — recorded in pending from Interaction.Meta (respondVia, toolUseId) — back on the
+// Inbound so the adapter frames the native wire response statelessly. false = no turn with an open
+// ingress channel for that run id (unknown, finished, or the agent takes no ingress).
+func (s *Supervisor) Respond(runID, interactionID, decision string, options []string, text string) bool {
+	return s.RespondInteraction(runID, agent.InteractionResponse{InteractionID: interactionID, Decision: decision, Options: options, Text: text}) == nil
+}
+
+// RespondInteraction accepts exactly one complete answer for a currently pending request.
+func (s *Supervisor) RespondInteraction(runID string, reply agent.InteractionResponse) error {
+	return s.RespondInteractionWithGitAuth(runID, reply, nil)
+}
+
+func (s *Supervisor) RespondInteractionWithGitAuth(runID string, reply agent.InteractionResponse, gitAuth *gitaccess.Auth) error {
+	if _, ok := s.store.MessageQuestion(runID, reply.InteractionID); ok {
+		return s.respondMessageQuestion(runID, reply, gitAuth)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	it, ok := s.pending[runID][reply.InteractionID]
+	if !ok || !it.NeedsResponse {
+		return ErrInteractionNotPending
+	}
+	reply, err := it.ValidateResponse(reply)
+	if err != nil {
+		return err
+	}
+	if response := s.serviceReplies[runID][reply.InteractionID]; response != nil {
+		response <- reply
+		delete(s.pending[runID], reply.InteractionID)
+		delete(s.serviceReplies[runID], reply.InteractionID)
+		return nil
+	}
+	if !s.trySend(runID, agent.Inbound{Kind: "response", InteractionID: reply.InteractionID,
+		Decision: reply.Decision, Options: reply.Options, Text: reply.Text, Answers: reply.Answers,
+		Meta: metaStrings(it.Meta), Interaction: &it}) {
+		return ErrInteractionNotPending
+	}
+	delete(s.pending[runID], reply.InteractionID)
+	return nil
+}
+
+var ErrInteractionNotPending = errors.New("interaction is no longer waiting for an answer")
+
+// SendInput queues a follow-up user message into a running turn (steer/append without cancelling).
+// false = no open ingress channel for that run id.
+func (s *Supervisor) SendInput(runID, text string) bool {
+	if run, ok := s.store.GetRun(runID); ok {
+		if a, ok := s.Resolve(run.Agent); ok && a.Adapter.Capabilities().QueuedInput {
+			_, err := s.SendInputChecked(runID, text, "", nil)
+			return err == nil
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.trySend(runID, agent.Inbound{Kind: "input", Text: text})
+}
+
+// Interrupt soft-stops a running turn (asks the agent to halt current work) WITHOUT the hard context
+// kill Cancel does — the turn stays active for a follow-up over /input. false = no open ingress
+// channel for that run id.
+func (s *Supervisor) Interrupt(runID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.trySend(runID, agent.Inbound{Kind: "interrupt"})
+}
+
+// SetModel switches the model of a live turn (empty model resets to the agent/CLI default). Only a
+// persistent transport reads this; on a one-shot turn the send succeeds into the buffer but the CLI
+// never consumes it (a documented best-effort no-op). false = no open ingress channel for that run id.
+func (s *Supervisor) SetModel(runID, model string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.trySend(runID, agent.Inbound{Kind: "set_model", Text: model})
+}
+
+// SetPermissionMode switches the permission mode of a live turn (mode is required). Same
+// persistent-only best-effort semantics as SetModel. false = no open ingress channel for that run id.
+func (s *Supervisor) SetPermissionMode(runID, mode string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.trySend(runID, agent.Inbound{Kind: "set_permission_mode", Text: mode})
+}
+
+// recordPending stores a respondable interaction so Respond can recover its correlators. No-op when
+// the run has no ingress channel (its pending map was never allocated).
+func (s *Supervisor) recordPending(runID string, it agent.Interaction) {
+	if it.IsMessageQuestion() {
+		return
+	} // durable message forms are owned by the session store
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p := s.pending[runID]; p != nil {
+		if it.NeedsResponse {
+			p[it.ID] = it
+		} else {
+			delete(p, it.ID)
+		}
+	}
+}
+
+// trySend does a NON-BLOCKING send of an Inbound to a run's ingress channel. It MUST be called with
+// s.mu held so the channel can't be closed by execRun's teardown mid-send (teardown deletes under the
+// same lock, so a deleted channel reads as nil here — never a send on a closed channel). false = the
+// run has no channel (unknown/finished) or its buffer is momentarily full.
+func (s *Supervisor) trySend(runID string, in agent.Inbound) bool {
+	ch := s.inputs[runID]
+	if ch == nil {
+		return false
+	}
+	select {
+	case ch <- in:
+		return true
+	default:
+		return false
+	}
+}
+
+// metaStrings flattens an Interaction.Meta (map[string]any) into the map[string]string an Inbound
+// carries, stringifying non-string scalars so adapter correlators survive the round-trip.
+func metaStrings(m map[string]any) map[string]string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		if str, ok := v.(string); ok {
+			out[k] = str
+		} else {
+			out[k] = fmt.Sprint(v)
+		}
+	}
+	return out
+}
+
+// execRun streams the turn (to the hub) on the daemon's own context so it survives app
+// disconnects, records the result, and notifies. Runs in its own goroutine with panic
+// isolation.
+func (s *Supervisor) execRun(ctx context.Context, cancel context.CancelFunc, a *Agent, run session.Run, req StartTurnInput, inbound chan agent.Inbound, compact bool) {
+	defer s.runDone() // registered first ⇒ runs last, after the terminal SaveRun and teardown
+	defer cancel()
+	defer req.closeGit()
+	release := sync.OnceFunc(func() {
+		s.mu.Lock()
+		delete(s.active, run.ChatID)
+		s.activeAgents[a.ID()]--
+		delete(s.cancels, run.ID)
+		// Tear down ingress under the same lock that Respond/SendInput/Interrupt send under: once the
+		// channel is out of s.inputs, a concurrent send sees nil and returns false, so we never send on
+		// (or close) a channel a caller still holds — no send-on-closed race. Closing wakes the driver's
+		// writer if it is still selecting (it has usually already exited via the turn's terminal result).
+		s.closeRunIngressLocked(run.ID)
+		if voice := s.voices[run.ID]; voice != nil {
+			voice.Close()
+			delete(s.voices, run.ID)
+		}
+		delete(s.inputQueues, run.ID)
+		delete(s.pending, run.ID)
+		if closed := s.runClosed[run.ID]; closed != nil {
+			close(closed)
+			delete(s.runClosed, run.ID)
+		}
+		s.mu.Unlock()
+		s.mon.Untrack(run.ID) // PID lifecycle == turn lifecycle
+	})
+	defer release()
+	// Panic isolation: an adapter panic must not crash the daemon and every other agent's
+	// in-flight turn. Record the run as errored and close its stream.
+	defer func() {
+		if rec := recover(); rec != nil {
+			run.Status = "error"
+			run.Error = fmt.Sprintf("agent crashed: %v", rec)
+			_, _, _ = s.advanceRunInputs(run.ID, false, run.Error)
+			run.EndedAt = nowISO()
+			s.saveReply(&run, "", nil, run.Error)
+			_ = s.store.SaveRun(run)
+			release()
+			s.hub.Publish(run.ID, agent.Event{Type: agent.EventError, Error: run.Error})
+			s.hub.Close(run.ID)
+			s.emit(a, run, agent.Errored, snippet(run.Error))
+		}
+	}()
+
+	// Watch the live event stream for an interaction that needs the user (a question or a plan to
+	// approve) and fire a "waiting for you" notification. Runs concurrently; exits when the run's
+	// hub topic closes at turn end. Separate from the terminal finished/error emits below.
+	go s.watchInteractions(a, run)
+
+	var terminal agent.Event
+	deferResult := !compact && a.Adapter.Capabilities().QueuedInput
+	turn := runner.Turn{
+		ChatID: run.ChatID, Message: req.Message, RunID: run.ID, CWD: req.CWD, Options: req.Options,
+		Environment: req.gitEnvironment(),
+		Inbound:     inbound,
+		DeferResult: deferResult,
+		BeforePublish: func(ev agent.Event) {
+			if ev.Type == agent.EventInput && ev.Input != nil && ev.Meta["nativeVoice"] != true {
+				if err := s.store.UpdateRunInput(run.ID, *ev.Input); err != nil {
+					log.Printf("save native input acknowledgement: %v", err)
+				}
+			}
+			if ev.Interaction != nil {
+				ev.Interaction.RunID = run.ID
+				if ev.Interaction.IsMessageQuestion() {
+					it, err := s.store.RecordMessageQuestion(run.ChatID, run.ID, *ev.Interaction)
+					if err != nil {
+						it.NeedsResponse = false
+						it.Detail = "Could not save this question. Please ask the agent to try again."
+						log.Printf("save question: %v", err)
+					}
+					*ev.Interaction = it
+				}
+				s.recordPending(run.ID, *ev.Interaction)
+			}
+			if ev.Type == agent.EventResult {
+				terminal = ev
+				s.mu.Lock()
+				delete(s.pending, run.ID)
+				s.mu.Unlock()
+			}
+		},
+	}
+	s.mu.Lock()
+	turn.Voice = s.voices[run.ID]
+	s.mu.Unlock()
+	var res agent.TurnResult
+	var parts []agent.Part
+	if compact {
+		// RunCompact drives the adapter's CompactModule through the same accumulation path. ok=false
+		// only if the adapter doesn't implement it — impossible here (the API route type-asserts the
+		// same interface before calling StartCompact), but stay honest if reached: surface an error.
+		var ok bool
+		res, parts, ok = a.Runner.RunCompact(ctx, turn)
+		if !ok {
+			res = agent.TurnResult{Text: "agent does not support compaction", IsError: true}
+		}
+	} else {
+		prepared, cleanup, err := s.prepareTurn(ctx, a, turn)
+		if err != nil {
+			res = agent.TurnResult{Text: err.Error(), IsError: true}
+		} else {
+			defer cleanup()
+			for {
+				terminal = agent.Event{}
+				var current []agent.Part
+				res, current = a.Runner.RunTurn(ctx, prepared)
+				parts = append(parts, current...)
+				next, ingress, inputErr := s.advanceRunInputs(run.ID, ctx.Err() == nil && !res.IsError && !res.Cancelled, res.Text)
+				if inputErr != nil {
+					res.IsError, res.Text = true, "Could not save the queued message: "+inputErr.Error()
+				}
+				if next == nil || inputErr != nil {
+					break
+				}
+				// A send at the completion boundary continues the same native
+				// conversation and stream, once, after its session was persisted.
+				s.hub.Publish(run.ID, agent.Event{Type: agent.EventContinuation, Result: terminal.Result,
+					Continuation: &agent.ContinuationInfo{Reason: "queued_input"}})
+				s.hub.Publish(run.ID, agent.Event{Type: agent.EventInput, Input: next})
+				parts = append(parts, agent.Part{Type: "user", ID: next.ID, Input: next, At: nowISO()})
+				prepared.Message, prepared.Inbound = next.Text, ingress
+				prepared.Options.Attachments = next.Attachments
+				prepared.Options.SessionID, prepared.Options.ContinueLatest, prepared.Options.ForkOnResume = "", false, false
+			}
+		}
+	}
+	// Setup failures never entered the runner, but may have admitted follow-ups.
+	if res.IsError {
+		_, _, _ = s.advanceRunInputs(run.ID, false, res.Text)
+	}
+	run.EndedAt = nowISO()
+	if deferResult {
+		// Exactly one public terminal event follows receipt settlement. The
+		// adapter still sees every native result to manage its own input queue.
+		info := terminal.Result
+		if info == nil {
+			info = &agent.ResultInfo{Text: res.Text, SessionID: res.SessionID}
+		}
+		copy := *info
+		copy.IsError, copy.Cancelled = res.IsError, ctx.Err() == context.Canceled || res.Cancelled
+		if res.IsError {
+			copy.Text = res.Text
+		}
+		s.hub.Publish(run.ID, agent.Event{Type: agent.EventResult, Result: &copy})
+	}
+
+	// A user-initiated cancel surfaces as context.Canceled (vs DeadlineExceeded for the
+	// turn timeout). Record it as cancelled, no error notification.
+	if ctx.Err() == context.Canceled || res.Cancelled {
+		run.Status = "cancelled"
+		if len(parts) > 0 {
+			s.saveReply(&run, "", parts, "")
+		}
+		_ = s.store.SaveRun(run)
+		release()
+		s.hub.Close(run.ID)
+		return
+	}
+	if res.IsError {
+		run.Status = "error"
+		run.Error = agent.FirstNonEmpty(res.Text, "The agent turn failed.")
+		s.saveReply(&run, "", parts, run.Error)
+		_ = s.store.SaveRun(run)
+		release()
+		s.emit(a, run, agent.Errored, snippet(res.Text)) // notify + publish result BEFORE closing
+		s.hub.Close(run.ID)
+		return
+	}
+
+	s.saveReply(&run, res.Text, parts, "")
+	run.Status = "done"
+	_ = s.store.SaveRun(run)
+	release()
+	// An unanswered async form is the action the user needs. Do not immediately
+	// cover its input-needed notification with a generic completion notification.
+	if !s.store.HasPendingMessageQuestion(run.ID) {
+		s.emit(a, run, agent.Finished, snippet(res.Text))
+	}
+	s.hub.Close(run.ID)
+}
+
+// execResolve is the resolve-mode supervisor loop. It owns the parent's hub topic — every child turn
+// streams onto it via RunTurn (RunID = parent.ID; the runner never closes the hub, so the topic stays
+// continuous across iterations) and only this function closes it, at the true end. Each iteration:
+// publishes a continuation boundary, runs one autonomous child turn (no ingress channel), persists the
+// child reply + child Run, then decides whether to stop (sentinel/error) or auto-continue (a
+// continuable stop, or a completion probe). Runs in its own goroutine with the same panic isolation
+// and lock/cancel teardown as execRun.
+func (s *Supervisor) execResolve(ctx context.Context, cancel context.CancelFunc, a *Agent, parent session.Run, req StartTurnInput, ro ResolveOptions) {
+	defer s.runDone() // registered first ⇒ runs last, after the terminal SaveRun and teardown
+	defer cancel()
+	defer req.closeGit()
+	release := sync.OnceFunc(func() {
+		s.mu.Lock()
+		delete(s.active, parent.ChatID)
+		s.activeAgents[a.ID()]--
+		delete(s.cancels, parent.ID)
+		s.mu.Unlock()
+		s.mon.Untrack(parent.ID) // PID lifecycle == resolve lifecycle
+	})
+	defer release()
+	// Panic isolation: an adapter panic mid-resolve records the parent as errored and closes the topic,
+	// rather than crashing the daemon and every other agent's in-flight turn.
+	defer func() {
+		if rec := recover(); rec != nil {
+			parent.Status = "error"
+			parent.Error = fmt.Sprintf("agent crashed: %v", rec)
+			parent.StopReason = "error"
+			parent.EndedAt = nowISO()
+			_ = s.store.SaveRun(parent)
+			release()
+			s.hub.Publish(parent.ID, agent.Event{Type: agent.EventError, Error: parent.Error})
+			s.hub.Close(parent.ID)
+			s.emit(a, parent, agent.Errored, snippet(parent.Error))
+		}
+	}()
+
+	go s.watchInteractions(a, parent)
+
+	var lastText, lastReplyID, stopReason string
+	iterations := 0
+	reason := "start" // why THIS iteration is running (carried on its continuation boundary)
+
+	for i := 0; i < ro.MaxIterations; i++ {
+		if ctx.Err() != nil { // parent cancelled or overall deadline hit before this iteration
+			break
+		}
+
+		child := session.Run{ID: newID(), ChatID: parent.ChatID, Agent: a.ID(), Status: "running", ParentID: parent.ID, CreatedAt: nowISO()}
+		_ = s.store.SaveRun(child)
+		s.hub.Publish(parent.ID, agent.Event{Type: agent.EventContinuation, Continuation: &agent.ContinuationInfo{
+			Iteration: i, Reason: reason, ChildRunID: child.ID,
+		}})
+
+		// First iteration carries the task + the unattended/completion contract; later iterations carry
+		// the continue nudge and drop first-turn-only heavy options (attachments/schema/explicit session
+		// controls) so each continue simply resumes the just-updated session.
+		msg := req.Message + resolveContract
+		opts := req.Options
+		if i > 0 {
+			msg = resolveContinue
+			opts.Attachments = nil
+			opts.OutputSchema = nil
+			opts.SystemPrompt = ""
+			opts.SessionID = ""
+			opts.ContinueLatest = false
+			opts.ForkOnResume = false
+		}
+
+		childCtx, childCancel := s.turnContext(ctx)
+		turn, cleanup, prepareErr := s.prepareTurn(childCtx, a, runner.Turn{
+			ChatID: parent.ChatID, Message: msg, RunID: parent.ID, CWD: req.CWD, Options: opts,
+			Environment: req.gitEnvironment(),
+			BeforePublish: func(ev agent.Event) {
+				if ev.Interaction != nil {
+					// Resolve is explicitly unattended and has no user ingress. Preserve
+					// structured output without advertising an answer button that cannot work.
+					ev.Interaction.NeedsResponse = false
+					s.recordPending(parent.ID, *ev.Interaction)
+				}
+			},
+		})
+		var res agent.TurnResult
+		var parts []agent.Part
+		if prepareErr != nil {
+			res = agent.TurnResult{Text: prepareErr.Error(), IsError: true}
+		} else {
+			res, parts = a.Runner.RunTurn(childCtx, turn)
+			cleanup()
+		}
+		childCancel()
+		iterations = i + 1
+		child.EndedAt = nowISO()
+
+		// A parent cancel surfaces as context.Canceled on the child; stop the whole resolve.
+		if ctx.Err() == context.Canceled || res.Cancelled {
+			child.Status = "cancelled"
+			if len(parts) > 0 {
+				s.saveReply(&child, "", parts, "")
+				lastReplyID = child.ReplyID
+			}
+			_ = s.store.SaveRun(child)
+			stopReason = "cancelled"
+			break
+		}
+
+		text := res.Text
+		done := strings.Contains(text, resolveSentinel)
+		if done {
+			text = strings.TrimSpace(strings.ReplaceAll(text, resolveSentinel, ""))
+		}
+
+		if res.IsError {
+			child.Status = "error"
+			child.Error = agent.FirstNonEmpty(res.Text, "The agent turn failed.")
+			s.saveReply(&child, "", parts, child.Error)
+			lastReplyID = child.ReplyID
+			_ = s.store.SaveRun(child)
+			if res.Text != "" {
+				lastText = res.Text
+			}
+			stopReason = "error"
+			break
+		}
+
+		// Persist a child reply only when it carries visible text — a pure-sentinel confirm adds no
+		// empty transcript message and keeps the prior substantive answer as the aggregate.
+		if text != "" {
+			reply := session.Message{ID: newID(), ChatID: parent.ChatID, Role: "assistant", Text: text, Parts: parts, CreatedAt: nowISO()}
+			_ = s.store.AddMessage(reply)
+			child.ReplyID = reply.ID
+			lastText = text
+			lastReplyID = reply.ID
+		}
+		child.Status = "done"
+		_ = s.store.SaveRun(child)
+
+		if done {
+			stopReason = "done"
+			break
+		}
+		// Not done: decide why the NEXT iteration runs. A continuable subtype means the agent hit its
+		// own budget (resume it); a clean settle with no sentinel means we probe for completion.
+		switch {
+		case res.Subtype == "error_max_turns":
+			reason = "max_turns"
+		case res.Subtype == "error_max_budget_usd":
+			reason = "max_budget"
+		default:
+			reason = "probe"
+		}
+	}
+
+	if stopReason == "" { // loop exhausted without done/error
+		if ctx.Err() == context.Canceled {
+			stopReason = "cancelled"
+		} else {
+			stopReason = "capped"
+		}
+	}
+
+	parent.EndedAt = nowISO()
+	parent.Iterations = iterations
+	parent.StopReason = stopReason
+	parent.ReplyID = lastReplyID
+
+	switch stopReason {
+	case "cancelled":
+		parent.Status = "cancelled"
+		_ = s.store.SaveRun(parent)
+		release()
+		s.hub.Close(parent.ID)
+		return
+	case "error":
+		parent.Status = "error"
+		parent.Error = lastText
+		_ = s.store.SaveRun(parent)
+		release()
+		s.hub.Publish(parent.ID, agent.Event{Type: agent.EventContinuation, Continuation: &agent.ContinuationInfo{
+			Iteration: iterations, StopReason: stopReason,
+		}})
+		s.emit(a, parent, agent.Errored, snippet(lastText)) // notify + trailing status BEFORE close
+		s.hub.Close(parent.ID)
+		return
+	}
+
+	// Done or capped: a final continuation boundary carries the stop reason, then the AGGREGATE result
+	// is published LAST (so wait() returns it, not a sub-turn's result), then the finished notification.
+	parent.Status = "done"
+	_ = s.store.SaveRun(parent)
+	release()
+	s.hub.Publish(parent.ID, agent.Event{Type: agent.EventContinuation, Continuation: &agent.ContinuationInfo{
+		Iteration: iterations, StopReason: stopReason,
+	}})
+	s.hub.Publish(parent.ID, agent.Event{Type: agent.EventResult, Result: &agent.ResultInfo{Text: lastText}})
+	s.emit(a, parent, agent.Finished, snippet(lastText))
+	s.hub.Close(parent.ID)
+}
+
+// emit builds a notification for a condition (using the agent's declared UX) and fans it to
+// the external webhook (or no-op if unconfigured) AND the local SSE stream.
+func (s *Supervisor) emit(a *Agent, run session.Run, cond agent.Condition, body string) {
+	s.mu.Lock()
+	preferences := s.notificationPreferences
+	s.mu.Unlock()
+	if preferences != nil {
+		muted, err := preferences.NotificationsMuted(run.ChatID)
+		if err != nil {
+			// A failed preference lookup must not bypass a saved mute. Only this
+			// notification is skipped; the run and transcript still finish normally.
+			log.Printf("notify: preferences chat=%s: %v", run.ChatID, err)
+			s.notificationOutcome(run, cond, "not sent: notification settings unavailable")
+			return
+		}
+		if muted {
+			s.notificationOutcome(run, cond, "muted")
+			return
+		}
+	}
+	n := s.buildNote(a, cond, body, run.ChatID, run.ID)
+	// Bounded so a slow webhook can't stall the turn's stream-close (emit runs just before Close).
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	err := s.notifier.Notify(ctx, n)
+	_ = s.notes.Notify(context.Background(), n)
+
+	summary := "sent ✓"
+	if err != nil {
+		summary = err.Error()
+	}
+	s.notificationOutcome(run, cond, summary)
+}
+
+// SetNotificationPreferences binds workspace-owned settings for the HTTP and Go SDK
+// hosts. Read under the supervisor lock; registry I/O never holds that lock.
+func (s *Supervisor) SetNotificationPreferences(preferences notify.Preferences) {
+	s.mu.Lock()
+	s.notificationPreferences = preferences
+	s.mu.Unlock()
+}
+
+func (s *Supervisor) notificationOutcome(run session.Run, cond agent.Condition, summary string) {
+	log.Printf("notify: cond=%s chat=%s → %s", cond, run.ChatID, summary)
+	// Surface the outcome on the run stream so the CLIENT can see whether the daemon's webhook POST
+	// succeeded (the POST is otherwise invisible to the client). Published while the hub topic is
+	// still open (emit is called just before Close); a no-op if already closed.
+	s.hub.Publish(run.ID, agent.Event{Type: agent.EventStatus, Meta: map[string]any{"notify": summary}})
+}
+
+// watchInteractions subscribes to a run's event stream and fires a "waiting for you"
+// notification once per distinct interaction that NeedsResponse (a question or a
+// plan to approve — not TodoWrite progress). Runs in its own goroutine; the range over the live
+// channel ends when execRun closes the hub topic at turn completion, so the goroutine cannot leak.
+// Updates and replay of the same request cannot duplicate its notification.
+func (s *Supervisor) watchInteractions(a *Agent, run session.Run) {
+	replay, ch, done, cancel := s.hub.Subscribe(run.ID)
+	defer cancel()
+	fired := map[string]bool{}
+	consider := func(ev agent.Event) {
+		if ev.Type != agent.EventInteraction || ev.Interaction == nil || !ev.Interaction.NeedsResponse {
+			return
+		}
+		if fired[ev.Interaction.ID] {
+			return
+		}
+		fired[ev.Interaction.ID] = true
+		cond := agent.WaitingFeedback
+		if ev.Interaction.Kind == "approval" {
+			cond = agent.WaitingApproval
+		}
+		body := ev.Interaction.Title
+		if len(ev.Interaction.Questions) > 0 {
+			body = ev.Interaction.Questions[0].Title
+		}
+		if body == "" {
+			body = ev.Interaction.Detail
+		}
+		s.emit(a, run, cond, snippet(body))
+	}
+	for _, ev := range replay {
+		consider(ev)
+	}
+	if done {
+		return
+	}
+	for ev := range ch {
+		consider(ev)
+	}
+}
+
+// buildNote fills a Notification from the agent's NotificationSpec — its per-condition title
+// + actions, falling back to a default title.
+func (s *Supervisor) buildNote(a *Agent, cond agent.Condition, body, chatID, runID string) agent.Notification {
+	title := agent.DefaultTitle(cond, a.Adapter.Meta().Name)
+	var actions []agent.Action
+	if ux, ok := a.Adapter.Notifications().For(cond); ok {
+		if ux.Title != "" {
+			title = ux.Title
+		}
+		actions = ux.Actions
+	}
+	return agent.Notification{
+		Condition: cond, Title: title, Body: body,
+		Agent: a.ID(), ChatID: chatID, RunID: runID, Actions: actions,
+	}
+}
+
+// ---- helpers ---------------------------------------------------------------
+
+func newID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
+}
+
+// Sub-second precision keeps consecutive turns distinct when history is reconciled.
+func nowISO() string { return time.Now().UTC().Format(time.RFC3339Nano) }
+
+// snippet is a short, rune-safe, single-line summary for a notification body.
+func snippet(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "Turn complete."
+	}
+	if r := []rune(s); len(r) > 100 {
+		return strings.TrimSpace(string(r[:100])) + "…"
+	}
+	return s
+}

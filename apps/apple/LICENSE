@@ -1,0 +1,105 @@
+Mindwire Apple Client Source-Available License
+Version 1.0 — October 15, 2026
+
+Copyright (c) 2026 Oblien LLC and the respective copyright holders.
+All rights reserved except as expressly granted below.
+
+1. Scope
+
+"Covered Material" means the original Mindwire Apple client source code,
+documentation, tests, build configuration, and original artwork in apps/apple,
+including modifications to that material, except third-party material or files
+expressly identified as having a different license. "Licensor" means Oblien LLC
+for material it owns or is authorized to license, and the applicable copyright
+holder for other Covered Material. This license applies only to Covered Material;
+it does not change the licenses of other repository components.
+
+An independently written client is not Covered Material merely because it uses
+the Apache-2.0 Mindwire runtime, SDKs, or their interfaces.
+
+This is a source-available license, not an open-source license.
+
+2. Limited permission
+
+Subject to these terms, Licensor grants you a worldwide, non-exclusive,
+royalty-free, non-transferable license to:
+
+  a. View, download, and inspect the Covered Material for learning, evaluation,
+     and security review.
+  b. Privately build, modify, and run it on devices you own or control for your
+     own personal use, including your own work. Keep copyright and license
+     notices in those copies.
+  c. Submit patches and contributions to the official Mindwire repository.
+  d. Make copies or repository forks to the extent independently permitted by
+     the source-hosting platform's terms. That permission does not authorize
+     publishing an application, binary distribution, or commercial product.
+
+3. No redistribution or commercial exploitation
+
+Except for the limited permissions in section 2 or Licensor's separate prior
+written permission, you may not:
+
+  a. Distribute, sublicense, sell, rent, or otherwise provide the Covered
+     Material, modified source, compiled builds, or substantial portions of it
+     to others.
+  b. Publish or distribute the client or a derivative application through the
+     App Store, TestFlight, another marketplace, a website, enterprise
+     distribution, or any other distribution channel, whether free or paid.
+  c. Rebrand, white-label, or incorporate the Covered Material into a product,
+     service, library, or client offered to others, including a hosted service.
+  d. Sell licenses to the Covered Material, sell access to a derivative client,
+     or otherwise commercially exploit the Covered Material as software.
+  e. Remove or obscure copyright, attribution, or license notices.
+
+These restrictions do not prevent using an authorized official Mindwire app or
+a permitted private build to perform your own work or business activities. This
+source-code license does not replace the terms governing official app downloads
+or paid services. No distribution, sublicensing, or patent rights are implied.
+
+4. Third-party material and independent rights
+
+Third-party code, dependencies, fonts, icons, logos, and other assets retain
+their own copyright, licenses, and notices. This license neither restricts
+rights granted by their owners nor grants rights that Licensor does not hold.
+See THIRD_PARTY_NOTICES.md and the notices accompanying those materials.
+
+No permission is granted to use Mindwire or Oblien names, logos, app icons, or
+other trademarks to identify, market, or imply endorsement of another product.
+Accurate attribution, descriptive references, and rights otherwise provided by
+law are unaffected.
+
+Nothing in this license limits applicable statutory rights, permissions granted
+independently by a third party, or rights already granted in copies previously
+received under another license. This license does not retroactively revoke any
+valid earlier license grant.
+
+5. Contributions
+
+You retain copyright in your contributions. By intentionally submitting a
+contribution for inclusion in the official Apple client, you represent that you
+have authority to grant the following rights and grant Oblien LLC a perpetual,
+worldwide, non-exclusive, irrevocable, royalty-free copyright license to use,
+modify, reproduce, distribute, sublicense, and commercially distribute your
+contribution, including in the official app and under this or other license
+terms. Merely reporting an issue or discussing an idea is not a submission of
+code under this clause. Third-party material must be identified with its notices
+and may only be submitted on terms that permit its intended inclusion.
+
+6. Termination
+
+The permissions granted by this license terminate automatically if you violate
+its terms. Termination does not affect independently granted third-party or
+statutory rights. Sections concerning ownership, restrictions, third-party
+rights, and disclaimers survive termination.
+
+7. Disclaimer
+
+TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE COVERED MATERIAL IS PROVIDED
+"AS IS", WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+THE COPYRIGHT HOLDERS AND LICENSORS SHALL NOT BE LIABLE FOR CLAIMS, DAMAGES,
+OR OTHER LIABILITY ARISING FROM THE COVERED MATERIAL OR ITS USE, WHETHER IN
+CONTRACT, TORT, OR OTHERWISE. MANDATORY RIGHTS AND LIABILITIES THAT CANNOT
+LAWFULLY BE EXCLUDED ARE UNAFFECTED.
+
+For permissions beyond this license, contact Oblien through https://oblien.com.

@@ -14,7 +14,7 @@ const links = [
   { href: "/pricing", label: "Pricing" },
   { href: "/changelog", label: "Changelog" },
   // Link to the MindWire integration skill users add to their agents.
-  { href: "https://github.com/oblien/mindwire", label: "Agent Skill" },
+  { href: "https://github.com/oblien/mindwire", label: "Source" },
 ];
 
 export default function Nav() {
@@ -90,7 +90,7 @@ export default function Nav() {
           </a>
           <ThemeToggle />
           <a href={consoleUrl} className="btn btn-primary ml-2 px-4 py-2 text-[13px]">
-            Start building
+            Open console
           </a>
         </nav>
       </div>

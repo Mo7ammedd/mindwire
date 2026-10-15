@@ -85,9 +85,9 @@ capability matrix above is generated from code rather than hand-written.
 ### 5.1 Shape (mirror of `internal/agent`)
 
 - **`sandbox.Provider` interface** + **`sandbox.All()` registry**, exactly paralleling `agent.All()`
-  and the adapter pattern in `daemon/internal/agent/`.
+  and the adapter pattern in `packages/daemon/internal/agent/`.
 - **`register.go` blank-imports** the built-in providers so the registry is populated at import —
-  same mechanism as the agent/notify factories wired in `daemon/cmd/daemon/main.go` and the SDK's
+  same mechanism as the agent/notify factories wired in `packages/daemon/cmd/daemon/main.go` and the SDK's
   `register.go`.
 - **Providers:**
   - `local` — the default; run the turn in the working directory exactly as today (zero behavior
@@ -142,7 +142,7 @@ can't:
 
 Adding a `sandbox` option is a **deliberate, additive wire change** to `openapi.json` / `types.ts`
 when Phase 2 lands — it must keep `TestOpenAPIRouteParity` and catalog freshness **green**, and keep
-the Go module path `github.com/oblien/mindwire/daemon`. For this doc (Phase 0) there is **no** wire
+the Go module path `github.com/oblien/mindwire/packages/daemon`. For this doc (Phase 0) there is **no** wire
 change. The SDK surface mirrors the agent option: a client-level default + per-turn override
 (`WithSandbox(...)`), with the provider capability matrix exposed the same way agent capabilities are.
 
@@ -210,7 +210,7 @@ is a solid v1 base. Planned changes when we build:
 
 The provider layer deliberately reuses the agent layer's proven patterns:
 
-- Capability matrix as declared truth: [capabilities.go](daemon/internal/agent/capabilities.go)
-- Unified vs custom (declared, never open passthrough): [schema.go](daemon/internal/agent/schema.go)
+- Capability matrix as declared truth: [capabilities.go](packages/daemon/internal/agent/capabilities.go)
+- Unified vs custom (declared, never open passthrough): [schema.go](packages/daemon/internal/agent/schema.go)
 - Secrets only via an auth module's env injection: `agent.AuthModule.EnvForRun()`
-- Blank-import registry population: `daemon/cmd/daemon/main.go`, SDK `register.go`
+- Blank-import registry population: `packages/daemon/cmd/daemon/main.go`, SDK `register.go`

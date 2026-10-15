@@ -1,0 +1,14 @@
+{
+  "id": "native-async-question:questions",
+  "kind": "form",
+  "title": "Your input",
+  "questions": [
+    { "id": "question-1", "title": "Which color?", "options": [{ "id": "Blue", "label": "Blue" }, { "id": "Green", "label": "Green" }], "allowOther": true },
+    { "id": "question-2", "title": "Which format?", "options": [{ "id": "Plain text", "label": "Plain text" }, { "id": "Markdown", "label": "Markdown" }], "allowOther": true }
+  ],
+  "blocking": false,
+  "needsResponse": true,
+  "responseMode": "message",
+  "runId": "run",
+  "meta": { "source": "codex", "asyncQuestion": true }
+}

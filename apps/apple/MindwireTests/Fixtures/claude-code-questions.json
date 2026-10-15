@@ -1,0 +1,52 @@
+{
+  "id": "toolu_014CbnpHscTNuCsmo2bGUyko",
+  "kind": "form",
+  "title": "Your input",
+  "questions": [
+    {
+      "id": "q1",
+      "title": "Which theme should the app use by default?",
+      "header": "Theme",
+      "options": [
+        {
+          "id": "Light",
+          "label": "Light",
+          "description": "A bright interface with dark text on light backgrounds. Familiar, high contrast in well-lit rooms, and the conventional default for most apps."
+        },
+        {
+          "id": "Dark",
+          "label": "Dark",
+          "description": "A dim interface with light text on dark backgrounds. Easier on the eyes at night and can save power on OLED displays."
+        }
+      ],
+      "allowOther": true
+    },
+    {
+      "id": "q2",
+      "title": "Which features should be included in the first release?",
+      "header": "Features",
+      "options": [
+        {
+          "id": "Search",
+          "label": "Search",
+          "description": "Full-text search across the user's content, with filters and keyboard-driven navigation."
+        },
+        {
+          "id": "Export",
+          "label": "Export",
+          "description": "Export data to common formats such as CSV, JSON, or PDF for use outside the app."
+        }
+      ],
+      "multiSelect": true,
+      "allowOther": true
+    }
+  ],
+  "needsResponse": true,
+  "meta": {
+    "input": "{\"questions\":[{\"question\":\"Which theme should the app use by default?\",\"header\":\"Theme\",\"options\":[{\"label\":\"Light\",\"description\":\"A bright interface with dark text on light backgrounds. Familiar, high contrast in well-lit rooms, and the conventional default for most apps.\"},{\"label\":\"Dark\",\"description\":\"A dim interface with light text on dark backgrounds. Easier on the eyes at night and can save power on OLED displays.\"}],\"multiSelect\":false},{\"question\":\"Which features should be included in the first release?\",\"header\":\"Features\",\"options\":[{\"label\":\"Search\",\"description\":\"Full-text search across the user's content, with filters and keyboard-driven navigation.\"},{\"label\":\"Export\",\"description\":\"Export data to common formats such as CSV, JSON, or PDF for use outside the app.\"}],\"multiSelect\":true}]}",
+    "requestId": "d8485930-8ff6-4b48-bf95-f1e659b5c8da",
+    "respondVia": "control",
+    "toolName": "AskUserQuestion",
+    "toolUseId": "toolu_014CbnpHscTNuCsmo2bGUyko"
+  }
+}

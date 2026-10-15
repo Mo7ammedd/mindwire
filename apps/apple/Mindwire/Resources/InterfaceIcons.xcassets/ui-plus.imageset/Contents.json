@@ -1,0 +1,16 @@
+{
+  "images" : [
+    {
+      "filename" : "plus 4-49-1658433844.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "template-rendering-intent" : "template"
+  }
+}

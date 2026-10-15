@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "53F4A704-1703-48F7-BC13-63F4692630CB.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Custom project order restored_0_107E3CAF-001D-4ECD-A8EE-37B3A16AF00B.png",
+        "timestamp" : 1791385846.301
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "7DB8980A-B83B-4CC1-83EF-91E5D04C38C1.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Projects reordered inline in the list_0_A715EDEC-C5CB-4753-82A9-7897D134F93E.png",
+        "timestamp" : 1791385840.575
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "08E73AAA-0FCF-4F55-B4DD-4C42F0E59090.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project cards before a direct hold and drag_0_D39CF0D5-1BD3-4C7B-8803-2C73FBF71A2F.png",
+        "timestamp" : 1791385834.13
+      }
+    ],
+    "testIdentifier" : "ProjectLibraryInteractionTests/testHoldingCardReordersDirectlyAndCustomOrderPersists()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/ProjectLibraryInteractionTests/testHoldingCardReordersDirectlyAndCustomOrderPersists"
+  }
+]

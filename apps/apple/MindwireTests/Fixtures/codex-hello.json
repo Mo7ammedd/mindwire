@@ -1,0 +1,58 @@
+{
+  "events": [
+    {
+      "type": "session",
+      "sessionId": "thread-hello"
+    },
+    {
+      "type": "text",
+      "itemId": "item_0",
+      "text": "Hi! What can I help you with?",
+      "delta": true
+    },
+    {
+      "type": "result",
+      "sessionId": "thread-hello",
+      "result": {
+        "text": "Hi! What can I help you with?",
+        "sessionId": "thread-hello",
+        "usage": {
+          "inputTokens": 10075,
+          "outputTokens": 105,
+          "cacheWriteTokens": 10072,
+          "reasoningTokens": 90
+        }
+      },
+      "meta": {
+        "cacheWriteInputTokens": 10072,
+        "cachedInputTokens": 0,
+        "inputTokens": 10075,
+        "outputTokens": 105,
+        "reasoningOutputTokens": 90
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "codex-0",
+      "chatId": "chat",
+      "role": "user",
+      "text": "hi",
+      "createdAt": "2026-09-13T20:08:19.100Z"
+    },
+    {
+      "id": "codex-1",
+      "chatId": "chat",
+      "role": "assistant",
+      "text": "Hi! What can I help you with?",
+      "createdAt": "2026-09-13T20:09:29.619Z",
+      "parts": [
+        {
+          "type": "text",
+          "id": "item_0",
+          "text": "Hi! What can I help you with?"
+        }
+      ]
+    }
+  ]
+}

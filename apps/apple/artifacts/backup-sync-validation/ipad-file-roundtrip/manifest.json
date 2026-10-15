@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "765018AF-BA6B-426E-ABCA-3BBAD5ABAE96.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Decrypted backup preview keeps existing connections_0_4EC721FD-6C6A-490C-BB82-5D53E18C029F.png",
+        "timestamp" : 1791379251.398
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "4D463C31-EB9E-4747-B4A3-69418C59DAEA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Native Files destination picker_0_127E0B00-A690-4A76-A550-830A12C5AB0F.png",
+        "timestamp" : 1791379218.023
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "FCAF82C0-4910-4DFE-9B01-B4079A2A73B9.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Password protected backup file_0_EFE59BAD-2E56-4F98-84BC-DEE9D58449A8.png",
+        "timestamp" : 1791379213.699
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testEncryptedBackupRoundTripThroughNativeFiles()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testEncryptedBackupRoundTripThroughNativeFiles"
+  }
+]

@@ -1,0 +1,48 @@
+{
+  "id": "0",
+  "kind": "form",
+  "title": "Your input",
+  "questions": [
+    {
+      "id": "theme",
+      "title": "Which theme should the fictional app use?",
+      "header": "Theme",
+      "options": [
+        {
+          "id": "Light",
+          "label": "Light",
+          "description": "Use light backgrounds with dark text."
+        },
+        {
+          "id": "Dark",
+          "label": "Dark",
+          "description": "Use dark backgrounds with light text."
+        }
+      ],
+      "allowOther": true
+    },
+    {
+      "id": "features",
+      "title": "Which feature should the fictional app include? This tool supports single selection; you can specify both in a free-text response.",
+      "header": "Features",
+      "options": [
+        {
+          "id": "Search",
+          "label": "Search",
+          "description": "Find content in the app using keywords."
+        },
+        {
+          "id": "Export",
+          "label": "Export",
+          "description": "Download app content for use elsewhere."
+        }
+      ],
+      "allowOther": true
+    }
+  ],
+  "blocking": true,
+  "needsResponse": true,
+  "meta": {
+    "method": "item/tool/requestUserInput"
+  }
+}

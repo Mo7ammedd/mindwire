@@ -18,7 +18,7 @@ import SandboxViz from "@/components/SandboxViz";
 export const metadata: Metadata = {
   title: "Workspace isolation — Mindwire",
   description:
-    "Choose where your coding agents run: on your own host, in a Docker workspace, or in an isolated Oblien cloud workspace.",
+    "Choose where your assistant works: on your own host, in a Docker workspace, or in an isolated Oblien cloud workspace.",
 };
 
 const heading = "text-neutral-950 dark:text-white font-semibold tracking-tight";

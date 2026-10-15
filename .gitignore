@@ -18,9 +18,9 @@ next-env.d.ts
 
 # ---- Go ----
 # Compiled binaries / build output
-/daemon/dist/
-/daemon/bin/
-/daemon/.dev/
+/packages/daemon/dist/
+/packages/daemon/bin/
+/packages/daemon/.dev/
 *.exe
 *.test
 *.out
@@ -73,4 +73,9 @@ tmp/
 
 # Preview/console local state — Better Auth SQLite (real accounts + password hashes). Never commit.
 apps/console/.data/
-daemon/catalog.json
+packages/daemon/catalog.json
+
+# Apple app captures and local tooling output.
+apps/apple/artifacts/app-store/
+apps/apple/artifacts/Mindwire-App-Store.zip
+**/__pycache__/

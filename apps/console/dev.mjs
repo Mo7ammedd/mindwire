@@ -44,7 +44,7 @@ execFileSync("bun", ["--filter=mindwire", "run", "build"], {
 // MINDWIRE_DEV_DAEMON_BIN; direct console development builds them here instead.
 function localDevDaemonBin() {
   if (process.env.MINDWIRE_DEV_DAEMON_BIN) return process.env.MINDWIRE_DEV_DAEMON_BIN;
-  const daemonDir = resolve(repoRoot, "daemon");
+  const daemonDir = resolve(repoRoot, "packages/daemon");
   const out = join(daemonDir, ".dev");
   mkdirSync(out, { recursive: true });
   for (const arch of ["amd64", "arm64"]) {

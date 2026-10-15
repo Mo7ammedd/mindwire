@@ -1,0 +1,2 @@
+Before scrolling: ["offset": -118, "framesOver50ms": 0, "firstDragMaxMicros": 0, "builds": 2, "visible": 18, "meanMicros": 394, "inset": 118, "frameSamples": 0, "bodies": 4, "firstDragSamples": 0, "maxFrameMicros": 0, "rows": 2216, "scans": 1]
+After scrolling: ["offset": 1701, "framesOver50ms": 0, "frameSamples": 846, "inset": 118, "scans": 221, "firstDragSamples": 24, "firstDragMaxMicros": 49009, "builds": 2, "rows": 2346, "visible": 25, "bodies": 4, "meanMicros": 88, "maxFrameMicros": 49009]

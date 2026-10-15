@@ -1,0 +1,86 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "123C37A2-8CA7-490B-B4A4-63B9E6A48D30.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "claude reopened file creation_0_DF6A1239-CDF9-4857-ADC4-9CAEF61C4FFD.png",
+        "timestamp" : 1791209329.213
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "DBE9C3EF-27F5-47B2-9072-28C9E9D01443.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "claude completed file creation_0_CCBF8D29-BAD2-4E1F-A2E0-164FFD9775A4.png",
+        "timestamp" : 1791209327.931
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "7A017398-6719-4092-9D35-DC6AE1C70373.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "claude live file creation_0_06F11EB7-BD94-45FE-AC11-A9DE6A0BB498.png",
+        "timestamp" : 1791209326.305
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "2C4BC6CA-FA72-4258-A37A-0537DF6D2CDB.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "codex reopened file creation_0_0B68256B-8521-4B09-8C09-81E618C38AAB.png",
+        "timestamp" : 1791209325.609
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "7B993D36-48F5-45CA-A627-BAA5A2BAC398.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "codex completed file creation_0_90D45DDC-2A7D-4FE7-80E7-89F3617FC4EC.png",
+        "timestamp" : 1791209324.405
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "BE195B70-F6DC-4988-AD91-648D5916B380.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "codex live file creation_0_6C0AABAE-9AD7-41AF-8DA7-F36AAE8E9DF7.png",
+        "timestamp" : 1791209322.49
+      }
+    ],
+    "testIdentifier" : "ChatLifecycleTests/testLiveFileCreationSurvivesSuccessfulHistoryHandoffAndReopen()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireTests/ChatLifecycleTests/testLiveFileCreationSurvivesSuccessfulHistoryHandoffAndReopen"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "DFFBB887-3202-40EF-B422-69788E536E0C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Arabic composer aligned to the right_0_9F089223-E4FC-48F7-B226-986AF7A3D137.png",
+        "timestamp" : 1791209345.954
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "F4B02777-DE41-4997-8F7B-E8D421558A03.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Arabic conversation, mixed prose and LTR code_0_66564418-35EB-470A-9E95-9B48893AB4D8.png",
+        "timestamp" : 1791209343.514
+      }
+    ],
+    "testIdentifier" : "ChatLanguageInteractionTests/testArabicChatAndComposerWithEnglishCode()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/ChatLanguageInteractionTests/testArabicChatAndComposerWithEnglishCode"
+  }
+]

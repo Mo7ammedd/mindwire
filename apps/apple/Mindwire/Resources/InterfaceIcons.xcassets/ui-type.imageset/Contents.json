@@ -1,0 +1,16 @@
+{
+  "images" : [
+    {
+      "filename" : "font typeface-35-1692683695.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "template-rendering-intent" : "template"
+  }
+}

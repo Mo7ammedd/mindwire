@@ -34,7 +34,7 @@ Bun workspaces (`packages/*`, `apps/*`); the Go daemon is a sibling module.
 
 ```
 mindwire/
-├── daemon/                 Go core → binary `mindwired`  (module github.com/oblien/mindwire/daemon)
+├── packages/daemon/                 Go core → binary `mindwired`  (module github.com/oblien/mindwire/packages/daemon)
 │   ├── cmd/daemon/         entry point; blank-imports each adapter; boots the orchestrator
 │   └── internal/
 │       ├── agent/          CORE contracts: Adapter, Capabilities, Event, AuthModule, schema, registry
@@ -48,7 +48,7 @@ mindwire/
 │   ├── src/                client.ts · http.ts · embedded.ts · run.ts · sse.ts · types.ts
 │   └── (downloads the SDK-matched runtime binary from GitHub Releases when embedding)
 │
-├── packages/docker/        production runtime + console images and self-host Compose
+├── deploy/docker/        production runtime + console images and self-host Compose
 │
 └── apps/web/               `@mindwire/web` — this site + docs (output: "export")
 ```
@@ -101,10 +101,10 @@ publishes matching multi-architecture `mindwire-runtime` and `mindwire-console` 
 
 ## Extending: add an agent
 
-1. Create `daemon/internal/agent/<name>/` implementing the `Adapter` interface (+ its `AuthModule`).
+1. Create `packages/daemon/internal/agent/<name>/` implementing the `Adapter` interface (+ its `AuthModule`).
 2. Declare its capabilities (protocol + what's native vs emulated) and a `RunStream` that maps the
    agent's output to unified events.
-3. Blank-import it in `daemon/cmd/daemon`. Nothing else changes — the orchestrator hosts it,
+3. Blank-import it in `packages/daemon/cmd/daemon`. Nothing else changes — the orchestrator hosts it,
    namespaces its creds/config, and routes `?agent=<id>` to it automatically.
 
 See [CONTRIBUTING](https://github.com/oblien/mindwire/blob/main/CONTRIBUTING.md) for the full

@@ -1,0 +1,305 @@
+{
+  "run": {
+    "id": "b6649e296c4190c6a1270938fe08eaf2",
+    "chatId": "chat",
+    "agent": "claude-code",
+    "status": "done",
+    "replyId": "3793d81753e5030f83f9d1037fdf8b75",
+    "createdAt": "2026-10-06T03:34:51.502415Z",
+    "endedAt": "2026-10-06T03:34:52.300167Z",
+    "inputs": [
+      {
+        "id": "follow-one",
+        "text": "MW_INPUT_FOLLOW_ONE",
+        "createdAt": "2026-10-06T03:34:52.235659Z",
+        "status": "accepted"
+      },
+      {
+        "id": "follow-two",
+        "text": "MW_INPUT_FOLLOW_TWO",
+        "attachments": [
+          {
+            "name": "pixel.png",
+            "mime": "image/png",
+            "data": "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAl0lEQVR4nOzQQQ0AMBSFsGX+RX8ZPTxQQPrfeAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QzQNcAAAA//+RcACBbptsdwAAAABJRU5ErkJggg=="
+          }
+        ],
+        "createdAt": "2026-10-06T03:34:52.249457Z",
+        "status": "accepted"
+      }
+    ],
+    "messageIds": [
+      "5ea74cbc37912550483fb9d0044a0b6a",
+      "input-follow-one",
+      "input-follow-two",
+      "3793d81753e5030f83f9d1037fdf8b75"
+    ]
+  },
+  "events": [
+    {
+      "type": "session",
+      "sequence": 1,
+      "sessionId": "39cd48aa-b9e1-41e1-b453-d1924562170d",
+      "meta": {
+        "model": "claude-sonnet-4-6",
+        "tools": [
+          "Task",
+          "AskUserQuestion",
+          "Bash",
+          "CronCreate",
+          "CronDelete",
+          "CronList",
+          "Edit",
+          "EnterPlanMode",
+          "EnterWorktree",
+          "ExitPlanMode",
+          "ExitWorktree",
+          "NotebookEdit",
+          "Read",
+          "ReportFindings",
+          "ScheduleWakeup",
+          "SendMessage",
+          "Skill",
+          "TaskCreate",
+          "TaskGet",
+          "TaskList",
+          "TaskOutput",
+          "TaskStop",
+          "TaskUpdate",
+          "WebFetch",
+          "WebSearch",
+          "Workflow",
+          "Write"
+        ]
+      },
+      "at": "2026-10-06T03:34:52.190477Z"
+    },
+    {
+      "type": "input",
+      "sequence": 2,
+      "input": {
+        "id": "follow-one",
+        "text": "MW_INPUT_FOLLOW_ONE",
+        "createdAt": "2026-10-06T03:34:52.235659Z",
+        "status": "queued"
+      },
+      "at": "2026-10-06T03:34:52.235979Z"
+    },
+    {
+      "type": "input",
+      "sequence": 3,
+      "input": {
+        "id": "follow-two",
+        "text": "MW_INPUT_FOLLOW_TWO",
+        "attachments": [
+          {
+            "name": "pixel.png",
+            "mime": "image/png",
+            "data": "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAl0lEQVR4nOzQQQ0AMBSFsGX+RX8ZPTxQQPrfeAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QzQNcAAAA//+RcACBbptsdwAAAABJRU5ErkJggg=="
+          }
+        ],
+        "createdAt": "2026-10-06T03:34:52.249457Z",
+        "status": "queued"
+      },
+      "at": "2026-10-06T03:34:52.249785Z"
+    },
+    {
+      "type": "text",
+      "sequence": 4,
+      "sessionId": "39cd48aa-b9e1-41e1-b453-d1924562170d",
+      "text": "Native queued answer 1",
+      "delta": true,
+      "at": "2026-10-06T03:34:52.266034Z"
+    },
+    {
+      "type": "continuation",
+      "sequence": 5,
+      "result": {
+        "text": "Native queued answer 1",
+        "sessionId": "39cd48aa-b9e1-41e1-b453-d1924562170d",
+        "costUsd": 0.00045000000000000004,
+        "usage": {
+          "inputTokens": 100,
+          "outputTokens": 10,
+          "totalTokens": 110
+        },
+        "numTurns": 1,
+        "durationMs": 103,
+        "subtype": "success"
+      },
+      "continuation": {
+        "iteration": 0,
+        "reason": "queued_input"
+      },
+      "at": "2026-10-06T03:34:52.275056Z"
+    },
+    {
+      "type": "input",
+      "sequence": 6,
+      "input": {
+        "id": "follow-one",
+        "text": "MW_INPUT_FOLLOW_ONE",
+        "createdAt": "2026-10-06T03:34:52.235659Z",
+        "status": "accepted"
+      },
+      "at": "2026-10-06T03:34:52.275812Z"
+    },
+    {
+      "type": "session",
+      "sequence": 7,
+      "sessionId": "39cd48aa-b9e1-41e1-b453-d1924562170d",
+      "meta": {
+        "model": "claude-sonnet-4-6",
+        "tools": [
+          "Task",
+          "AskUserQuestion",
+          "Bash",
+          "CronCreate",
+          "CronDelete",
+          "CronList",
+          "Edit",
+          "EnterPlanMode",
+          "EnterWorktree",
+          "ExitPlanMode",
+          "ExitWorktree",
+          "NotebookEdit",
+          "Read",
+          "ReportFindings",
+          "ScheduleWakeup",
+          "SendMessage",
+          "Skill",
+          "TaskCreate",
+          "TaskGet",
+          "TaskList",
+          "TaskOutput",
+          "TaskStop",
+          "TaskUpdate",
+          "WebFetch",
+          "WebSearch",
+          "Workflow",
+          "Write"
+        ]
+      },
+      "at": "2026-10-06T03:34:52.286802Z"
+    },
+    {
+      "type": "input",
+      "sequence": 8,
+      "input": {
+        "id": "follow-two",
+        "text": "MW_INPUT_FOLLOW_TWO",
+        "attachments": [
+          {
+            "name": "pixel.png",
+            "mime": "image/png",
+            "data": "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAl0lEQVR4nOzQQQ0AMBSFsGX+RX8ZPTxQQPrfeAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QzQNcAAAA//+RcACBbptsdwAAAABJRU5ErkJggg=="
+          }
+        ],
+        "createdAt": "2026-10-06T03:34:52.249457Z",
+        "status": "accepted"
+      },
+      "at": "2026-10-06T03:34:52.289941Z"
+    },
+    {
+      "type": "text",
+      "sequence": 9,
+      "sessionId": "39cd48aa-b9e1-41e1-b453-d1924562170d",
+      "text": "Native queued answer 2",
+      "delta": true,
+      "at": "2026-10-06T03:34:52.290252Z"
+    },
+    {
+      "type": "result",
+      "sequence": 10,
+      "result": {
+        "text": "Native queued answer 2",
+        "sessionId": "39cd48aa-b9e1-41e1-b453-d1924562170d",
+        "costUsd": 0.0009000000000000001,
+        "usage": {
+          "inputTokens": 100,
+          "outputTokens": 10,
+          "totalTokens": 110
+        },
+        "numTurns": 1,
+        "durationMs": 15,
+        "subtype": "success"
+      },
+      "at": "2026-10-06T03:34:52.300169Z"
+    },
+    {
+      "type": "status",
+      "sequence": 11,
+      "meta": {
+        "notify": "sent \u2713"
+      },
+      "at": "2026-10-06T03:34:52.300666Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "e6f32b33-b0da-4a1a-989f-e19446455a62",
+      "chatId": "chat",
+      "role": "user",
+      "text": "MW_INPUT_INITIAL",
+      "createdAt": "2026-10-06T03:34:52.184Z",
+      "parts": [
+        {
+          "type": "text",
+          "text": "MW_INPUT_INITIAL"
+        }
+      ],
+      "canFork": true
+    },
+    {
+      "id": "1804fad6-570f-447a-8da6-fd82547f7378",
+      "chatId": "chat",
+      "role": "assistant",
+      "text": "Native queued answer 1",
+      "createdAt": "2026-10-06T03:34:52.266Z",
+      "parts": [
+        {
+          "type": "text",
+          "text": "Native queued answer 1"
+        }
+      ]
+    },
+    {
+      "id": "d60ec2b6-5a78-439b-9b82-c3a40a397ec8",
+      "chatId": "chat",
+      "role": "user",
+      "text": "MW_INPUT_FOLLOW_ONEMW_INPUT_FOLLOW_TWO",
+      "createdAt": "2026-10-06T03:34:52.285Z",
+      "parts": [
+        {
+          "type": "text",
+          "text": "MW_INPUT_FOLLOW_ONE"
+        },
+        {
+          "type": "text",
+          "text": "MW_INPUT_FOLLOW_TWO"
+        }
+      ],
+      "attachments": [
+        {
+          "name": "pixel.png",
+          "mime": "image/png",
+          "data": "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAl0lEQVR4nOzQQQ0AMBSFsGX+RX8ZPTxQQPrfeAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QBaAHdAHoAV0AekAXgB7QzQNcAAAA//+RcACBbptsdwAAAABJRU5ErkJggg=="
+        }
+      ],
+      "canFork": true
+    },
+    {
+      "id": "2c206c91-85de-4e9c-8038-5b5a41d3c99c",
+      "chatId": "chat",
+      "role": "assistant",
+      "text": "Native queued answer 2",
+      "createdAt": "2026-10-06T03:34:52.290Z",
+      "parts": [
+        {
+          "type": "text",
+          "text": "Native queued answer 2"
+        }
+      ]
+    }
+  ]
+}

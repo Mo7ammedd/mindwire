@@ -1,0 +1,71 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "E49334AC-FBF7-4B1E-9900-3096E26D3CD2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Independent older paging during latest refresh_0_C02D9CB8-C9A6-4A02-BEDF-622C9CD5B320.png",
+        "timestamp" : 1791382099.808
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "88AEA27F-7C80-44C2-A5BC-7CAD6E1F1000.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Older-message progress inside the transcript_0_92F5E748-E99E-45C3-959A-EF13E44A4648.png",
+        "timestamp" : 1791382085.368
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testOlderPagingUsesTheScrollerAndContinuesDuringLatestRefresh()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testOlderPagingUsesTheScrollerAndContinuesDuringLatestRefresh"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "59376B6F-B677-46A8-A2E4-E9EE804B8E5F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Optional Oblien notification connection — light_0_9DBA9792-4732-400B-867A-2A6B302CBE62.png",
+        "timestamp" : 1791382129.004
+      }
+    ],
+    "testIdentifier" : "NotificationOnboardingInteractionTests/testFreshInstallCanDeferTheConnectionWithoutBlockingProjects()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/NotificationOnboardingInteractionTests/testFreshInstallCanDeferTheConnectionWithoutBlockingProjects"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "B00BC785-53CD-49D2-96D2-6277452F6A24.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Optional Oblien notification connection — dark_0_C47F4570-428F-4D03-B4E8-296D54825FC5.png",
+        "timestamp" : 1791382138.368
+      }
+    ],
+    "testIdentifier" : "NotificationOnboardingInteractionTests/testFreshInstallExplainsNotificationsAndCanBeDismissed()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/NotificationOnboardingInteractionTests/testFreshInstallExplainsNotificationsAndCanBeDismissed"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "E6B1031D-9144-425B-8E8A-5DED886255A4",
+        "deviceName" : "Mindwire Store iPad",
+        "exportedFileName" : "28084814-4C54-4DC6-B3A7-8F34F472ABA5.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Notification permission allowed, account connection required_0_797E869B-E19F-4E9C-961F-93C1C5404F34.png",
+        "timestamp" : 1791382147.668
+      }
+    ],
+    "testIdentifier" : "NotificationOnboardingInteractionTests/testSettingsDistinguishIOSPermissionFromSignedOutDelivery()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/NotificationOnboardingInteractionTests/testSettingsDistinguishIOSPermissionFromSignedOutDelivery"
+  }
+]

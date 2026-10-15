@@ -32,8 +32,8 @@ const steps = [
     id: "chat",
     label: "Chat",
     icon: MessageSquare,
-    title: "Pick up the conversation.",
-    body: "Continue native Codex and Claude chats, or start something new. Your agent keeps working in the project you already know.",
+    title: "Give your assistant a task.",
+    body: "Organize files, prepare a report, process data, or work on code. Start with the result you want and the files your agent needs.",
     detail: "Your agents. Your real context.",
   },
   {
@@ -120,18 +120,18 @@ function Scene({ step }: { step: Step }) {
       <>
         <Reveal className={styles.message}>
           <span>You</span>
-          <p>Add a dark mode toggle. Keep it simple.</p>
+          <p>Read this week’s CSV files and write a summary in report.md.</p>
         </Reveal>
         <Reveal order={2} className={styles.response}>
           <AgentLogo agent="codex" size={22} />
           <div>
             <strong>Codex</strong>
-            <p>I’ll use your existing theme and remember your preference.</p>
+            <p>I’ll inspect the files, compare the totals, and write the summary.</p>
           </div>
         </Reveal>
         <Reveal order={4} className={styles.fileStack}>
-          <FileRow name="theme.tsx" added={18} removed={4} />
-          <FileRow name="settings.tsx" added={9} removed={2} />
+          <FileRow name="report.md" added={28} removed={0} />
+          <FileRow name="summarize.py" added={19} removed={0} />
         </Reveal>
       </>
     );

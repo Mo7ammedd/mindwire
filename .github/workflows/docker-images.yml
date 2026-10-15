@@ -97,19 +97,19 @@ jobs:
       matrix:
         include:
           - image: mindwire-runtime
-            dockerfile: packages/docker/runtime.Dockerfile
+            dockerfile: deploy/docker/runtime.Dockerfile
             platform: amd64
             runner: ubuntu-24.04
           - image: mindwire-runtime
-            dockerfile: packages/docker/runtime.Dockerfile
+            dockerfile: deploy/docker/runtime.Dockerfile
             platform: arm64
             runner: ubuntu-24.04-arm
           - image: mindwire-console
-            dockerfile: packages/docker/console.Dockerfile
+            dockerfile: deploy/docker/console.Dockerfile
             platform: amd64
             runner: ubuntu-24.04
           - image: mindwire-console
-            dockerfile: packages/docker/console.Dockerfile
+            dockerfile: deploy/docker/console.Dockerfile
             platform: arm64
             runner: ubuntu-24.04-arm
     steps:

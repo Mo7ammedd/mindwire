@@ -1,0 +1,68 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008101-000671300208001E",
+        "deviceName" : "Abdelhamed’s iPhone",
+        "exportedFileName" : "C40E7781-0ECE-442D-BB0E-879D6A9A2159.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project grid preference restored in dark appearance_0_C5749C5E-28F7-4D2E-ACA9-392F4F2170AD.png",
+        "timestamp" : 1791385747.98
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008101-000671300208001E",
+        "deviceName" : "Abdelhamed’s iPhone",
+        "exportedFileName" : "A2462E44-D94E-43F7-8BB4-C0EBA19BB7A0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project grid reordered inline_0_E6854334-8E88-4CEA-89F7-8789DEF9AC54.png",
+        "timestamp" : 1791385725.764
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008101-000671300208001E",
+        "deviceName" : "Abdelhamed’s iPhone",
+        "exportedFileName" : "7CB8AE09-9551-4356-84CA-BBDBFA44E2B0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project grid in light appearance_0_D98F73DD-2603-4701-B925-C64A59B3B9FB.png",
+        "timestamp" : 1791385720.162
+      }
+    ],
+    "testIdentifier" : "ProjectLibraryInteractionTests/testGridLayoutUsesNativeDragAndKeepsOrderWhenSwitchingToList()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/ProjectLibraryInteractionTests/testGridLayoutUsesNativeDragAndKeepsOrderWhenSwitchingToList"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008101-000671300208001E",
+        "deviceName" : "Abdelhamed’s iPhone",
+        "exportedFileName" : "FD5DED01-95F5-40D2-AD70-AC1E932AFEA7.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Custom project order restored_0_2F27CCBA-0684-4BC3-BAE5-41F6358F1CD2.png",
+        "timestamp" : 1791385767.311
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008101-000671300208001E",
+        "deviceName" : "Abdelhamed’s iPhone",
+        "exportedFileName" : "7DF9CE11-1156-4648-86CD-467AD460D454.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Projects reordered inline in the list_0_030B1AEE-3FEB-4D2A-91C7-953AF853AA47.png",
+        "timestamp" : 1791385762.091
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008101-000671300208001E",
+        "deviceName" : "Abdelhamed’s iPhone",
+        "exportedFileName" : "32604D07-25E4-4351-9791-97465BE5FED2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project cards before a direct hold and drag_0_22CF84BE-42C1-44D1-AA01-30FFA7B6A416.png",
+        "timestamp" : 1791385755.401
+      }
+    ],
+    "testIdentifier" : "ProjectLibraryInteractionTests/testHoldingCardReordersDirectlyAndCustomOrderPersists()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/ProjectLibraryInteractionTests/testHoldingCardReordersDirectlyAndCustomOrderPersists"
+  }
+]

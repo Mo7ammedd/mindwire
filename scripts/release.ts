@@ -28,7 +28,7 @@
  *   2. Refuse if not on main (override with --force-branch)
  *   3. Refuse if HEAD is behind origin/main (you'd push an old commit)
  *   4. Compute the next version from packages/sdk/package.json (the ONE published version)
- *   5. Write it into packages/sdk/package.json and daemon/internal/agent/agent.go
+ *   5. Write it into packages/sdk/package.json and packages/daemon/internal/agent/agent.go
  *   6. Commit "Bump to vX.Y.Z"
  *   7. Push the bump commit
  *   8. Tag vX.Y.Z and push the tag
@@ -52,7 +52,7 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 // they are deliberately NOT synced — only this file drives npm and the git tag.
 const SDK_PKG = join(ROOT, "packages/sdk/package.json");
 // The daemon health version is a Go const and is always synchronized to the SDK release version.
-const AGENT_GO = join(ROOT, "daemon/internal/agent/agent.go");
+const AGENT_GO = join(ROOT, "packages/daemon/internal/agent/agent.go");
 
 /* ─── CLI parsing ──────────────────────────────────────────────────── */
 
@@ -140,7 +140,7 @@ if (dryRun) {
     log(`[dry-run] would tag the current version (no bump) and push ${tag}`);
   } else {
     log(`[dry-run] would update packages/sdk/package.json → ${next}`);
-    log(`[dry-run] would update daemon/internal/agent/agent.go → ${next}`);
+    log(`[dry-run] would update packages/daemon/internal/agent/agent.go → ${next}`);
     log(`[dry-run] would commit + push, then tag + push ${tag}`);
   }
   if (force && tagExists(tag)) {
@@ -173,7 +173,7 @@ if (bump.kind !== "current" || daemonVersion !== next) {
   writeVersion(SDK_PKG, next);
   writeDaemonVersion(next);
   log(`✓ updated packages/sdk/package.json → ${next}`);
-  log(`✓ updated daemon/internal/agent/agent.go → ${next}`);
+  log(`✓ updated packages/daemon/internal/agent/agent.go → ${next}`);
   git("add", SDK_PKG, AGENT_GO);
   // Only commit if something actually changed. Re-releasing the version you're already on writes no diff,
   // and `git commit` would abort with "nothing to commit" and kill the release — ship as-is instead.

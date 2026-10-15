@@ -49,8 +49,8 @@ export default function Footer() {
             <OblienLogo size={28} /> MindWire
           </div>
           <p className="mt-4 max-w-[30ch] text-sm leading-relaxed text-neutral-500">
-            Your coding agents, anywhere. An iPhone app built on an open-source,
-            self-hostable runtime. Apache&nbsp;2.0.
+            Your personal assistant, on your terms. Everyday tasks and coding,
+            connected through one open, self-hostable ecosystem.
           </p>
           <a
             href="https://oblien.com"
@@ -106,7 +106,7 @@ export default function Footer() {
 
       <div className="border-t border-neutral-200 dark:border-neutral-800">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-6 text-xs text-neutral-400 dark:text-neutral-600 sm:px-6">
-          <span>© 2026 Oblien LLC · Apache-2.0</span>
+          <span>© 2026 Oblien LLC · Open-source runtime</span>
           <div className="flex items-center gap-5">
             <a href="https://oblien.com" rel="noopener" className="transition-colors hover:text-neutral-950 dark:hover:text-white">
               Oblien ↗

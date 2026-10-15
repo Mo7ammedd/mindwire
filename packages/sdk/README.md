@@ -38,7 +38,7 @@ If macOS rejects the login, the CLI lets you retry the password or check Screen
 Sharing permissions. Canceling or entering a wrong password keeps the existing
 desktop setup and active connections unchanged.
 Opening a workspace or checking status does not enable screen access. See the
-[desktop contract](../../daemon/DESKTOP.md#personal-mac-desktop) for platform support,
+[desktop contract](../../packages/daemon/DESKTOP.md#personal-mac-desktop) for platform support,
 permissions and the shared input protocol. Existing installations need a release
 advertising `health().localDesktopVersion >= 1`.
 
@@ -112,7 +112,7 @@ and native transcripts. Use `deleteChat()` for an explicit transcript purge.
 
 Check `health().workspaceMetadataVersion` before enabling registry features on an
 older daemon. `workspace.import()` imports legacy IDs once; existing records and
-deletion markers win. See the [registry contract](../../daemon/WORKSPACES.md) for
+deletion markers win. See the [registry contract](../../packages/daemon/WORKSPACES.md) for
 migration and recovery. The embedded Go SDK exposes the same operations through
 `client.Workspace`, using the same SQLite implementation.
 

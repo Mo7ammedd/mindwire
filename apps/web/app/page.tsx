@@ -32,13 +32,23 @@ import { consoleUrl } from "@/lib/console-url";
 import { downloadUrl, githubUrl, productAgents } from "@/lib/product";
 
 export const metadata: Metadata = {
-  title: "Mindwire — Your coding agents, anywhere",
+  title: "Mindwire — Your personal assistant, on your terms",
   description:
-    "Take Codex, Claude Code, and your projects with you. Chat, review code, use your terminal, and switch workspaces from your iPhone. Built on open-source Mindwire.",
+    "A personal assistant powered by Codex, Claude Code, and OpenCode. Work with files, automate tasks, and build software on your computer, server, or cloud workspace.",
   alternates: { canonical: "/" },
 };
 
 const questions = [
+  {
+    question: "Is Mindwire only for coding?",
+    answer:
+      "Coding is one use case. A configured harness can also read and organize files, run scripts, process data, and prepare documents. Available actions depend on its tools and the access you grant. Mindwire is building a simpler personal-assistant experience on that foundation.",
+  },
+  {
+    question: "Which Apple apps are available?",
+    answer:
+      "The native client currently targets iPhone and iPad. Its source is available for inspection and private personal builds; publishing a derivative app requires written permission. A native Mac app and support for other Apple platforms, including visionOS, are planned and are not available yet. Check Get started for the current download status.",
+  },
   {
     question: "Does my phone need to be on the same Wi-Fi?",
     answer:
@@ -62,7 +72,7 @@ const questions = [
   {
     question: "What is open source?",
     answer:
-      "Mindwire’s runtime, TypeScript and Go SDKs, and web Console are Apache-2.0 software. You can run your own infrastructure, inspect the connection protocol, self-host the address directory, and build on the same APIs used by the app.",
+      "The runtime, SDKs, website, and web Console are open source under Apache-2.0. The Apple client is source-available: inspection and private personal builds are allowed, while redistribution and publishing derivative apps require written permission. Diagnostic tools retain AGPL-3.0. Each component includes its license and third-party notices.",
   },
 ];
 
@@ -77,17 +87,17 @@ export default function Home() {
           <Corners />
           <div className={styles.heroCopy}>
             <span className={styles.kicker}>
-              <Smartphone size={15} /> Your coding agents, on iPhone
+              <Smartphone size={15} /> Your personal assistant, connected
             </span>
             <h1 id="hero-title" className={styles.heroTitle}>
-              Keep building.
+              Get things done.
               <br />
-              <span>From anywhere.</span>
+              <span>On your terms.</span>
             </h1>
             <p className={styles.heroDescription}>
-              Your favorite agents. Your real projects. Pick up the
-              conversation, review the code, and keep things moving—right from
-              your phone.
+              Turn a folder of files into a report. Automate a repetitive task.
+              Build something new. Put your agents to work on your computer,
+              and stay connected from your phone.
             </p>
             <div className={styles.actions}>
               <Link href={downloadUrl} className={styles.primaryButton}>
@@ -99,7 +109,7 @@ export default function Home() {
             </div>
             <a href={githubUrl} className={styles.openSourceNote}>
               <Code2 size={15} />
-              <span>Built in the open. Yours to make your own.</span>
+              <span>Open-source runtime. Source-available Apple app.</span>
               <ArrowUpRight size={13} />
             </a>
             <div className={styles.heroFootnote}>
@@ -110,7 +120,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={styles.wrap} aria-label="Supported coding agents">
+      <section className={styles.wrap} aria-label="Supported agent harnesses">
         <div className={styles.agentStrip}>
           <Corners />
           {productAgents.map((agent) => (
@@ -129,16 +139,16 @@ export default function Home() {
       >
         <div id="how" className={styles.sectionHeader}>
           <div>
-            <span className={styles.kicker}>Made for the moments between</span>
+            <span className={styles.kicker}>Everyday work. Developer depth.</span>
             <h2 id="features-title" className={styles.sectionTitle}>
-              The whole workflow.
+              From the first request.
               <br />
-              <span>In one hand.</span>
+              <span>To work you can use.</span>
             </h2>
           </div>
           <p>
-            Catch a thought on the train. Unblock an agent over coffee. Review
-            that last change before you get home.
+            Describe the result you need, follow the work, and answer questions
+            along the way. Keep the tools for coding close when you need them.
           </p>
         </div>
         <WorkflowShowcase />
@@ -170,9 +180,9 @@ export default function Home() {
               <span>One familiar app.</span>
             </h2>
             <p className={styles.sectionDescription}>
-              Mindwire runs alongside your agents, on the machine where your
-              code lives. Pick up their conversations, tools, and approvals from
-              your iPhone.
+              Mindwire connects Codex, Claude Code, Grok Build, and OpenCode
+              through one app. Work with the files and tools on your machine,
+              using the capabilities of the harness you choose.
             </p>
             <a href="#workspaces" className={styles.textButton}>
               Choose where you work <ArrowRight size={16} />
@@ -203,7 +213,7 @@ export default function Home() {
               when you’re ready.
             </p>
             <p>
-              Your code, local changes, and supported agent history travel
+              Your project files, local changes, and supported agent history travel
               together. Both project copies stay yours, with conflicts checked
               before changes are applied.
             </p>
@@ -379,7 +389,7 @@ export default function Home() {
         <div className={styles.setupSection}>
           <Corners />
           <div>
-            <span className={styles.kicker}>From your desk to your pocket</span>
+            <span className={styles.kicker}>Connect the computer doing the work</span>
             <h2 id="setup-title" className={styles.sectionTitle}>
               A QR code.
               <br />
@@ -405,7 +415,7 @@ export default function Home() {
               </span>
               <ChevronRight size={13} />
               <span>
-                <Code2 size={18} /> Build
+                <Code2 size={18} /> Start a task
               </span>
             </div>
             <p className={styles.setupNote}>
@@ -424,7 +434,7 @@ export default function Home() {
           <Corners />
           <div className={styles.sourceCopy}>
             <span className={styles.kicker}>
-              <Code2 size={15} /> Open source · Apache-2.0
+              <Code2 size={15} /> Open-source runtime · Self-hostable
             </span>
             <h2 id="source-title" className={styles.sectionTitle}>
               An app for you.
@@ -432,8 +442,10 @@ export default function Home() {
               <span>A foundation for everyone.</span>
             </h2>
             <p>
-              The runtime, SDKs, and web Console are open source. Inspect the
-              code, host it yourself, or build something entirely your own.
+              Build on the Apache-2.0 runtime, SDKs, and web Console, and host
+              them on your own infrastructure. The Apple client’s source is
+              available for inspection and private personal builds under its
+              separate license.
             </p>
             <div className={styles.actions}>
               <a href={githubUrl} className={styles.primaryButton}>

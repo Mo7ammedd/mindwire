@@ -5,7 +5,7 @@
 // carries no history: without it the panel would blank the instant a turn ends (the next keep-alive
 // frame is empty). The history lets the page draw a chart that survives a turn ending, so "nothing is
 // running right now" reads as a settled curve rather than an empty box. Same by-hand SSE parsing as
-// `useNotifyFeed`. The subscription opens only while `enabled` and re-opens when the daemon/agent
+// `useNotifyFeed`. The subscription opens only while `enabled` and re-opens when the packages/daemon/agent
 // changes; unmount / disable aborts it, and that abort is what tells the daemon to STOP sampling —
 // nothing is measured unless this page is open.
 import { useEffect, useRef, useState } from "react";

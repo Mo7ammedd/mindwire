@@ -1,6 +1,6 @@
-// Generates the Go SDK reference from daemon/sdk (package `mindwire`) into content/docs/reference/sdk-go/
+// Generates the Go SDK reference from packages/daemon/sdk (package `mindwire`) into content/docs/reference/sdk-go/
 // index.mdx by running gomarkdoc (pinned, via `go run`) in `plain` format — which avoids the GitHub HTML
-// (<details>, file-header comment) that MDX can't parse. daemon/sdk is one package, so it's one page.
+// (<details>, file-header comment) that MDX can't parse. packages/daemon/sdk is one package, so it's one page.
 // Needs a Go toolchain (CI already has it for the daemon); skips gracefully if `go` is unavailable.
 // Output is gitignored and regenerated at build time. Read-only over the SDK — no wire changes.
 import { execFileSync } from "node:child_process";
@@ -32,12 +32,12 @@ function fenceTabIndentedCode(md) {
 }
 
 const GOMARKDOC = "github.com/princjef/gomarkdoc/cmd/gomarkdoc@v1.1.0";
-const DAEMON = path.resolve("../../daemon");
+const DAEMON = path.resolve("../../packages/daemon");
 const OUT = path.resolve("content/docs/reference/sdk-go");
 const TMP = path.join(OUT, ".gomarkdoc.md");
 
 if (!fs.existsSync(path.join(DAEMON, "sdk"))) {
-  console.log("gen-go-docs: no daemon/sdk found — skipping");
+  console.log("gen-go-docs: no packages/daemon/sdk found — skipping");
   process.exit(0);
 }
 
@@ -90,7 +90,7 @@ src = fenceTabIndentedCode(src);
 const frontmatter =
   `---\n` +
   `title: "Go SDK"\n` +
-  `description: "Native in-process Go SDK — github.com/oblien/mindwire/daemon/sdk."\n` +
+  `description: "Native in-process Go SDK — github.com/oblien/mindwire/packages/daemon/sdk."\n` +
   `---\n\n`;
 
 fs.writeFileSync(path.join(OUT, "index.mdx"), frontmatter + src + "\n");

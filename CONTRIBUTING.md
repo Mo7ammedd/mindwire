@@ -1,23 +1,28 @@
 # Contributing to mindwire
 
-Thanks for your interest! mindwire is an open-source, single API/SDK over coding-agent
-harnesses. The most valuable contributions right now are **new agent adapters**, but bug fixes,
-docs, and SDK improvements are all welcome.
+Mindwire is an open personal assistant and coding companion, with native Apple and browser clients
+over a shared agent runtime. Contributions to everyday workflows, clients, adapters, documentation,
+and infrastructure are welcome.
 
 By participating you agree to abide by our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Project layout
 
-- **`daemon/`** — the Go core. HTTP/SSE server, orchestrator, the unified event protocol, and
-  one folder per agent adapter under `daemon/internal/agent/`. Read the
+- **`packages/daemon/`** — the Go core. HTTP/SSE server, orchestrator, the unified event protocol, and
+  one folder per agent adapter under `packages/daemon/internal/agent/`. Read the
   [Daemon internals](https://mindwire.sh/docs/concepts/internals) doc first — it's the authoritative design.
 - **`packages/sdk/`** — `mindwire`, the TypeScript client.
 - **`apps/web/`** — the docs + landing site. **Documentation is authored here**, in
   `apps/web/content/docs/` — update it there (not in scattered repo markdown) when behavior changes.
 
+- **`apps/apple/`** — shared Apple app source and tests; iOS/iPadOS today.
+- **`apps/console/`** — browser client and control plane.
+- **`apps/protocol-lab/`** — HTTP/SSE diagnostic client.
+- **`deploy/docker/`** — production image definitions and self-hosted deployment.
+
 ## Prerequisites
 
-- **Go 1.26.9+** — matching [`daemon/go.mod`](./daemon/go.mod).
+- **Go 1.26.9+** — matching [`packages/daemon/go.mod`](./packages/daemon/go.mod).
 - **Bun** (or Node 18+) — for the SDK. We use Bun for install/build/test.
 - The **agent CLI** you're working with (e.g. `npm i -g @anthropic-ai/claude-code`).
 
@@ -28,7 +33,7 @@ By participating you agree to abide by our [Code of Conduct](./CODE_OF_CONDUCT.m
 bun install
 
 # --- Daemon ---
-cd daemon
+cd packages/daemon
 go build ./...
 go test ./...
 DEV_CORS=1 go run ./cmd/daemon    # dev server on 127.0.0.1:8790
@@ -44,7 +49,7 @@ bun --filter='mindwire' run test        # mocked unit suite (the e2e tests self-
 # --- SDK end-to-end (real daemon + real Docker) ---
 # Needs Go + a running Docker daemon. build:daemon drops the host binary the embedded smoke discovers
 # and the linux packages the container test deploys; the fixture image supplies the deploy tools.
-bun --filter='mindwire' run build:daemon
+bun run build:daemon
 docker build -t mindwire-e2e:base packages/sdk/test/e2e/fixtures
 bun --filter='mindwire' run test:e2e
 ```
@@ -54,9 +59,9 @@ bun --filter='mindwire' run test:e2e
 This is the headline extension point, and it's designed to be a **single drop-in folder** with
 **zero changes to the core or any client**. Steps:
 
-1. **Create** `daemon/internal/agent/<name>/` and implement the `agent.Adapter` interface
-   (see [`daemon/internal/agent/agent.go`](./daemon/internal/agent/agent.go)). Use the
-   [`claude`](./daemon/internal/agent/claude) adapter as a reference.
+1. **Create** `packages/daemon/internal/agent/<name>/` and implement the `agent.Adapter` interface
+   (see [`packages/daemon/internal/agent/agent.go`](./packages/daemon/internal/agent/agent.go)). Use the
+   [`claude`](./packages/daemon/internal/agent/claude) adapter as a reference.
 
 2. **Declare `Capabilities()`** — the hybrid switch. Set `Protocol` (`cli` for a `-p`-style
    subprocess, `http` for an agent with a native REST/SSE API like opencode, `persistent` for a
@@ -73,13 +78,13 @@ This is the headline extension point, and it's designed to be a **single drop-in
 5. **Declare install steps, settings schema, notifications, and doctor checks.**
 
 6. **Register it**: adapters self-register via `init()` → `agent.Register(...)`. Add a blank
-   import in [`daemon/cmd/daemon/main.go`](./daemon/cmd/daemon/main.go):
+   import in [`packages/daemon/cmd/daemon/main.go`](./packages/daemon/cmd/daemon/main.go):
 
    ```go
-   _ "github.com/oblien/mindwire/daemon/internal/agent/<name>"
+   _ "github.com/oblien/mindwire/packages/daemon/internal/agent/<name>"
    ```
 
-7. **Bump `agent.Version`** in `daemon/internal/agent/agent.go` if the change should invalidate
+7. **Bump `agent.Version`** in `packages/daemon/internal/agent/agent.go` if the change should invalidate
    cached client schemas.
 
 That's it — the orchestrator hosts it, namespaces its creds/config, and routes `?agent=<id>` to
@@ -108,7 +113,7 @@ model after).
 Releases are tag-driven (`.github/workflows/release.yml`). Maintainers only:
 
 1. Set the SDK version in [`packages/sdk/package.json`](./packages/sdk/package.json), and — if the
-   daemon changed — bump `agent.Version` in [`daemon/internal/agent/agent.go`](./daemon/internal/agent/agent.go)
+   daemon changed — bump `agent.Version` in [`packages/daemon/internal/agent/agent.go`](./packages/daemon/internal/agent/agent.go)
    too (the two version numbers are decoupled; the tag is checked against the SDK version only).
 2. Tag `vX.Y.Z` where `X.Y.Z` **exactly** matches that SDK version and push it. A `-` in the tag
    (e.g. `v1.2.3-rc.1`) marks a prerelease → GitHub prerelease + npm `next` dist-tag.
@@ -129,5 +134,10 @@ public issue — see [SECURITY.md](./SECURITY.md).
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the
-[Apache License 2.0](./LICENSE).
+Contributions follow the license of the component being changed: Apache-2.0 for the runtime, SDKs,
+console, and website; the source-available [Apple client license](apps/apple/LICENSE) for original
+material in `apps/apple`; and AGPL-3.0 for the protocol lab, Apple notes, and Apple tooling outside
+that directory. Apple contributions additionally grant Oblien the copyright permissions in section 5
+of the Apple license, including commercial distribution and sublicensing, while contributors retain
+their copyright. See [LICENSING.md](LICENSING.md). Do not copy code across these boundaries under
+a different license. Keep third-party attribution and notices intact.

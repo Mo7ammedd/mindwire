@@ -29,7 +29,7 @@ export const revalidate = 3600;
 
 const questions = [
   {
-    question: "Are these plans for the iPhone app or for workspaces?",
+    question: "Are these plans for the assistant app or for workspaces?",
     answer:
       "These are Oblien cloud account plans and resource allowances. They pay for the infrastructure where your agents run. Connecting your own computer or server uses the open-source Mindwire service without a runtime license fee.",
   },

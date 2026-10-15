@@ -1,0 +1,2 @@
+Before scrolling: ["meanMicros": 285, "inset": 70, "builds": 2, "bodies": 4, "visible": 15, "scans": 1, "offset": -70]
+After scrolling: ["builds": 2, "visible": 25, "bodies": 4, "meanMicros": 81, "inset": 70, "offset": 1800, "scans": 224]

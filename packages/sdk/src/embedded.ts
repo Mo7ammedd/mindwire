@@ -199,7 +199,7 @@ function daemonStartError(resolved: ResolvedBinary, cause: Error): string {
       "  • check GitHub Release access so the SDK can download its matching daemon binary; or",
       "  • set MINDWIRE_DAEMON to a `mindwired` binary; or",
       "  • pass { baseUrl } to connect to a daemon you run yourself.",
-      "  • Working inside the mindwire monorepo? Run `go build -o /tmp/mindwired ./daemon/cmd/daemon` and set MINDWIRE_DAEMON.",
+      "  • Working inside the mindwire monorepo? Run `go -C packages/daemon build -o /tmp/mindwired ./cmd/daemon` and set MINDWIRE_DAEMON.",
       `(underlying error: ${cause.message})`,
     ].join("\n");
   }

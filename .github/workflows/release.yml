@@ -45,18 +45,18 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version-file: daemon/go.mod
-          cache-dependency-path: daemon/go.mod
+          go-version-file: packages/daemon/go.mod
+          cache-dependency-path: packages/daemon/go.mod
       - name: Verify daemon version matches SDK version
         run: |
           set -euo pipefail
           sdk="$(node -p "require('./packages/sdk/package.json').version")"
-          daemon="$(sed -nE 's/^const Version = "([^"]+)"/\1/p' daemon/internal/agent/agent.go)"
+          daemon="$(sed -nE 's/^const Version = "([^"]+)"/\1/p' packages/daemon/internal/agent/agent.go)"
           test "$sdk" = "$daemon" || { echo "::error::SDK version $sdk does not match daemon version $daemon"; exit 1; }
       # CGO-free Go binaries cross-compile on this Linux runner. The SDK downloads exactly one asset for
       # its own version/platform/architecture during ensure(), verified against checksums.txt.
       - name: Build
-        working-directory: daemon
+        working-directory: packages/daemon
         run: PLATFORMS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64" ./build.sh
       - name: Stage + checksum release assets
         run: |
@@ -64,12 +64,12 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           mkdir -p dist
           for target in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64; do
-            source="daemon/dist/latest/mindwired-${target}"
+            source="packages/daemon/dist/latest/mindwired-${target}"
             suffix=""
             if [[ "$target" == windows-* ]]; then suffix=".exe"; fi
             cp "$source" "dist/mindwired-${TAG}-${target}${suffix}"
           done
-          cp daemon/dist/latest/catalog.json "dist/catalog-${TAG}.json"
+          cp packages/daemon/dist/latest/catalog.json "dist/catalog-${TAG}.json"
           cd dist
           : > checksums.txt
           for f in mindwired-${TAG}-* "catalog-${TAG}.json"; do
@@ -97,6 +97,20 @@ jobs:
         with:
           name: daemon-release
           path: dist
+      - name: Tag the relocated Go module
+        run: |
+          set -euo pipefail
+          module_tag="packages/daemon/${GITHUB_REF_NAME}"
+          release_commit="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          if git show-ref --verify --quiet "refs/tags/${module_tag}"; then
+            existing_commit="$(git rev-parse "${module_tag}^{commit}")"
+            if [ "$existing_commit" != "$release_commit" ]; then
+              echo "::error::Go module tag ${module_tag} points at a different release"; exit 1
+            fi
+          else
+            git tag "$module_tag" "$release_commit"
+            git push origin "refs/tags/${module_tag}"
+          fi
       - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

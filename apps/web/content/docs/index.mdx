@@ -3,11 +3,30 @@ title: Introduction
 description: The runtime for coding agents — one protocol, one event stream, one auth flow, driven from TypeScript, Go, or plain REST.
 ---
 
-The world's most advanced coding agents — Claude Code, Codex, Grok Build, Copilot CLI, opencode — already plan, edit code, and run real multi-step work, each behind its own CLI, flags, session model, and auth. **MindWire is the runtime that drives them**: a daemon owns the agent processes and normalizes them to one protocol. **Claude Code, Codex, Grok Build, and opencode ship today**; Copilot CLI is next.
+Mindwire is a personal assistant and coding companion built on existing agent harnesses.
+The Apple app and web console connect to the same runtime: ask for an outcome, follow progress,
+answer questions, and use the result. Everyday work and software development share that foundation.
 
-Pick an agent per call and drive it from wherever you work — a **TypeScript** app, a **Go** service,
-or plain **REST + SSE**. Swap the agent like you swap a model: one request shape, one auth flow, one
-event stream.
+**Codex, Claude Code, Grok Build, and OpenCode are supported today.** Their available tools and
+permissions determine which files, scripts, browsers, or applications a task can use. Computer use
+is capability-dependent; selecting a harness does not grant universal desktop access.
+
+The native Apple client currently targets iPhone and iPad. Native macOS and visionOS support are
+planned. See [Get started](/get-started) for download availability and computer pairing.
+
+The runtime, SDKs, and web console are open source under Apache-2.0. The Apple client is
+source-available under a separate license that allows inspection and private personal builds;
+redistribution and publishing derivative apps require written permission. See the repository’s
+[component licenses](https://github.com/oblien/mindwire/blob/main/LICENSING.md).
+
+## For developers
+
+The Go runtime owns agent processes and exposes a common protocol for turns, streaming,
+authentication, sessions, and workspace tools. Build with the TypeScript SDK, native Go SDK,
+or REST and SSE. Run locally, remotely, over SSH, in Docker, or in an Oblien workspace.
+
+Each harness keeps its native execution and session semantics. Check its advertised capabilities
+instead of assuming every engine implements every tool or session operation.
 
 ## Install
 
@@ -26,10 +45,10 @@ The SDK ships the daemon with the package and **runs it for you locally** — no
 <Tab value="Go">
 
 ```bash
-go get github.com/oblien/mindwire/daemon
+go get github.com/oblien/mindwire/packages/daemon
 ```
 
-The Go SDK (`.../daemon/sdk`, package `mindwire`) is the daemon's own engine, **in-process** — no
+The Go SDK (`.../packages/daemon/sdk`, package `mindwire`) is the daemon's own engine, **in-process** — no
 HTTP hop, no subprocess.
 
 </Tab>
@@ -37,7 +56,7 @@ HTTP hop, no subprocess.
 <Tab value="REST">
 
 ```bash
-go build -o mindwired ./daemon/cmd/daemon && ./mindwired
+go -C packages/daemon run ./cmd/daemon
 ```
 
 Run the daemon standalone for a plain **HTTP + SSE** API — any language, no SDK.
@@ -51,7 +70,7 @@ Run the daemon standalone for a plain **HTTP + SSE** API — any language, no SD
 | Component | What it is |
 | --- | --- |
 | `mindwire` (TS) | The TypeScript SDK — auto-runs the bundled daemon locally. |
-| `.../daemon/sdk` (Go) | The native in-process Go SDK — the daemon's core as a library. |
+| `.../packages/daemon/sdk` (Go) | The native in-process Go SDK — the daemon's core as a library. |
 | daemon | The Go core (`mindwired`) that owns the agent processes; runs embedded, or standalone over HTTP + SSE for remote/self-host. |
 | adapters | One drop-in folder per agent. `claude-code`, `codex`, `grok`, and `opencode` today; `copilot` next. |
 

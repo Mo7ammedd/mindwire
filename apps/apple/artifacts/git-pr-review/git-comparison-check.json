@@ -1,0 +1,9 @@
+{
+  "result": "passed",
+  "featureCommits": 2,
+  "mergeBaseVerified": true,
+  "advancedBaseChangesExcluded": true,
+  "stagedAndWorkingChangesExcluded": true,
+  "renameAndBinaryFilesPreserved": true,
+  "indexAndWorkingTreeUnchanged": true
+}

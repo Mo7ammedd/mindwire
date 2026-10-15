@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 
 
 export const alt =
-  "Mindwire — Your coding agents, anywhere. Chat, review code, and switch workspaces from your iPhone.";
+  "Mindwire — Your personal assistant, on your terms. Everyday work and coding, powered by your choice of agent.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -52,11 +52,11 @@ function renderSocialImage() {
               fontWeight: 600,
             }}
           >
-            <span>Keep building.</span>
-            <span style={{ color: "#797980" }}>From anywhere.</span>
+            <span>Get things done.</span>
+            <span style={{ color: "#797980" }}>On your terms.</span>
           </div>
           <div style={{ marginTop: 25, fontSize: 22, color: "#62626b" }}>
-            Your favorite coding agents, on iPhone.
+            Your agents. Your computer. Your choice.
           </div>
           <div
             style={{
@@ -67,7 +67,7 @@ function renderSocialImage() {
               color: "#a0442e",
             }}
           >
-            <span>Open source</span>
+            <span>Open-source runtime</span>
             <span>mindwire.sh</span>
           </div>
         </div>

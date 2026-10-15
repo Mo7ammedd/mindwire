@@ -26,10 +26,10 @@ npm i mindwire
 <Tab value="Go">
 
 ```bash
-go get github.com/oblien/mindwire/daemon
+go get github.com/oblien/mindwire/packages/daemon
 ```
 
-The Go SDK is `github.com/oblien/mindwire/daemon/sdk` (package `mindwire`) — the daemon's own core,
+The Go SDK is `github.com/oblien/mindwire/packages/daemon/sdk` (package `mindwire`) — the daemon's own core,
 in-process. No HTTP hop, no subprocess.
 
 </Tab>
@@ -39,7 +39,7 @@ in-process. No HTTP hop, no subprocess.
 Run the daemon standalone — it's bundled with the npm package, or build it from source:
 
 ```bash
-go build -o mindwired ./daemon/cmd/daemon && ./mindwired
+go -C packages/daemon run ./cmd/daemon
 # listening on http://127.0.0.1:8790
 ```
 
@@ -128,7 +128,7 @@ import (
 	"fmt"
 	"log"
 
-	mindwire "github.com/oblien/mindwire/daemon/sdk"
+	mindwire "github.com/oblien/mindwire/packages/daemon/sdk"
 )
 
 func main() {

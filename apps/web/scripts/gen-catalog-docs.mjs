@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const daemonDir = path.resolve("../../daemon");
+const daemonDir = path.resolve("../../packages/daemon");
 const builtCatalog = path.join(daemonDir, "dist/latest/catalog.json");
 const OUT = path.resolve("content/docs/reference/agents");
 let raw;
@@ -52,7 +52,7 @@ Daemon definitions version: \`${catalog.version ?? "?"}\`.
 
 ## Adding an agent
 
-Each agent is a drop-in adapter under \`daemon/internal/agent/<id>/\`. See [Architecture](/docs/concepts/architecture/) and [Daemon internals](/docs/concepts/internals/) for the adapter contract.
+Each agent is a drop-in adapter under \`packages/daemon/internal/agent/<id>/\`. See [Architecture](/docs/concepts/architecture/) and [Daemon internals](/docs/concepts/internals/) for the adapter contract.
 `;
 
 fs.writeFileSync(path.join(OUT, "index.mdx"), md);

@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "0ACB2F2F-7DFD-48BF-AF58-D39FDC4A74B5.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Decrypted backup preview keeps existing connections_0_A6F8480E-D872-4CA2-BB64-26FD81ABD480.png",
+        "timestamp" : 1791379120.451
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "93E1064E-1BCB-42F6-A1EC-B3EC3757A46F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Native Files destination picker_0_A99C309A-99CC-4173-B0BB-C5A88A2463EB.png",
+        "timestamp" : 1791379091.287
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "5E1F3710-1E73-4A5A-903B-0D6C266D4F4A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Password protected backup file_0_567FEE13-656B-4FD1-8993-A765032BA56D.png",
+        "timestamp" : 1791379086.737
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testEncryptedBackupRoundTripThroughNativeFiles()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testEncryptedBackupRoundTripThroughNativeFiles"
+  }
+]

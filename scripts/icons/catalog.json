@@ -1,0 +1,909 @@
+{
+  "version": 1,
+  "theme": "outline-modern",
+  "icons": {
+    "alertCircle": {
+      "file": "error circle-79-1658234612.png",
+      "origin": "collection",
+      "sha256": "5e86df81185417271fea9409d2b9bb07a2d6105232597b268723a1d05121894b",
+      "inset": 0,
+      "label": "Needs attention"
+    },
+    "alignLeft": {
+      "file": "align left-7-1692683663.png",
+      "origin": "collection",
+      "sha256": "7896305ee67f9237cf29f9b95217ddffa7e791d60dabb58b259225493afa5a3e",
+      "inset": 0,
+      "label": "Logs"
+    },
+    "apple": {
+      "file": "apple-66-1693375491.png",
+      "origin": "collection",
+      "sha256": "5c58b49051884377988f9e5b148e0a03d25254057e0655130e27686e28f5f7d4",
+      "inset": 0,
+      "label": "Apple"
+    },
+    "arrowDown": {
+      "file": "arrow - down-8-1663766895.png",
+      "origin": "collection",
+      "sha256": "cff02aeceff310477ec7712b6fc69680ffd04a19e846d8ba5ff33d30611fbdb0",
+      "inset": 0,
+      "label": "Move down"
+    },
+    "arrowUp": {
+      "file": "arrow - up-23-1663766896.png",
+      "origin": "collection",
+      "sha256": "7b28002c4dd9c7ea2aca025187b387dc3f3baee386ec33ef6b8673b8f3a99dbe",
+      "inset": 0,
+      "label": "Move up"
+    },
+    "arrowUpCircle": {
+      "file": "arrow - up circle-1648128799.png",
+      "origin": "collection",
+      "sha256": "347e84060a3ffbc937b620d474f9a08a131a066875ec06e5c9ce89b8d490ba56",
+      "inset": 0,
+      "label": "Upgrade"
+    },
+    "arrowUpRight": {
+      "file": "arrow up right_md-71-1696832059.png",
+      "origin": "collection",
+      "sha256": "19e588f2fc444e8ae7adc6153cd264c6414e0cee49c620a40dcd04a4bca952d9",
+      "inset": 3.0,
+      "label": "Open link"
+    },
+    "arrowsLeftRight": {
+      "file": "swap horizontal-145-1696832205.png",
+      "origin": "collection",
+      "sha256": "88065a17b8764aff0144123256702cd7093e6ba397a18eed7c6b0084a5b6ff25",
+      "inset": 0,
+      "label": "Switch"
+    },
+    "arrowsUpDown": {
+      "file": "swap vertical-160-1696832205.png",
+      "origin": "collection",
+      "sha256": "78d76d865c1545d4196cefeb5f56ef61c9f7d5347ff403702abf6516a2513e01",
+      "inset": 0,
+      "label": "Sync"
+    },
+    "attachment": {
+      "file": "attach-103-1658431575.png",
+      "origin": "collection",
+      "sha256": "4ba995625edcc32a507f809d1fae55ccdd783de23933c707f455d643bc7cb324",
+      "inset": 0,
+      "label": "Attach"
+    },
+    "bell": {
+      "file": "ringtone-57-1662452248.png",
+      "origin": "collection",
+      "sha256": "dba2c866f07da33aececb6e82fd4464e9d86bde2b2cbe20bdd5f7eea255e6a3d",
+      "inset": 0,
+      "label": "Notifications"
+    },
+    "bellOff": {
+      "file": "ringtone mute hide-46-1662452248.png",
+      "origin": "collection",
+      "sha256": "b6dabfe9db4b3cab7ecd2e40494bf6885acbabb519caf36b4920014d13af4866",
+      "inset": 0,
+      "label": "Notifications muted"
+    },
+    "brain": {
+      "file": "brain-188-1686045594.png",
+      "origin": "collection",
+      "sha256": "195ebb453bee3a2be8219a62f19f3c51a2673f391619c2f1f6004ff0a413ed45",
+      "inset": 0,
+      "label": "Thinking"
+    },
+    "building": {
+      "file": "building-55-1658238103.png",
+      "origin": "collection",
+      "sha256": "59816441a21cd212032b86501dd459c8191bf541024dd6f544f964333bae84f0",
+      "inset": 0,
+      "label": "Building"
+    },
+    "camera": {
+      "file": "camera-166-1658434699.png",
+      "origin": "collection",
+      "sha256": "fa0972a55cd2d9926af801d8f21183939631303ee91205fd98d7cc00b6334c6e",
+      "inset": 0,
+      "label": "Camera"
+    },
+    "chartLine": {
+      "file": "line chart-130-1681196175.png",
+      "origin": "collection",
+      "sha256": "746d411d6a1c53ab1fcd4f4a7e15e1adc116e236918e29f34cae2bc200613347",
+      "inset": 0,
+      "label": "Chart line"
+    },
+    "check": {
+      "file": "checkmark-72-1658234612.png",
+      "origin": "collection",
+      "sha256": "26ad6bde3320b8b0b33cf8392849f149682a54f1767db8f83f8605009e779b7a",
+      "inset": 0,
+      "label": "Done"
+    },
+    "checkCircle": {
+      "file": "check circle-67-1658234612.png",
+      "origin": "collection",
+      "sha256": "fa95038b0ebe36797c1b1065fe5531a95862ab1c286e094034367bdba4ea64a0",
+      "inset": 0,
+      "label": "Complete"
+    },
+    "checkCircleFilled": {
+      "file": "check circle-0-1660219236.png",
+      "origin": "collection",
+      "sha256": "e620c47245a4fe6ee03c898af9650b97157bac655848d980fe3b520f86ef845e",
+      "inset": 0,
+      "label": "Selected"
+    },
+    "checkSquare": {
+      "file": "check square-5-1660219236.png",
+      "origin": "collection",
+      "sha256": "92a3cb7031846af907931947b2ed1c8111bde06925c706822139960bcd3c94d0",
+      "inset": 0,
+      "label": "Selected"
+    },
+    "chevronDown": {
+      "file": "chevron down-8-1696832403.png",
+      "origin": "collection",
+      "sha256": "c627a23d0a0de6d96848f0073e7071d74a26e63a1f82de90cc1e125d5098759a",
+      "inset": 0,
+      "label": "Expand"
+    },
+    "chevronLeft": {
+      "file": "chevron left-14-1696832403.png",
+      "origin": "collection",
+      "sha256": "40950cb6cf942175179795f392517b92c45482cce98c3f169d5874f6cee205ad",
+      "inset": 0,
+      "label": "Back"
+    },
+    "chevronRight": {
+      "file": "chevron right-18-1696832403.png",
+      "origin": "collection",
+      "sha256": "7bb42902ab3518a2f045788fd9b2956eb874ca7f6c7c3240cb6f45ace50e29e2",
+      "inset": 0,
+      "label": "Open"
+    },
+    "chevronUp": {
+      "file": "chevron up-22-1696832403.png",
+      "origin": "collection",
+      "sha256": "ea0d493349add4bfc43c5cb3bbe4463a8b5acbdf67cb8a65abada4abaf5f5f39",
+      "inset": 0,
+      "label": "Collapse"
+    },
+    "chevronsUpDown": {
+      "file": "chevron expand verical-13-1696832403.png",
+      "origin": "collection",
+      "sha256": "38fcb108b6bf758713f4ab5f64386de5d03656618d94e7619c9cc82ac7d4bcaf",
+      "inset": 0,
+      "label": "Change selection"
+    },
+    "circle": {
+      "file": "circle-84-1658435395.png",
+      "origin": "collection",
+      "sha256": "758756f06335a6537ceb17e21c6015eb19bf191130366ed700cf118b50737ee7",
+      "inset": 0,
+      "label": "Not selected"
+    },
+    "circleDashed": {
+      "file": "circle-0-1662506285.png",
+      "origin": "collection",
+      "sha256": "dedc239a7101946a699c9d442c4121ff0052f4efbb8344ecc66453558579a2a3",
+      "inset": 0,
+      "label": "In progress"
+    },
+    "clipboardList": {
+      "file": "clipboard text-29-1662364367.png",
+      "origin": "collection",
+      "sha256": "2b2647ed1cc93fa26b6fc9f7e736aaafaa9c846e11ad3438939ed35db34efc1b",
+      "inset": 0,
+      "label": "Plan"
+    },
+    "clipboardPaste": {
+      "file": "clipboard add-18-1662364367.png",
+      "origin": "collection",
+      "sha256": "02e38f6140ac550d9e5acadaf6e67432c24cea605706a038b421e428a1d18e24",
+      "inset": 0,
+      "label": "Paste"
+    },
+    "clock": {
+      "file": "circle clock-74-1658435834.png",
+      "origin": "collection",
+      "sha256": "bc7869400d4666893024f2a3239082d208a686dd44286d056d408301e5a06535",
+      "inset": 0,
+      "label": "Clock"
+    },
+    "close": {
+      "file": "close remove-8-1662452248.png",
+      "origin": "collection",
+      "sha256": "b2851662d2fcd52266c332cf00649d8d35a88c6ac60b04523cf26fc518a01568",
+      "inset": 0,
+      "label": "Close"
+    },
+    "cloud": {
+      "file": "cloud-18-1689139238.png",
+      "origin": "collection",
+      "sha256": "a69310bd5101d9c38135aba9786ba871bb8c643c8b87651f9bdd007a4e1ec94b",
+      "inset": 0,
+      "label": "Cloud"
+    },
+    "code": {
+      "file": "code-21-1658431404.png",
+      "origin": "collection",
+      "sha256": "3f15874f8810f1ec610039a2926d2a15ddf0a80de07eda9746e61efba95953a0",
+      "inset": 0,
+      "label": "Code"
+    },
+    "command": {
+      "file": "command-147-1658431404.png",
+      "origin": "collection",
+      "sha256": "e142f8d599bdc6a6c8286222e355da83e13081a69d2c03678cbc7e792248c9db",
+      "inset": 0,
+      "label": "Command"
+    },
+    "copy": {
+      "file": "copy 1-132-1658431575.png",
+      "origin": "collection",
+      "sha256": "ef9de1ce74666176db3104ee35220d0f1101288204cd27803d236c55340ed44b",
+      "inset": 0,
+      "label": "Copy"
+    },
+    "cpu": {
+      "file": "cpu processor-58-1658236937.png",
+      "origin": "collection",
+      "sha256": "6d69da6aafac777650949c80e73c2849cf1a3031dcd809c32bd87d6e3c159b70",
+      "inset": 0,
+      "label": "Model"
+    },
+    "download": {
+      "file": "download-546-1663767087.png",
+      "origin": "collection",
+      "sha256": "e157790d7eb3cb47317987d23389234717764f191570de94e65b9e7c9d361ffd",
+      "inset": 0,
+      "label": "Download"
+    },
+    "edit": {
+      "file": "edit-302-1663766896.png",
+      "origin": "collection",
+      "sha256": "94e9ab22eb72686990f5bf2af5a9e2a80249e4ec00c58a1a47dd780809a09b6c",
+      "inset": 0,
+      "label": "Edit"
+    },
+    "expand": {
+      "file": "arrows diagonal expand-104-1696832059.png",
+      "origin": "collection",
+      "sha256": "2a5e8bca4f367c0f227464b8a9f07f8dcd1c3127a78b1622e313d745ed6dc84f",
+      "inset": 0,
+      "label": "Full screen"
+    },
+    "externalLink": {
+      "file": "right up square-121-1696832205.png",
+      "origin": "collection",
+      "sha256": "f48d6d37a8f6f01d3fe035feda31872892add9391d884969bc20bd5f12e22b31",
+      "inset": 0,
+      "label": "Open link"
+    },
+    "eye": {
+      "file": "eye 2-17-1691989638.png",
+      "origin": "collection",
+      "sha256": "1a169d863a2abea3346ee65c9e6bf4058174d4044e2195c295b9aa07e86c26a7",
+      "inset": 0,
+      "label": "Show"
+    },
+    "eyeOff": {
+      "file": "hide-1648128800.png",
+      "origin": "collection",
+      "sha256": "2bc074f9f8ce35c32a4bae48ffb929fcce5d2c2d9897c6ef30a9f4c955fcb714",
+      "inset": 0,
+      "label": "Hide"
+    },
+    "file": {
+      "file": "document-180-1658431575.png",
+      "origin": "collection",
+      "sha256": "8ed6e47414164744ae2a7148ab40dc49315749117ccbf8aec308635e78f0a944",
+      "inset": 0,
+      "label": "File"
+    },
+    "fileArchive": {
+      "file": "document zip-76-1662364367.png",
+      "origin": "collection",
+      "sha256": "9c0dafeec0d2fce7c4bf237405c92602a93c1bc38b5d36c11440f3f225a483e2",
+      "inset": 0,
+      "label": "Archive"
+    },
+    "fileCode": {
+      "file": "document code-1-1658431404.png",
+      "origin": "collection",
+      "sha256": "11920df2dde2a22f01de52ce267a4108fcc26744eff8303cd6c6a409e2156380",
+      "inset": 0,
+      "label": "Code file"
+    },
+    "fileMore": {
+      "file": "document 3 dots-149-1658431575.png",
+      "origin": "collection",
+      "sha256": "ae11cfad777791ca5a2d657c4338447c21de01c7d7b0bb8f799d18d61f65225d",
+      "inset": 0,
+      "label": "File details"
+    },
+    "filePicture": {
+      "file": "image-137-1658434699.png",
+      "origin": "collection",
+      "sha256": "217f965f39a1521c6eaea54d24347af63ff59932c2bc5ce76ddce02f02d0414d",
+      "inset": 0,
+      "label": "Image"
+    },
+    "filePlus": {
+      "file": "paper plus-570-1663767087.png",
+      "origin": "collection",
+      "sha256": "ad11781ab40ae7e44cb031e7fe74f002404db0ed8801aa0a2c7503ec806dfc5f",
+      "inset": 0,
+      "label": "New file"
+    },
+    "fileText": {
+      "file": "paper-1648127675.png",
+      "origin": "collection",
+      "sha256": "95c6425de7de58c702e73bf751084c54a630a5c9e2054dc05d123e4f9e9bb3b6",
+      "inset": 0,
+      "label": "Text file"
+    },
+    "fileWarning": {
+      "file": "document error-156-1658431575.png",
+      "origin": "collection",
+      "sha256": "3d1a3db8baa75f828bd61fadd310eb7e0d2b217aaaac787c894e3b37982e910d",
+      "inset": 0,
+      "label": "File unavailable"
+    },
+    "folder": {
+      "file": "folder file-127-1661323044.png",
+      "origin": "collection",
+      "sha256": "8008352b3e98c6594eeaa4857b1f2ddeaa6bc639cc45e0f8bbe39f0cecf7d769",
+      "inset": 0,
+      "label": "Folder"
+    },
+    "folderFilled": {
+      "file": "folder file-62-1661323044.png",
+      "origin": "collection",
+      "sha256": "fb00fec78cffa5dc6d07935c0b5b27cf7689fafefeefa3191fb314c8676c1733",
+      "inset": 0,
+      "label": "Folder"
+    },
+    "folderPlus": {
+      "file": "folder file add plus-0-1661323044.png",
+      "origin": "collection",
+      "sha256": "0d92c257327d5976c7bfadd36ae9df541ced6876899cc52be6d57d7ee49a76d1",
+      "inset": 0,
+      "label": "New folder"
+    },
+    "folderTree": {
+      "file": "sitemap-165-1681196175.png",
+      "origin": "collection",
+      "sha256": "e3ac63509173b960ef0bf8400ef6eb6ed12159e12159d311a07279da123a9858",
+      "inset": 0,
+      "label": "File tree"
+    },
+    "gitBranch": {
+      "file": "git branch-159-1658431404.png",
+      "origin": "collection",
+      "sha256": "30c08a686cdd8b3ec4d2bae8e633f7f008c1302f6f5dbbbde3d8433825d40864",
+      "inset": 0,
+      "label": "Branch"
+    },
+    "gitPullRequest": {
+      "file": "git pull request-169-1658431404.png",
+      "origin": "collection",
+      "sha256": "937f23035e068a1560f323b1c4829ed14dce42d4267953e858956595bdcd7161",
+      "inset": 0,
+      "label": "Pull request"
+    },
+    "globe": {
+      "file": "world-344-1658433758.png",
+      "origin": "collection",
+      "sha256": "0296b23352cca3933a412651e121278fc497a92b843d2445f217a15fac6d39e7",
+      "inset": 0,
+      "label": "Web"
+    },
+    "grid": {
+      "file": "grid interface-123-1658433281.png",
+      "origin": "collection",
+      "sha256": "64e9b262ae719b8a6edfc1fb808a355867d3a1e57852e415830753a75c977b0c",
+      "inset": 0,
+      "label": "Grid view"
+    },
+    "hand": {
+      "file": "left hand-64-1658433377.png",
+      "origin": "collection",
+      "sha256": "88305be81c4aaffbc7b01bfe694df046f11eb750fe04b24758abd4126adf08ff",
+      "inset": 0,
+      "label": "View without control"
+    },
+    "hardDrive": {
+      "file": "hard-drive.png",
+      "origin": "openship",
+      "sha256": "d1fdb7a89a552feb270c9611e4a0ba07daa87d98dcb2ebc2e494fbe07edc22a8",
+      "inset": 0,
+      "label": "Disk"
+    },
+    "helpCircle": {
+      "file": "question mark circle-95-1658234612.png",
+      "origin": "collection",
+      "sha256": "33a8851bec13f58766b6fde1af597d9d4d7e931e8a5c1a9df7f725dec2feaa74",
+      "inset": 0,
+      "label": "Question"
+    },
+    "history": {
+      "file": "counter clockwise undo-46-1658435834.png",
+      "origin": "collection",
+      "sha256": "a649e33eb6117f408e897ceb3d90a77437b30e6738b070004852468abaad7fb6",
+      "inset": 0,
+      "label": "History"
+    },
+    "info": {
+      "file": "info circle-83-1658234612.png",
+      "origin": "collection",
+      "sha256": "805668610588441b6ea07fb89820f54129c40ae2d361280acea7aab6d554285e",
+      "inset": 0,
+      "label": "Info"
+    },
+    "key": {
+      "file": "key-48-1691989638.png",
+      "origin": "collection",
+      "sha256": "bf768d16af2c68f974c651d98bbd16ad0ed6baaf1ccec90c3354506e8eff2f3f",
+      "inset": 0,
+      "label": "Key"
+    },
+    "keyboard": {
+      "file": "keyboard 2-122-1658236937.png",
+      "origin": "collection",
+      "sha256": "c6ac44a7e7dd32b5c6b7840706a65d220b72f0feecfc5afb93ad35890fd42eaf",
+      "inset": 0,
+      "label": "Keyboard"
+    },
+    "keyboardHide": {
+      "file": "keyboard close down-124-1658236937.png",
+      "origin": "collection",
+      "sha256": "e175ebe83687f2b74264cae1825e22688ad3999e0670e520b270ddb7632d2a66",
+      "inset": 0,
+      "label": "Hide keyboard"
+    },
+    "laptop": {
+      "file": "mac laptop notebook-76-1658236937.png",
+      "origin": "collection",
+      "sha256": "3a1701fe90fcf2872a317078e252cd5baed59b26108cdc8a05016ca07845da80",
+      "inset": 0,
+      "label": "Laptop"
+    },
+    "layers": {
+      "file": "layers-253-1658238246.png",
+      "origin": "collection",
+      "sha256": "83949ca2e9f3e292ef405e633d22229ad163dd5067ee722ebccdb4380fe2f890",
+      "inset": 0,
+      "label": "Workloads"
+    },
+    "link": {
+      "file": "link-67-1692683663.png",
+      "origin": "collection",
+      "sha256": "2e2cb5ab99f96b0a52b59614285f983980a01fdb66096f28abe804f30dbc9f65",
+      "inset": 0,
+      "label": "Link"
+    },
+    "list": {
+      "file": "bulleted list-15-1663582874.png",
+      "origin": "collection",
+      "sha256": "9147f75201615695c80c343946c63eb10477711aa9bfcc7ad3cfecea29f14325",
+      "inset": 0,
+      "label": "List view"
+    },
+    "listCheck": {
+      "file": "clipboard check-19-1662364367.png",
+      "origin": "collection",
+      "sha256": "d4e967713cea797e2e922b53ddd40834282a96ab8938843e93bc4d12d87403e1",
+      "inset": 0,
+      "label": "Tasks"
+    },
+    "lock": {
+      "file": "lock-159-1663767087.png",
+      "origin": "collection",
+      "sha256": "0949a2c70e438ed13918bacaeea980f403cbcb6718c8e2025cc80a94cb39067a",
+      "inset": 0,
+      "label": "Lock"
+    },
+    "login": {
+      "file": "login-160-1663767087.png",
+      "origin": "collection",
+      "sha256": "7a45169e71343ff7f2182b01f50c0e052d4df148913cf302e4a10397a1445cff",
+      "inset": 0,
+      "label": "Sign in"
+    },
+    "logout": {
+      "file": "logout-161-1663767087.png",
+      "origin": "collection",
+      "sha256": "a0ebae33b64b06f466ea9babf1fe35a1dc123d8a5c5a7d44c15c0bf6f6af1a0f",
+      "inset": 0,
+      "label": "Sign out"
+    },
+    "menu": {
+      "file": "hamburger menu-51-1692683663.png",
+      "origin": "collection",
+      "sha256": "83f8a9eb17360e22642240be8406401ca86028e4cf7785ecc5e9bc49864c83a6",
+      "inset": 0,
+      "label": "Menu"
+    },
+    "message": {
+      "file": "messages-169-1658433902.png",
+      "origin": "collection",
+      "sha256": "9e65a3f47d42fc74d60ee06f8d730c8b094aa6fac2d13b5f0bc81bc92f17412f",
+      "inset": 0,
+      "label": "Message"
+    },
+    "microphone": {
+      "file": "microphone-274-1658234823.png",
+      "origin": "collection",
+      "sha256": "89c4cf2432c026e81c62bf890094c8a8853bdb6c88c2f9eb2a754b486c953ca6",
+      "inset": 0,
+      "label": "Microphone"
+    },
+    "minus": {
+      "file": "minus 4-46-1658433844.png",
+      "origin": "collection",
+      "sha256": "a3365ae74beaf7e9a87c8538f7a5c72ae05c5e99d0225c9da635af2fadc47030",
+      "inset": 0,
+      "label": "Minus"
+    },
+    "minusCircle": {
+      "file": "minus 2-44-1658433844.png",
+      "origin": "collection",
+      "sha256": "43d75ebc3a5c088918f8c80aa01c77c03ac492b6a8342953526aeb7345ab6e57",
+      "inset": 0,
+      "label": "Minus circle"
+    },
+    "monitor": {
+      "file": "monitor display-92-1658236937.png",
+      "origin": "collection",
+      "sha256": "d27c99762322b8beeaeb366c149b3e86155775ef787d9c33a81e2238639cbf81",
+      "inset": 0,
+      "label": "Desktop"
+    },
+    "moon": {
+      "file": "moon-16-1689139450.png",
+      "origin": "collection",
+      "sha256": "3d3e35de7157b2b60b335774737372b3a2e01eb6151a065b2df626adbdc907dd",
+      "inset": 0,
+      "label": "Hibernate"
+    },
+    "more": {
+      "file": "more.png",
+      "origin": "openship",
+      "sha256": "21b46972a258b38e2975122930c27799f905a467838e40424fc748a06d002c00",
+      "inset": 0,
+      "label": "More options"
+    },
+    "moreCircle": {
+      "file": "more circle-1648127675.png",
+      "origin": "collection",
+      "sha256": "9f774e5ff80e4a3a72bc980789c9f570d7e81876c92ec03cbe1343f125b89d91",
+      "inset": 0,
+      "label": "More options"
+    },
+    "network": {
+      "file": "servers connect-95-1658435258.png",
+      "origin": "collection",
+      "sha256": "ce777ed4d033f3aa463a577a3aca50e5a7b927a91cb30f8cff8f1c4cbd4c22e6",
+      "inset": 0,
+      "label": "Network"
+    },
+    "pause": {
+      "file": "pause-279-1658234823.png",
+      "origin": "collection",
+      "sha256": "a00eff1966a0e8e1a74fba417916d79f231116da206b33395480d54efb0afb43",
+      "inset": 0,
+      "label": "Pause"
+    },
+    "pauseCircle": {
+      "file": "pause circle-277-1658234823.png",
+      "origin": "collection",
+      "sha256": "172a6c1deed304193c2d3ccb90961c34932717628ac7d4dbe42dd1d5b544baa4",
+      "inset": 0,
+      "label": "Pause"
+    },
+    "play": {
+      "file": "play-52-1663753435.png",
+      "origin": "collection",
+      "sha256": "80a5d755e763230fd3252c2a41b91bafaab11543ee3dee618ccc5d1e1fcdd0a3",
+      "inset": 0,
+      "label": "Play"
+    },
+    "playCircle": {
+      "file": "play circle-49-1663753435.png",
+      "origin": "collection",
+      "sha256": "3d6cab9b14dfbecc08b34f2428c001d9490ae3cf9af2bc068ab8df41896562e3",
+      "inset": 0,
+      "label": "Start"
+    },
+    "plug": {
+      "file": "connected cable-10-1689918655.png",
+      "origin": "collection",
+      "sha256": "e605169242e277e979b442dc430c6317bb3bc9f030797fcf1f458873bc5b5ba6",
+      "inset": 0,
+      "label": "Connection"
+    },
+    "plus": {
+      "file": "plus 4-49-1658433844.png",
+      "origin": "collection",
+      "sha256": "37f163b0ad6e3f95635c8cd6e4e572a3b46306030c70f625965a529ca24104c9",
+      "inset": 0,
+      "label": "Add"
+    },
+    "pointer": {
+      "file": "mouse pointer-122-1658431502.png",
+      "origin": "collection",
+      "sha256": "a015ca694f8ed304998c71676a6c7ff81fab26805492c6b34fb9885e95493ee2",
+      "inset": 0,
+      "label": "Pointer"
+    },
+    "pointerClick": {
+      "file": "mouse cursor-261-1658238246.png",
+      "origin": "collection",
+      "sha256": "e2fcd66fc6ff983aeaf5b0e083871a717ca5d4a4759d03af9becf9949261988b",
+      "inset": 0,
+      "label": "Click"
+    },
+    "power": {
+      "file": "power button-52-1658431404.png",
+      "origin": "collection",
+      "sha256": "44be4f4fd309d38a9ecbea6fcca993372b3fe0e294b21c4786f554e84f1f1eeb",
+      "inset": 0,
+      "label": "Power"
+    },
+    "project": {
+      "file": "folder code-28-1658431404.png",
+      "origin": "collection",
+      "sha256": "e4ea5e30a9a9908f9df3b75efd2ce9822d1a72585e23dae22cdf55e0281245d1",
+      "inset": 0,
+      "label": "Project"
+    },
+    "refresh": {
+      "file": "update right-53-1696832577.png",
+      "origin": "collection",
+      "sha256": "d8ac37ac9c72a8d775c30053742e7bbe71c05c36002e9d3d1d9f397535af33cb",
+      "inset": 0,
+      "label": "Refresh"
+    },
+    "rotateLeft": {
+      "file": "refresh left-46-1696832204.png",
+      "origin": "collection",
+      "sha256": "49b6e6d28d3234f6aa87c6d5e84f42107b5ddc7923bd0846727565cdd2aca2ff",
+      "inset": 0,
+      "label": "Restore"
+    },
+    "scan": {
+      "file": "scan-229-1658434699.png",
+      "origin": "collection",
+      "sha256": "e758a767077b278829f6b15af97d00bd05abe05101baa47a1b6611d4cf4586a3",
+      "inset": 0,
+      "label": "Scan connection code"
+    },
+    "scissors": {
+      "file": "cut tweezers-103-1658436129.png",
+      "origin": "collection",
+      "sha256": "2a145b48e6418d4607066a10873a9683e781d4d081a832533fc15f42b43131aa",
+      "inset": 0,
+      "label": "Cut"
+    },
+    "search": {
+      "file": "search-123-1658435124.png",
+      "origin": "collection",
+      "sha256": "8d99b91b4b124a04c90f172f88f5125fcac29829f8e7729059c7d3c348b927ae",
+      "inset": 0,
+      "label": "Search"
+    },
+    "send": {
+      "file": "send-1648128800.png",
+      "origin": "collection",
+      "sha256": "4d730976e971e42606d76d626a955cd82ceaaa93da4cea197a60e4a559719b29",
+      "inset": 0,
+      "label": "Send"
+    },
+    "server": {
+      "file": "server-91-1658435258.png",
+      "origin": "collection",
+      "sha256": "b544a8f19e132274c21f5cd10267702d7546e821ff0e1ce2ac27dced46b2ccad",
+      "inset": 0,
+      "label": "Server"
+    },
+    "settings": {
+      "file": "preferences-94-1658432731.png",
+      "origin": "collection",
+      "sha256": "d7a9a29217611ebe67019f26b13542b2177fd606872707a71a2b5e2bbde0755f",
+      "inset": 0,
+      "label": "Settings"
+    },
+    "share": {
+      "file": "share-115-1658432731.png",
+      "origin": "collection",
+      "sha256": "f71896b093b0dd1058c1b336e234ee016251a0f5fa4b81fd71c70c2956f70750",
+      "inset": 0,
+      "label": "Share"
+    },
+    "shield": {
+      "file": "shield-124-1691989601.png",
+      "origin": "collection",
+      "sha256": "bb69a8bd0127637dfcab7099d069368d72f49eb3c01b06317a46b54bf062af3b",
+      "inset": 0,
+      "label": "Security"
+    },
+    "shieldAlert": {
+      "file": "shield error-108-1691989601.png",
+      "origin": "collection",
+      "sha256": "ea52996dd4188e066450c51b8e48731c33ed55f8aa9c8e7628ae750202d6368c",
+      "inset": 0,
+      "label": "Not verified"
+    },
+    "shieldCheck": {
+      "file": "shield done-107-1691989601.png",
+      "origin": "collection",
+      "sha256": "d81a11def0f502e2feabb89a6f94d06e54b46bf0597edad5825d5a86a2cd5c1e",
+      "inset": 0,
+      "label": "Approval"
+    },
+    "shrink": {
+      "file": "arrows diagonal contract-91-1696832363.png",
+      "origin": "collection",
+      "sha256": "1df8867fb8f4d1e124f1cb9fec80468a8afabaf448dca5f25c946319830fa5d8",
+      "inset": 0,
+      "label": "Exit full screen"
+    },
+    "sidebarClose": {
+      "file": "Sidebar_close_8HSTkXISNddCf1grbdzvT0g1v9g0nfRHdVVt.png",
+      "origin": "collection",
+      "sha256": "d0ae9c78844eb52f659fc2b28d32f4703fca711be344b3a0ca979ba363ddc380",
+      "inset": 0,
+      "label": "Hide sidebar"
+    },
+    "sidebarOpen": {
+      "file": "Sidebar_Open_hGpIRTtDgNVNHZFiCBtOIzMLaxazlZbXIqsa.png",
+      "origin": "collection",
+      "sha256": "4f25f66e451aaa3472d1a120e9a047948c2e47fb410f6edf13d25017a580a49f",
+      "inset": 0,
+      "label": "Show sidebar"
+    },
+    "sliders": {
+      "file": "preferences-95-1658432731.png",
+      "origin": "collection",
+      "sha256": "4e906bc4773297af3a94811c3c9c71f71e97153bfd3f8115e2664599f12264de",
+      "inset": 0,
+      "label": "Options"
+    },
+    "sparkles": {
+      "file": "stars-103-1658435608.png",
+      "origin": "collection",
+      "sha256": "ccf9fdf717d7e8fc404e6bb4dca9310b0fac7ad24601fa4b731a892cbd261d37",
+      "inset": 0,
+      "label": "Sparkles"
+    },
+    "square": {
+      "file": "square-79-1658435395.png",
+      "origin": "collection",
+      "sha256": "f0b7e045c786a89e3b266a37874823bd59e1b0f5c05daa678b533b03eaaab230",
+      "inset": 0,
+      "label": "Not selected"
+    },
+    "star": {
+      "file": "star-83-1663767087.png",
+      "origin": "collection",
+      "sha256": "89e945c106d292efcb62de8dbeadeb0c12f3dd91c2c9c1c1ca24f59b198ccecf",
+      "inset": 0,
+      "label": "Star"
+    },
+    "stop": {
+      "file": "square-38-1666783764.png",
+      "origin": "collection",
+      "sha256": "75780aae277ca554fe266b2d3f4a25a9eed7498024ea5bb99264e665d1302d82",
+      "inset": 0,
+      "label": "Stop"
+    },
+    "stopCircle": {
+      "file": "stop circle-338-1658234823.png",
+      "origin": "collection",
+      "sha256": "4c780f8a997f32fcd54fe18bedc5a843997874323a9471c9521cb32b25353cee",
+      "inset": 0,
+      "label": "Stop"
+    },
+    "terminal": {
+      "file": "terminal-58-1658431404.png",
+      "origin": "collection",
+      "sha256": "4fe57b9102146e29f575931151e82ca984b073b6baba0bac40ab6f5c87a000dc",
+      "inset": 0,
+      "label": "Terminal"
+    },
+    "textCursor": {
+      "file": "cursor text-21-1692683663.png",
+      "origin": "collection",
+      "sha256": "f81eef4faf42b167e77e2d03fd80586e15d220bd592b52e43655c5ac187685f9",
+      "inset": 0,
+      "label": "Select text"
+    },
+    "trash": {
+      "file": "delete-29-1663582874.png",
+      "origin": "collection",
+      "sha256": "5c9abca273563fd1d895f0a569b9daac062c33f2ceb5ae82de7e1ab9602799f1",
+      "inset": 0,
+      "label": "Delete"
+    },
+    "type": {
+      "file": "font typeface-35-1692683695.png",
+      "origin": "collection",
+      "sha256": "ac770ba532dc6b5a8a7a5263bcc3d3ccd08e01bce33033395d4389eb7571e1a8",
+      "inset": 0,
+      "label": "Text size"
+    },
+    "undo": {
+      "file": "undo-197-1696832205.png",
+      "origin": "collection",
+      "sha256": "67b654b38191b592cf343c3d24de892483c2d7db172d1b055cf49272e5d6b18d",
+      "inset": 0,
+      "label": "Undo"
+    },
+    "upload": {
+      "file": "upload-191-1663767087.png",
+      "origin": "collection",
+      "sha256": "1a6baa5ac3d1dab6dc5dfbf5cd6148f202f42bf362c39532fda24d7d39bdfb61",
+      "inset": 0,
+      "label": "Upload"
+    },
+    "userCircle": {
+      "file": "user circle-175-1658436041.png",
+      "origin": "collection",
+      "sha256": "b8e8d79eb9865964a50efc64b0b94bad77eeea74e07645f7a03509ca225329de",
+      "inset": 0,
+      "label": "Account"
+    },
+    "userKey": {
+      "file": "user lock-314-1658436041.png",
+      "origin": "collection",
+      "sha256": "01441917b03e4e0493021b17798310299ff0633594c9831c2de59801d50b84f1",
+      "inset": 0,
+      "label": "Authentication"
+    },
+    "users": {
+      "file": "2 users-126-1658436041.png",
+      "origin": "collection",
+      "sha256": "26d90cea6c9960e8982637308e0507307dfbd34193fa8229257ebc7556ecabff",
+      "inset": 0,
+      "label": "Users"
+    },
+    "verified": {
+      "file": "check badge-66-1658234612.png",
+      "origin": "collection",
+      "sha256": "2186615e8ce89c7bdec0b18153769798054c140ec473e443f9df6c55ae48aef8",
+      "inset": 0,
+      "label": "Verified"
+    },
+    "warning": {
+      "file": "error triangle-81-1658234612.png",
+      "origin": "collection",
+      "sha256": "53effd9053fdad4624f7d5a4d450759e48201a33057e8a728bdf2076ff72a2de",
+      "inset": 0,
+      "label": "Warning"
+    },
+    "wifiOff": {
+      "file": "wireless disconnect-80-1658436340.png",
+      "origin": "collection",
+      "sha256": "c65d62cf4051a7b8938c49d4b3f45a7c2fbc73b3fc23c308cf69578e296621ac",
+      "inset": 0,
+      "label": "Connection unavailable"
+    },
+    "wrench": {
+      "file": "wrench-120-1658432731.png",
+      "origin": "collection",
+      "sha256": "0e5dbef5ed03ffc55a1ca42c6aba48ab2767b4031849ed0951d212394b33a0e8",
+      "inset": 0,
+      "label": "Tool"
+    },
+    "xCircle": {
+      "file": "remove circle-99-1658234612.png",
+      "origin": "collection",
+      "sha256": "1d083548a386c387a816b7ae76e796939aad738741d4da88a1ec2a8eae4b4754",
+      "inset": 0,
+      "label": "Close"
+    }
+  }
+}

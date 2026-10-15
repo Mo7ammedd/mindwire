@@ -1,0 +1,71 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "1BD609F7-8378-4CEE-98EB-E1F1493A1C2E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Independent older paging during latest refresh_0_F322CAF4-32E4-46B2-86C2-F3FB23FC1426.png",
+        "timestamp" : 1791381724.624
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "B465EE52-D010-4FE3-ADBB-C962BD5B7C6E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Older-message progress inside the transcript_0_C672682A-BA4D-4871-8120-F28BB51CD8AA.png",
+        "timestamp" : 1791381711.53
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testOlderPagingUsesTheScrollerAndContinuesDuringLatestRefresh()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testOlderPagingUsesTheScrollerAndContinuesDuringLatestRefresh"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "606EE3FB-BB98-4C6C-95A1-6CA4BB003F60.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Optional Oblien notification connection — light_0_99960D0E-ABA7-49C9-B624-F87EEFC87B07.png",
+        "timestamp" : 1791381750.002
+      }
+    ],
+    "testIdentifier" : "NotificationOnboardingInteractionTests/testFreshInstallCanDeferTheConnectionWithoutBlockingProjects()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/NotificationOnboardingInteractionTests/testFreshInstallCanDeferTheConnectionWithoutBlockingProjects"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "FCC2F596-6EFF-4901-BCF0-4F7CA3DE37E2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Optional Oblien notification connection — dark_0_D8407C2F-6CC3-4F06-B800-B4AEFA4DFD4D.png",
+        "timestamp" : 1791381756.534
+      }
+    ],
+    "testIdentifier" : "NotificationOnboardingInteractionTests/testFreshInstallExplainsNotificationsAndCanBeDismissed()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/NotificationOnboardingInteractionTests/testFreshInstallExplainsNotificationsAndCanBeDismissed"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "009FFDEC-002F-405C-94C2-9509E9F759D6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Notification permission allowed, account connection required_0_4FCEAAB3-8C22-4B7A-BAC5-A96BDD8DE4ED.png",
+        "timestamp" : 1791381763.231
+      }
+    ],
+    "testIdentifier" : "NotificationOnboardingInteractionTests/testSettingsDistinguishIOSPermissionFromSignedOutDelivery()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/NotificationOnboardingInteractionTests/testSettingsDistinguishIOSPermissionFromSignedOutDelivery"
+  }
+]

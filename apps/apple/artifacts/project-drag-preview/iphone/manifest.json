@@ -1,0 +1,134 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "8DB714AD-345D-4330-8D65-893B015E1CEE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Existing members and available projects stay separate_0_0C164F97-221E-4D67-98F0-30EEF9D56277.png",
+        "timestamp" : 1791385442.547
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "E3B6EE68-EA51-4B6B-AF01-B7D5DE8A249B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Folders with project previews in the grid_0_5FEAA2D2-DA8A-4557-B150-BE2800DB58BF.png",
+        "timestamp" : 1791385425.353
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "FC0854B4-2151-4BC8-A4E9-94C9A889EB88.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Folder context menu with only folder actions_0_2ABA8C8A-255D-47E3-8B88-CBED23F41F2C.png",
+        "timestamp" : 1791385352.647
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "8B375CA3-8733-4B8B-B15D-4638E564D4CA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "New folder offers only unassigned projects_0_2026DD46-751F-43C2-AB20-93048C803B89.png",
+        "timestamp" : 1791385287.354
+      }
+    ],
+    "testIdentifier" : "ProjectLibraryInteractionTests/testFolderPickerExcludesProjectsAlreadyInAnotherFolder()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/ProjectLibraryInteractionTests/testFolderPickerExcludesProjectsAlreadyInAnotherFolder"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "C7D84B93-23C9-4130-9487-F1D1998D224C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project grid preference restored in dark appearance_0_12CD0B4E-2B5E-4FED-8EBE-835D5F69F91C.png",
+        "timestamp" : 1791385489.281
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "FB1D9A21-26EA-4E70-B1F5-AB29692B7812.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project grid reordered inline_0_85858DBF-10CF-4AF1-987E-B3B67195FB1B.png",
+        "timestamp" : 1791385468
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "89D48121-F9B1-491E-8435-86906A492505.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project grid in light appearance_0_45B4E8C8-74FE-4AE3-B500-4DC2673F7AB3.png",
+        "timestamp" : 1791385462.594
+      }
+    ],
+    "testIdentifier" : "ProjectLibraryInteractionTests/testGridLayoutUsesNativeDragAndKeepsOrderWhenSwitchingToList()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/ProjectLibraryInteractionTests/testGridLayoutUsesNativeDragAndKeepsOrderWhenSwitchingToList"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "C0AEA15F-BBDD-4E74-94BF-60B8A7CCEF2F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Custom project order restored_0_DE1BDF3E-D943-43D5-B9F8-250F2978D294.png",
+        "timestamp" : 1791385509.002
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "AD64ACD0-CD36-46B9-8DE4-C70FFD77A0A7.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Projects reordered inline in the list_0_24C5E361-B654-4AE7-BDAC-E6827EABE6A9.png",
+        "timestamp" : 1791385503.327
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "2A819A26-6E3C-4E35-81A6-E74E8EFFBDD3.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project cards before a direct hold and drag_0_9732FF03-49E6-47E7-B4B9-51FD82E937D5.png",
+        "timestamp" : 1791385496.992
+      }
+    ],
+    "testIdentifier" : "ProjectLibraryInteractionTests/testHoldingCardReordersDirectlyAndCustomOrderPersists()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/ProjectLibraryInteractionTests/testHoldingCardReordersDirectlyAndCustomOrderPersists"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "6FC30229-433C-40C7-AA7E-FA695F1E9D99.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project options without a redundant reorder mode_0_0374572E-5D5C-4992-A017-672531C9B9E5.png",
+        "timestamp" : 1791385643.834
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "E7AC3FEB-1C09-415D-8749-90D5EBFC1825.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Project context menu with the card-shaped preview_0_81B98BB0-1992-4EF8-9FE4-03DE27E1CB6B.png",
+        "timestamp" : 1791385579.007
+      }
+    ],
+    "testIdentifier" : "ProjectLibraryInteractionTests/testProjectActionsDoNotOfferAnExtraReorderMode()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/ProjectLibraryInteractionTests/testProjectActionsDoNotOfferAnExtraReorderMode"
+  }
+]

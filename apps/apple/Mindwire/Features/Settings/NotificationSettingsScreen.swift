@@ -1,0 +1,259 @@
+import SwiftUI
+import UIKit
+import UserNotifications
+
+struct NotificationSettingsScreen: View {
+    @Environment(\.stores) private var stores
+    @State private var agents: [Agent] = []
+
+    var body: some View {
+        List {
+            NotificationDeviceSection()
+            Section {
+                ForEach(agents) { agent in
+                    NavigationLink {
+                        NotificationPreferencesScreen(scope: .agent(agent.id))
+                    } label: {
+                        Label {
+                            LabeledContent(agent.displayName,
+                                value: t(agent.notificationsMuted == true ? "notifications.muted" : "notifications.on"))
+                        } icon: {
+                            AgentLogo(id: agent.agentType, size: 22)
+                        }
+                    }
+                }
+            } header: {
+                Text(t("tabs.agents"))
+            } footer: {
+                Text(t("notifications.chatHint"))
+            }
+        }
+        .navigationTitle(t("notifications.title"))
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear(perform: reload)
+        .observeWorkspaceCache(reload)
+    }
+
+    private func reload() {
+        agents = stores.agents.list().sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+    }
+}
+
+/// iOS owns the device-wide switch, sounds and delivery style, including background delivery.
+struct NotificationDeviceSection: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var requesting = false
+    @State private var showLogin = false
+    private let push: LivePushService
+    private let refreshAccount: () async -> Void
+
+    init(push: LivePushService? = nil,
+         refreshAccount: @escaping () async -> Void = { await OblienAuth.shared.refresh() }) {
+        self.push = push ?? .shared
+        self.refreshAccount = refreshAccount
+    }
+
+    var body: some View {
+        Section {
+            LabeledContent(t("notifications.device"), value: statusLabel)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(t("notifications.device"))
+                .accessibilityValue(statusLabel)
+                .accessibilityIdentifier("notification-device-permission")
+            LabeledContent("Delivery") {
+                HStack(spacing: 6) {
+                    if push.state == .registering || push.state == .checking { ProgressView().controlSize(.mini) }
+                    Text(deliveryLabel).foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Delivery")
+            .accessibilityValue(deliveryLabel)
+            .accessibilityIdentifier("notification-delivery-status")
+            if push.state == .signInRequired {
+                Button { showLogin = true } label: {
+                    Label("Sign in for notifications", icon: .login)
+                }
+                .accessibilityIdentifier("notification-sign-in")
+            } else if push.authorizationStatus == .notDetermined {
+                Button(t("notifications.enable")) {
+                    Task { await refresh() }
+                }
+                .disabled(requesting)
+            }
+            if push.state.needsRetry {
+                Button { Task { await refresh() } } label: {
+                    Label("Retry connection", icon: .refresh)
+                }
+                .disabled(requesting)
+                .accessibilityIdentifier("notification-retry")
+            }
+            if push.authorizationStatus != nil, push.authorizationStatus != .notDetermined {
+                Button(t("notifications.openSettings")) {
+                    guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+            }
+            if case .failed(let message) = push.state {
+                DisclosureGroup("Details") {
+                    Text(message).font(.footnote).foregroundStyle(.secondary).textSelection(.enabled)
+                }
+            }
+        } footer: {
+            Text(deliveryHint)
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await refresh()
+        }
+        .oblienLoginSheet(isPresented: $showLogin) {
+            Task { await refresh() }
+        }
+    }
+
+    private func refresh() async {
+        guard !requesting else { return }
+        requesting = true
+        defer { requesting = false }
+        await refreshAccount()
+        await push.start()
+    }
+
+    private var statusLabel: String {
+        switch push.authorizationStatus {
+        case .authorized, .ephemeral: return "Allowed"
+        case .provisional: return t("notifications.quiet")
+        case .denied: return t("notifications.off")
+        case .notDetermined: return t("notifications.notEnabled")
+        default: return t("workspace.checking")
+        }
+    }
+
+    private var deliveryLabel: String {
+        switch push.state {
+        case .checking: "Checking…"
+        case .signInRequired: "Sign in required"
+        case .permissionRequired: "Permission required"
+        case .permissionDenied: "Off in iOS Settings"
+        case .waitingForToken: "Waiting for this device"
+        case .registering: "Connecting…"
+        case .ready: "Ready"
+        case .failed: "Connection needs attention"
+        }
+    }
+
+    private var deliveryHint: String {
+        switch push.state {
+        case .signInRequired:
+            "Sign in to Oblien to receive alerts from your Mac, servers and cloud workspaces. Your SSH connections keep working without this login."
+        case .waitingForToken, .failed:
+            "Notification setup retries automatically while Mindwire is open. You can retry now."
+        default:
+            "Alerts for the chat you’re viewing are silenced. Other chats can still notify you."
+        }
+    }
+}
+
+/// Reused from app settings, agent settings, the chat menu and every chat list.
+struct NotificationPreferencesScreen: View {
+    let scope: NotificationScope
+    @Environment(\.stores) private var stores
+    @State private var title = ""
+    @State private var muted = false
+    @State private var parent: Agent?
+    @State private var exists = false
+    @State private var pending: Bool?
+    @State private var error: String?
+    @State private var showLogin = false
+
+    private var parentMuted: Bool { parent?.notificationsMuted == true }
+    private var requiresSignIn: Bool {
+        scope.workspaceID(in: stores).map { WorkspaceRepository.shared.requiresSignIn(for: $0) } ?? false
+    }
+
+    var body: some View {
+        Form {
+            NotificationDeviceSection()
+            if requiresSignIn {
+                Section { OblienSignInRow(bodyKey: "workspace.signIn.body") { showLogin = true } }
+            }
+            Section {
+                Toggle(isOn: Binding(get: { !parentMuted && (pending ?? !muted) }, set: save)) {
+                    HStack {
+                        Text(t("notifications.allow"))
+                        if pending != nil { ProgressView().controlSize(.mini).accessibilityLabel(t("notifications.saving")) }
+                    }
+                }
+                .disabled(pending != nil || parentMuted || !exists || requiresSignIn)
+                .accessibilityIdentifier("notification-scope-toggle")
+            } header: {
+                Text(title)
+            } footer: {
+                Text(t(parentMuted ? "notifications.agentMuted" : (parent == nil ? "notifications.agentHint" : "notifications.chatScopeHint")))
+            }
+            if let parent {
+                Section {
+                    NavigationLink {
+                        NotificationPreferencesScreen(scope: .agent(parent.id))
+                    } label: {
+                        Label(t("notifications.agentSettings"), icon: .bell)
+                    }
+                }
+            }
+            if let error {
+                Section { Text(error).foregroundStyle(.red) }
+            }
+        }
+        .navigationTitle(t("notifications.title"))
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear(perform: reload)
+        .observeWorkspaceCache(reload)
+        .task { await refresh() }
+        .refreshable { await refresh(force: true) }
+        .oblienLoginSheet(isPresented: $showLogin) {
+            Task { await WorkspaceRepository.shared.refresh(); await refresh() }
+        }
+    }
+
+    private func reload() {
+        let name = scope.title(in: stores)
+        exists = name != nil
+        title = name ?? t("notifications.unavailable")
+        muted = scope.savedMute(in: stores) == true
+        parent = scope.parentAgent(in: stores)
+    }
+
+    private func refresh(force: Bool = false) async {
+        guard let id = scope.workspaceID(in: stores), let workspace = WorkspaceRepository.shared.get(id) else { return }
+        if force { await stores.workspaceData.refresh(workspace) }
+        else { await stores.workspaceData.refreshIfNeeded(workspace) }
+        reload()
+    }
+
+    private func save(_ allowed: Bool) {
+        guard pending == nil else { return }
+        pending = allowed
+        error = nil
+        Task {
+            defer { pending = nil; reload() }
+            do { try await stores.workspaceData.setNotificationsMuted(!allowed, for: scope) }
+            catch { self.error = error.localizedDescription }
+        }
+    }
+}
+
+struct ChatNotificationSettingsSheet: View {
+    let chatID: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            NotificationPreferencesScreen(scope: .chat(chatID))
+                .toolbar {
+                    AppToolbarItem(placement: .confirmationAction) {
+                        Button(t("common.done")) { dismiss() }.tint(.primary)
+                    }
+                }
+        }
+    }
+}

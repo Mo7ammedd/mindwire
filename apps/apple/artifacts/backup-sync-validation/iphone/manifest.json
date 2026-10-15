@@ -1,0 +1,83 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "C022EA54-1841-4839-A8CE-F546FAC094E3.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Cached conversation with title-only refresh_0_96775A61-2EB6-46E5-8160-900DA75CF052.png",
+        "timestamp" : 1791378569.788
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testCachedConversationUsesTitleIndicatorAndKeepsItsTranscriptOnReturn()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testCachedConversationUsesTitleIndicatorAndKeepsItsTranscriptOnReturn"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "A20D40A2-21A2-42DE-9C0D-D09E5253986F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "What iCloud saves · light_0_57903A86-6A4D-40B3-B438-A7FA6E94E55A.png",
+        "timestamp" : 1791378614.357
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "570ADBDD-E469-40FE-B040-4DA1CD2421B6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "iCloud sync settings · light_0_65C44071-3B13-4ACF-872A-D63000BCAF13.png",
+        "timestamp" : 1791378610.512
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "5C8AAB09-347E-42FC-AF90-C2A489788FF0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "What iCloud saves · dark_0_5AAA99F1-A028-4306-AFEA-7A33EE4E186F.png",
+        "timestamp" : 1791378592.133
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "ACAF748E-C0AB-4509-82C5-BA28D82159D3.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "iCloud sync settings · dark_0_021A0034-636A-4901-B1DD-A3AAFA0CCD64.png",
+        "timestamp" : 1791378587.787
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testOptInCredentialControlsAndNativeDeletionKeepLocalConnections()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testOptInCredentialControlsAndNativeDeletionKeepLocalConnections"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "1A7B800A-1C39-4BCA-A80C-CE1776211D5C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Native Files destination picker_0_CCD8C1BC-57F4-4FF6-81DE-0E4A009FAB8E.png",
+        "timestamp" : 1791378641.005
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "678BA23D-B324-4F75-8599-4128C1137BEC",
+        "deviceName" : "Mindwire Store iPhone 17 Pro Max",
+        "exportedFileName" : "DCE40BFD-F1ED-432E-98D2-CABDB2F6711F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Password protected backup file_0_C873BD12-5E67-4A46-BF6F-EC270A5CAC12.png",
+        "timestamp" : 1791378633.806
+      }
+    ],
+    "testIdentifier" : "BackupSyncInteractionTests/testPasswordProtectedFileExportOpensNativeFiles()",
+    "testIdentifierURL" : "test://com.apple.xcode/Mindwire/MindwireUITests/BackupSyncInteractionTests/testPasswordProtectedFileExportOpensNativeFiles"
+  }
+]

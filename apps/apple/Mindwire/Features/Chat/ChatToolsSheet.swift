@@ -1,0 +1,176 @@
+import SwiftUI
+import PhotosUI
+
+/// Quick controls stay above the conversation. Tool screens reuse the project's own destinations,
+/// and model edits keep the existing daemon-backed draft/save flow.
+struct ChatToolsSheet: View {
+    let chatID: String
+    let agent: Agent?
+    let settings: AgentSettingsModel?
+    let session: DaemonSession?
+    let livePermissions: Bool
+    let loadingSettings: Bool
+    let settingsError: String?
+    let reloadSettings: () async -> Void
+    let applySettings: ([String: String]) async throws -> Void
+    @Bindable var images: ChatImageDraft
+    var addAttachment: (ChatAttachmentSource) -> Void = { _ in }
+    var showCommands: () -> Void = {}
+
+    @Environment(\.stores) private var stores
+    @Environment(\.dismiss) private var dismiss
+    @State private var project: Project?
+    @State private var destination: Destination?
+    @State private var showingTerminal = false
+
+    private enum Destination: Identifiable {
+        case settings, tool(ProjectTool)
+        var id: String {
+            switch self {
+            case .settings: "settings"
+            case .tool(let tool): tool.id
+            }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                modelSection
+                if session?.capabilities?.commands == true {
+                    Section {
+                        Button(action: showCommands) {
+                            Label(t("chat.commands.title"), icon: .command)
+                        }
+                        .tint(.primary)
+                        .accessibilityIdentifier("chat.commands.open")
+                    }
+                }
+                if let project {
+                    Section {
+                        ForEach(ProjectTool.available(workspaceId: project.workspaceId)) { tool in
+                            ProjectToolButton(tool: tool) {
+                                if tool == .terminal { showingTerminal = true }
+                                else { destination = .tool(tool) }
+                            }
+                        }
+                    } header: {
+                        Text(t("chat.tools.project", ["name": project.name]))
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(.compact)
+            .contentMargins(.top, Spacing.sm, for: .scrollContent)
+            .navigationTitle(t("chat.tools"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                AppToolbarItem(placement: .topBarLeading) {
+                    AppMenu {
+                        Button { addAttachment(.photos) } label: { Label("Photo Library", icon: .filePicture) }
+                            .disabled(session?.capabilities?.imageInput == false || images.items.count >= ChatImageEncoding.maximumCount)
+                        Button { addAttachment(.camera) } label: { Label("Take Photo", icon: .camera) }
+                            .disabled(session?.capabilities?.imageInput == false || images.items.count >= ChatImageEncoding.maximumCount)
+                        Button { addAttachment(.files) } label: { Label("Choose Files", icon: .file) }
+                            .disabled(images.items.count >= ChatImageEncoding.maximumCount)
+                        Button { addAttachment(.voice) } label: { Label(t("chat.voice.native.recordFile"), icon: .microphone) }
+                    } label: {
+                        Label("Attach", icon: .attachment)
+                    }
+                    .tint(.primary)
+                    .disabled(images.importing)
+                    .accessibilityIdentifier("chat.addImage")
+                }
+                AppToolbarItem(placement: .confirmationAction) {
+                    Button(t("common.done")) { dismiss() }.tint(.primary)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .onAppear(perform: resolveProject)
+        .observeWorkspaceCache(resolveProject)
+        .sheet(item: $destination) { selected in
+            switch selected {
+            case .settings:
+                if let settings {
+                    AgentQuickSettingsSheet(settings: settings, session: session,
+                                            livePermissions: livePermissions, apply: applySettings)
+                }
+            case .tool(let tool):
+                if let project {
+                    ProjectToolDestination(tool: tool, project: project, files: session?.workspace)
+                        .presentationDetents([.large])
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showingTerminal) {
+            if let project { ProjectToolDestination(tool: .terminal, project: project) }
+        }
+    }
+
+    private var modelSection: some View {
+        Section {
+            if let settings, settings.configurationLoaded, settings.hasConfig {
+                Button { destination = .settings } label: {
+                    HStack(spacing: Spacing.lg) {
+                        agentIcon
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Text(settings.modelName).font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
+                            if let effort = settings.reasoningLabel {
+                                Text(t("chat.tools.reasoning", ["effort": effort]))
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                            } else if let agent {
+                                Text(agent.displayName).font(.subheadline).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer(minLength: Spacing.sm)
+                        AppIcon(.sliders).foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, Spacing.xs)
+                }
+                .tint(.primary)
+                .accessibilityLabel(t("chat.modelSettings"))
+                .accessibilityValue(settings.modelSummary)
+                .accessibilityIdentifier("chat.modelSettings")
+            } else if loadingSettings {
+                HStack(spacing: Spacing.lg) {
+                    agentIcon
+                    Text(t("chat.tools.loadingSettings")).foregroundStyle(.secondary)
+                    Spacer()
+                    ProgressView().controlSize(.small)
+                }
+            } else if settings?.configurationLoaded == true {
+                Text(t("chat.tools.noSettings")).foregroundStyle(.secondary)
+            } else {
+                Button { Task { await reloadSettings() } } label: {
+                    Label(t("chat.tools.loadSettings"), icon: .refresh)
+                }
+                .tint(.primary)
+            }
+        } header: {
+            Text(t("chat.modelSettings"))
+        } footer: {
+            if let settingsError { Text(settingsError) }
+        }
+    }
+
+    @ViewBuilder
+    private var agentIcon: some View {
+        if let agent {
+            AgentLogo(id: agent.agentType, size: 24, mono: true).accessibilityHidden(true)
+        } else {
+            AppIcon(.cpu).frame(width: 24, height: 24).accessibilityHidden(true)
+        }
+    }
+
+    private func resolveProject() {
+        project = stores.chats.get(chatID).flatMap { stores.projects.get($0.projectId) }
+        if project == nil {
+            if case .tool = destination { destination = nil }
+            showingTerminal = false
+        }
+    }
+}

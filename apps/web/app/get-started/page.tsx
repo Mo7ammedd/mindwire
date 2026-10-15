@@ -24,15 +24,15 @@ export default function GetStarted() {
   return (
     <div className={styles.marketing}>
       <section className={`${styles.wrap} ${styles.pageHero}`}>
-        <span className={styles.kicker}>Take your agents with you</span>
+        <span className={styles.kicker}>Connect your assistant</span>
         <h1 className={styles.pageTitle}>
-          Your next workspace
+          Start with the computer
           <br />
-          <span>is already on your desk.</span>
+          <span>you already use.</span>
         </h1>
         <p>
-          Mindwire on your iPhone. Your agents on your computer. A secure
-          connection between the two.
+          Give your assistant a place to work. Connect your computer, choose
+          a supported agent, and start a task from your phone.
         </p>
       </section>
       <div className={styles.wrap}>
@@ -44,10 +44,10 @@ export default function GetStarted() {
           >
             <Corners />
             <Smartphone size={32} strokeWidth={1.5} />
-            <h2 id="iphone-title">Meet your iPhone app.</h2>
+            <h2 id="iphone-title">Meet your Apple app.</h2>
             <p>
-              Chat with your agents, review changes, and reach your workspaces
-              from wherever you are.
+              Ask for a task, follow your agent’s progress, review its work, and
+              reach the files and tools in your workspace.
             </p>
             {iosApp ? (
               <a href={iosApp.href} className={styles.primaryButton}>
@@ -60,7 +60,7 @@ export default function GetStarted() {
               </span>
             )}
             <p>
-              Already have Mindwire? Open{" "}
+              Native Mac and visionOS apps are planned. Already have the iPhone or iPad app? Open{" "}
               <strong>Workspaces → Add computer</strong> to scan the code from
               your computer.
             </p>

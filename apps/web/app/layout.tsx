@@ -8,9 +8,9 @@ import Footer from "@/components/Footer";
 import HideOnDocs from "@/components/HideOnDocs";
 
 export const metadata: Metadata = {
-  title: "Mindwire — Your coding agents, anywhere",
+  title: "Mindwire — Your personal assistant, on your terms",
   description:
-    "Your favorite coding agents, on iPhone. Continue conversations, review code, and switch workspaces from anywhere. Built on the open-source Mindwire runtime.",
+    "A personal assistant for everyday work and coding, powered by your choice of agent harness. Connect your computer, server, or cloud workspace and keep work moving from your phone.",
   metadataBase: new URL("https://mindwire.sh"),
   openGraph: {
     siteName: "Mindwire",

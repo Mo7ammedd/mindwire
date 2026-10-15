@@ -393,7 +393,7 @@ export default function ProductPreview() {
         ))}
       </div>
       <figcaption className={styles.caption}>
-        Interactive preview · example project
+        Interactive preview · coding example
       </figcaption>
     </figure>
   );

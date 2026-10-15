@@ -10,7 +10,7 @@ export function GET() {
   const body = [
     "# MindWire",
     "",
-    "> The runtime for coding agents: one protocol, one event stream and one auth flow over Claude Code, Codex, opencode and more — driven from TypeScript, Go, or plain HTTP + SSE.",
+    "> A personal assistant and coding companion, powered by native agent harnesses. Apple and browser clients share a runtime for tasks, files, tools, sessions, and workspace execution. Developers can use TypeScript, Go, or HTTP + SSE. The runtime and SDKs are Apache-2.0; the Apple client is source-available under a separate license that restricts redistribution and derivative app publication.",
     "",
     "## Docs",
     "",

@@ -1,0 +1,42 @@
+{
+  "events": [
+    {
+      "type": "session",
+      "sessionId": "thread-structured"
+    },
+    {
+      "type": "thinking",
+      "itemId": "item_0",
+      "text": "**Formulating JSON output**\n\nI need to produce a final JSON that matches the schema, specifically with a greeting, a checked value, and an items array. I can simplify this to just outputting the structured data without any commentary. The precise format should be: {\"greeting\":\"Hello\",\"checked\":true,\"items\":[1,2,3]}. It’s important to keep it straightforward and aligned with the exact user and system format, so I'll stick to that!",
+      "delta": true
+    },
+    {
+      "type": "text",
+      "itemId": "item_1",
+      "text": "{\"greeting\":\"Hello\",\"checked\":true,\"items\":[1,2,3]}",
+      "delta": true
+    },
+    {
+      "type": "result",
+      "sessionId": "thread-structured",
+      "result": {
+        "text": "{\"greeting\":\"Hello\",\"checked\":true,\"items\":[1,2,3]}",
+        "sessionId": "thread-structured",
+        "usage": {
+          "inputTokens": 9574,
+          "outputTokens": 97,
+          "cacheWriteTokens": 9571,
+          "reasoningTokens": 67
+        }
+      },
+      "meta": {
+        "cacheWriteInputTokens": 9571,
+        "cachedInputTokens": 0,
+        "inputTokens": 9574,
+        "outputTokens": 97,
+        "reasoningOutputTokens": 67
+      }
+    }
+  ],
+  "messages": null
+}

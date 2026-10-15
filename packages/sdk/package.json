@@ -34,7 +34,7 @@
       "require": "./dist/index.cjs"
     }
   },
-  "description": "TypeScript SDK for the MindWire runtime — one client for every coding-agent harness (Claude Code, Codex, Grok Build, opencode).",
+  "description": "Build personal assistants and coding tools on native agent harnesses with one Mindwire runtime API.",
   "engines": {
     "node": ">=18"
   },

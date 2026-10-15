@@ -1,4 +1,4 @@
-# What NOT to send to the Docker build context. The console image (packages/docker/console.Dockerfile) builds from
+# What NOT to send to the Docker build context. The console image (deploy/docker/console.Dockerfile) builds from
 # source inside the image, so host build output and installed deps must stay out — the builder regenerates
 # them for the image's platform. Keeping this tight also makes the context upload fast.
 
@@ -11,11 +11,27 @@
 **/dist
 **/dist-server
 **/.next
-daemon/bin
+packages/daemon/bin
+packages/daemon/.dev
+packages/daemon/dist
 packages/sdk/npm
+
+# Native clients and their reviewed captures do not ship in server images.
+apps/apple
+docs/apple
+scripts/app-store
+scripts/icons
+apps/protocol-lab/*
+!apps/protocol-lab/package.json
 
 # Local runtime state (the auth SQLite lives in a mounted volume, never in the image).
 **/.data
+**/.cache
+**/agent-state.json
+**/.mindwire-state.json
+**/daemon.token
+**/workspace.db*
+.mindwire-dev-token
 
 # VCS / CI / tooling — not needed to build the app.
 .git

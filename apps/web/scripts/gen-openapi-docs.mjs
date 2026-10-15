@@ -8,10 +8,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 const OUT = path.resolve("content/docs/reference/rest");
-const SPEC = path.resolve("../../daemon/openapi.json");
+const SPEC = path.resolve("../../packages/daemon/openapi.json");
 
 if (!fs.existsSync(SPEC)) {
-  console.log("gen-openapi-docs: no daemon/openapi.json found — skipping (commit daemon/openapi.json)");
+  console.log("gen-openapi-docs: no packages/daemon/openapi.json found — skipping (commit packages/daemon/openapi.json)");
   process.exit(0);
 }
 

@@ -9,7 +9,9 @@
 // Gated behind RUN_E2E so the hermetic `bun test` stays fast and offline: with the flag unset the
 // whole describe reports as skipped at ~0 cost. `bun run test:e2e` sets it.
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { EmbeddedDaemon } from "../../src/index.js";
 import { version } from "../../package.json";
 
@@ -19,6 +21,7 @@ const hostBin = process.env.MINDWIRE_DAEMON;
 
 describe.skipIf(!RUN)("e2e: embedded daemon (real binary)", () => {
   let daemon: EmbeddedDaemon;
+  let directory: string | undefined;
 
   beforeAll(async () => {
     if (!hostBin || !existsSync(hostBin)) {
@@ -29,11 +32,13 @@ describe.skipIf(!RUN)("e2e: embedded daemon (real binary)", () => {
     // Use the built SDK so its version matches the daemon built from this checkout.
     // Load only when enabled, keeping skipped E2E tests independent of build artifacts.
     const { startEmbedded } = await import("../../dist/index.js");
-    daemon = await startEmbedded();
+    directory = mkdtempSync(join(tmpdir(), "mindwire-embedded-e2e-"));
+    daemon = await startEmbedded({ cwd: directory, statePath: join(directory, "state.json") });
   });
 
-  afterAll(() => {
-    daemon?.stop();
+  afterAll(async () => {
+    await daemon?.stop();
+    if (directory) rmSync(directory, { recursive: true, force: true });
   });
 
   const daemonFetch = (path: string) =>

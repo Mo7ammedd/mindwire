@@ -1,0 +1,16 @@
+{
+  "images" : [
+    {
+      "filename" : "copy 1-132-1658431575.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "template-rendering-intent" : "template"
+  }
+}

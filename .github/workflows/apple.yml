@@ -1,0 +1,39 @@
+name: Apple client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/apple/**'
+      - 'scripts/icons/**'
+      - '.github/workflows/apple.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/apple/**'
+      - 'scripts/icons/**'
+      - '.github/workflows/apple.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apple:
+    name: Apple app (iOS Simulator build)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        working-directory: apps/apple
+        run: xcodegen generate
+      - name: Build native client
+        run: >-
+          xcodebuild -project apps/apple/Mindwire.xcodeproj -scheme Mindwire
+          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
