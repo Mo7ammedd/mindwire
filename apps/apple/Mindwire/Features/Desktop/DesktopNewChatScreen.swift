@@ -24,41 +24,20 @@ struct DesktopNewChatScreen: View {
     private var hasText: Bool { !draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 32)
-            VStack(spacing: 32) {
-                VStack(spacing: 12) {
-                    Text("What can I help with?")
-                        .font(.largeTitle.weight(.medium)).fontDesign(.rounded)
-                    Text("An idea, a task, a little less on your plate.")
-                        .font(.body).foregroundStyle(.secondary)
-                }
-                .multilineTextAlignment(.center)
+        VStack(spacing: 24) {
+            Text("What can I help with?")
+                .font(.title2.weight(.medium))
+            VStack(alignment: .leading, spacing: 12) {
                 composer
-                suggestions
+                contextMenu
+                    .padding(.horizontal, 12)
             }
-            .frame(maxWidth: 740)
-            .padding(.horizontal, 40)
-            Spacer(minLength: 48)
-            HStack(spacing: 6) {
-                AppIcon(.shieldCheck).font(.caption)
-                Text("Your computer. Your subscriptions. One Mindwire.").font(.caption)
-            }
-            .foregroundStyle(.tertiary)
-            .padding(.bottom, 24)
         }
+        .frame(maxWidth: 640)
+        .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle("New chat")
-        .toolbar {
-            AppToolbarItem(placement: .topBarLeading) {
-                AppMenu {
-                    Button("Computers", icon: Icon.workspace) { app.selectDesktop(.workspaces) }
-                    Button("Settings", icon: Icon.settings) { app.selectDesktop(.settings) }
-                } label: {
-                    HStack(spacing: 6) { Text("Mindwire").font(.headline); AppIcon(.chevronDown).font(.caption2) }
-                }
-            }
-        }
+        .navigationTitle("Mindwire")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             draft = stores.chatDrafts.draft(for: draftKey)
             reloadContext()
@@ -75,32 +54,27 @@ struct DesktopNewChatScreen: View {
     }
 
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            TextField("Ask Mindwire to do anything…", text: $draft.text, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.body)
-                .lineLimit(3...8)
-                .focused($focused)
-                .disabled(creating)
-                .onKeyPress(.return, phases: .down) { press in
-                    guard !press.modifiers.contains(.shift), hasText, !creating else { return .ignored }
-                    startChat()
-                    return .handled
-                }
-                .accessibilityIdentifier("desktop.composer")
-            if let error {
-                ChatErrorDisclosure(detail: error) { self.error = nil }
-            }
-            HStack(spacing: 16) {
-                contextMenu
-                Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .bottom, spacing: Spacing.sm) {
+                TextField(t("chat.placeholder"), text: $draft.text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.body)
+                    .lineLimit(1...8)
+                    .focused($focused)
+                    .disabled(creating)
+                    .onKeyPress(.return, phases: .down) { press in
+                        guard !press.modifiers.contains(.shift), hasText, !creating else { return .ignored }
+                        startChat()
+                        return .handled
+                    }
+                    .accessibilityIdentifier("desktop.composer")
                 if creating {
-                    ProgressView().controlSize(.small).frame(width: 36, height: 36)
+                    ProgressView().controlSize(.small).frame(width: 30, height: 30)
                 } else {
                     Button(action: startChat) {
-                        AppIcon(Icon.send, size: 20)
+                        AppIcon(Icon.send, size: 16)
                             .foregroundStyle(hasText ? (colorScheme == .dark ? Color.black : .white) : .secondary)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 30, height: 30)
                             .background(hasText ? (colorScheme == .dark ? Color.white : .black) : Color.primary.opacity(0.06), in: .circle)
                     }
                     .buttonStyle(.plain)
@@ -110,9 +84,14 @@ struct DesktopNewChatScreen: View {
                     .accessibilityIdentifier("desktop.send")
                 }
             }
+            .padding(.leading, Spacing.lg)
+            .padding(.trailing, Spacing.sm)
+            .padding(.vertical, 9)
+            .chromeGlass(.rect(cornerRadius: Radius.xl, style: .continuous))
+            if let error {
+                ChatErrorDisclosure(detail: error) { self.error = nil }
+            }
         }
-        .padding(22)
-        .glassEffect(.regular, in: .rect(cornerRadius: 28))
     }
 
     private var contextMenu: some View {
@@ -141,10 +120,11 @@ struct DesktopNewChatScreen: View {
             Button("Connect a computer…", icon: .plus) { pairing = true }
             Button("Manage computers…", icon: Icon.workspace) { app.selectDesktop(.workspaces) }
         } label: {
-            Label(project?.name ?? "Connect a computer", icon: Icon.workspace)
-                .font(.callout).foregroundStyle(.secondary).lineLimit(1)
+            Label(project?.name ?? "Connect a computer", icon: project == nil ? .monitor : .project)
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
         .buttonStyle(.plain)
+        .menuIndicator(.hidden)
         .disabled(creating)
         .accessibilityLabel("Choose where Mindwire works")
     }
@@ -155,23 +135,6 @@ struct DesktopNewChatScreen: View {
             .sorted { ($0.lastUsedAt ?? $0.createdAt) > ($1.lastUsedAt ?? $1.createdAt) }
         allAgents = stores.agents.list()
         if projectID.isEmpty, let project { projectID = project.id }
-    }
-
-    private var suggestions: some View {
-        HStack(spacing: 12) {
-            suggestion("Build something", icon: .code, text: "Help me build ")
-            suggestion("Organize my files", icon: .folder, text: "Help me organize ")
-            suggestion("Automate a task", icon: .sparkles, text: "Help me automate ")
-        }
-        .buttonStyle(.plain)
-        .disabled(creating)
-    }
-
-    private func suggestion(_ title: String, icon: AppIconName, text: String) -> some View {
-        Button { draft.text = text; focused = true } label: {
-            Label(title, icon: icon).font(.callout).padding(.horizontal, 16).padding(.vertical, 11)
-        }
-        .glassEffect(.regular.interactive(), in: .capsule)
     }
 
     private func startChat() {

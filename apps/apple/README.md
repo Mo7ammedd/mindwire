@@ -50,7 +50,7 @@ xcodebuild -scheme MindwireMac \
 
 The Mac opens into chat, with a conversation sidebar, search, and a glass composer. Choose the
 computer/project context from the composer; existing computer pairing and subscription setup
-remain available through Computers. The Developer tools setting in Settings or the sidebar menu reveals
+remain available through Computers. The Developer tools setting in Settings reveals
 Projects and Agent settings. Files, Git, ports, terminal, and remote desktop use the existing
 workspace and project screens.
 
@@ -58,6 +58,10 @@ Chats share Mindwire's name and monochrome mark on iOS and Mac. Conversation row
 provider identities belong in subscription setup and developer configuration. Navigation and actions
 use the same bundled PNG icon catalog as the phone. The Mac sidebar uses native rounded selection,
 with navigation below the scrolling conversation list.
+
+The welcome view keeps a compact composer beneath a system title. New Chat lives in the toolbar;
+only conversation and settings destinations receive sidebar selection. Neutral system selection
+colors preserve readable labels in either appearance.
 
 `⌘N` starts a chat, `⌘F` focuses conversation search, and `⌘,` opens Settings. Return sends;
 Shift-Return inserts a new line. Windows have independent navigation and share the existing

@@ -40,6 +40,7 @@ struct DesktopMainScene: View {
     @Environment(\.stores) private var stores
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var search = ""
+    @State private var showingSearch = false
     @State private var chats: [Chat] = []
     @State private var rowSnapshots: [String: ChatListRowSnapshot] = [:]
     @State private var restored = false
@@ -65,7 +66,6 @@ struct DesktopMainScene: View {
             .background(.background)
         }
         .navigationSplitViewStyle(.balanced)
-        .tint(.primary)
         .background(DesktopWindowConfiguration())
         .onAppear {
             reloadSidebar()
@@ -91,7 +91,7 @@ struct DesktopMainScene: View {
     }
 
     private var selection: Binding<DesktopDestination?> {
-        Binding(get: { app.desktopDestination }, set: { if let destination = $0 { app.selectDesktop(destination) } })
+        Binding(get: { app.desktopDestination == .newChat ? nil : app.desktopDestination }, set: { if let destination = $0 { app.selectDesktop(destination) } })
     }
 
     private var sidebar: some View {
@@ -99,29 +99,28 @@ struct DesktopMainScene: View {
             conversationList
             navigationTools
         }
-        .searchable(text: $search, placement: .sidebar, prompt: "Search conversations")
+        .searchable(text: $search, isPresented: $showingSearch, placement: .sidebar, prompt: "Search conversations")
         .searchFocused($searching)
         .navigationTitle("Mindwire")
         .toolbar {
             AppToolbarItemGroup(placement: .primaryAction) {
-                Button { searching = true } label: { AppIcon(.search) }
+                Button { showingSearch = true; searching = true } label: { AppIcon(.search) }
                     .keyboardShortcut("f", modifiers: .command)
                     .accessibilityLabel("Search conversations")
                     .help("Search conversations (⌘F)")
+                    .tint(.primary)
                 Button { app.selectDesktop(.newChat) } label: { AppIcon(.edit) }
                     .keyboardShortcut("n", modifiers: .command)
                     .accessibilityLabel("New chat")
+                    .accessibilityIdentifier("desktop.newChat")
                     .help("New chat (⌘N)")
+                    .tint(.primary)
             }
         }
     }
 
     private var conversationList: some View {
         List(selection: selection) {
-            Section {
-                destination(.newChat, title: "New chat", icon: .edit)
-                    .accessibilityIdentifier("desktop.newChat")
-            }
             Section(search.isEmpty ? "Recent chats" : "Search results") {
                 if visibleChats.isEmpty {
                     Text(search.isEmpty ? "Your conversations will appear here." : "No matching conversations")
@@ -133,41 +132,36 @@ struct DesktopMainScene: View {
                                 onChanged: reloadSidebar)
                         .buttonStyle(.plain)
                         .font(.callout)
+                        .foregroundStyle(Color(uiColor: .label))
+                        .listItemTint(.monochrome)
                         .tag(DesktopDestination.chat(chat.id))
                         .accessibilityIdentifier("desktop.chat.\(chat.id)")
                 }
             }
         }
         .listStyle(.sidebar)
-        .environment(\.defaultMinListRowHeight, 40)
+        .tint(Color(uiColor: .systemGray4))
+        .environment(\.defaultMinListRowHeight, 34)
     }
 
     /// The same destinations and artwork as the phone, pinned below the conversation list.
     private var navigationTools: some View {
         List(selection: selection) {
             Section {
-                destination(.workspaces, title: "Computers", icon: Icon.workspace)
+                destination(.workspaces, title: "Computers", icon: .monitor)
                 if developerTools {
                     destination(.projects, title: "Projects", icon: .project)
                     destination(.agents, title: "Agents", icon: Icon.agents)
                 }
-                HStack {
-                    destination(.settings, title: "Settings", icon: Icon.settings)
-                        .keyboardShortcut(",", modifiers: .command)
-                    AppMenu {
-                        Toggle("Developer tools", isOn: $developerTools)
-                        Button("Connect a computer", icon: .plus) { app.selectDesktop(.workspaces) }
-                    } label: { AppIcon(.more) }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Mindwire options")
-                }
-                .tag(DesktopDestination.settings)
+                destination(.settings, title: "Settings", icon: Icon.settings)
+                    .keyboardShortcut(",", modifiers: .command)
             }
         }
         .listStyle(.sidebar)
-        .environment(\.defaultMinListRowHeight, 40)
+        .tint(Color(uiColor: .systemGray4))
+        .environment(\.defaultMinListRowHeight, 34)
         .scrollDisabled(true)
-        .frame(height: developerTools ? 200 : 112)
+        .frame(height: developerTools ? 176 : 100)
     }
 
     private func reloadSidebar() {
@@ -188,6 +182,9 @@ struct DesktopMainScene: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .font(.callout)
+        .foregroundStyle(Color(uiColor: .label))
+        .listItemTint(.monochrome)
         .tag(destination)
     }
 

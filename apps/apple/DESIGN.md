@@ -61,6 +61,10 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
    navigation and action icons use the shared `AppIcon` PNG catalog and `AppMenu` wrappers.
    Mac sidebars use native `List(selection:)` styling; never override selection with a flat
    rectangular fill. Pinned navigation occupies its own space below the scrolling history.
+   New Chat is one toolbar action, never a selected sidebar destination. The welcome view uses a
+   system title, a composer that grows from one line, and its connection control. Avoid marketing
+   taglines, suggestion chips, and a duplicate title menu. Scope monochrome text tints to toolbar
+   controls; sidebar selection uses a neutral system fill and dynamic label colors.
 
 7. **Glass for floating chrome only.** Chat composer, terminal bars, FABs →
    `.glassEffect` / `GlassEffectContainer` / `.buttonStyle(.glass)`. Never put glass behind
