@@ -103,11 +103,12 @@ struct ChatUserBubble: View {
                     }
                 }
                 if !text.isEmpty {
-                    MessageContentView(text: text, onAccent: true).equatable()
+                    MessageContentView(text: text, onAccent: !ApplePlatform.isDesktop).equatable()
                         .padding(.horizontal, Spacing.md + 2)
                         .padding(.vertical, Spacing.sm + 2)
                         .padding(.trailing, 6)
-                        .background(Palette.accent, in: OutgoingBubbleShape(joinsAbove: joinsAbove, joinsBelow: joinsBelow))
+                        .background(ApplePlatform.isDesktop ? Color.primary.opacity(0.07) : Palette.accent,
+                                    in: OutgoingBubbleShape(joinsAbove: joinsAbove, joinsBelow: joinsBelow))
                 }
             }
             .containerRelativeFrame(.horizontal, alignment: .trailing) { width, _ in
@@ -122,6 +123,9 @@ private struct OutgoingBubbleShape: Shape {
     var joinsBelow: Bool
 
     func path(in rect: CGRect) -> Path {
+        if ApplePlatform.isDesktop {
+            return RoundedRectangle(cornerRadius: 22, style: .continuous).path(in: rect)
+        }
         let right = rect.maxX - 6, bottom = rect.maxY
         let radius = min(20.0, rect.height / 2)
         let topRight = joinsAbove ? 6.0 : radius

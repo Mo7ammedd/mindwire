@@ -6,6 +6,9 @@ struct MainScene: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        #if targetEnvironment(macCatalyst)
+        DesktopMainScene(repository: repository)
+        #else
         @Bindable var app = app
         TabView(selection: $app.selectedTab) {
             // Projects is the primary tab — the main way in (a project = agents working in a folder).
@@ -34,5 +37,6 @@ struct MainScene: View {
                     .accessibilityLabel(t("tabs.settings"))
             }
         }
+        #endif
     }
 }

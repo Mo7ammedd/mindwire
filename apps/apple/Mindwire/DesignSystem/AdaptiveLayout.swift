@@ -1,5 +1,13 @@
 import SwiftUI
 
+enum ApplePlatform {
+    #if targetEnvironment(macCatalyst)
+    static let isDesktop = true
+    #else
+    static let isDesktop = false
+    #endif
+}
+
 /// Dimensions follow the available window, including Split View and Stage Manager.
 enum AdaptiveLayout {
     static let readableWidth: CGFloat = 780

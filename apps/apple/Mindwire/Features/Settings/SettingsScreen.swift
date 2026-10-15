@@ -5,6 +5,9 @@ struct SettingsScreen: View {
     @Environment(\.stores) private var stores
     @AppStorage("mindwire.appearance") private var appearance = "system"
     @AppStorage(StorageKey.chatTextSize) private var chatTextSize = ChatTextSize.medium.rawValue
+    #if targetEnvironment(macCatalyst)
+    @AppStorage("mindwire.desktop.developerTools") private var developerTools = false
+    #endif
     private var auth = OblienAuth.shared
 
     var body: some View {
@@ -56,6 +59,9 @@ struct SettingsScreen: View {
             }
 
             Section(t("settings.preferences")) {
+                #if targetEnvironment(macCatalyst)
+                Toggle("Developer tools", isOn: $developerTools)
+                #endif
                 RootNavigationLink(value: SettingsRoute.backupSync) {
                     Label("Backup & Sync", icon: .cloud)
                 }

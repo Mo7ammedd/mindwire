@@ -14,6 +14,7 @@ struct ChatScreen: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var model: ChatModel
     @State private var viewerID = UUID()
@@ -102,8 +103,9 @@ struct ChatScreen: View {
         .navigationTitle(chat?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                ChatNavigationTitle(title: chat?.title ?? "", subtitle: agent?.displayName ?? "",
+            ToolbarItem(placement: ApplePlatform.isDesktop ? .topBarLeading : .principal) {
+                ChatNavigationTitle(title: ApplePlatform.isDesktop ? "Mindwire" : chat?.title ?? "",
+                                    subtitle: ApplePlatform.isDesktop ? chat?.title ?? "" : agent?.displayName ?? "",
                                     refreshing: model.hasLoadedHistory && (model.preparing || model.loadingHistory
                                         || model.restoringRun || model.reconnecting || model.checkingOwnership))
             }
@@ -290,6 +292,13 @@ struct ChatScreen: View {
             await model.load()
             guard !Task.isCancelled else { return }
             reload()
+            #if targetEnvironment(macCatalyst)
+            if app.desktopSubmission?.chatID == chatId {
+                // Use the normal command resolution, admission, retry, and draft clearing flow.
+                let requested = app.takeDesktopSubmission(chatID: chatId, revision: composer.revision)
+                if requested, canSend { sendMessage() }
+            }
+            #endif
             await loadAgentSettings()
         }
         .task(id: model.latestRequestRevision) {
@@ -509,14 +518,19 @@ struct ChatScreen: View {
                 .focused($composerFocused)
                 .textInputAutocapitalization(.sentences)
                 .naturalChatDirection(input)
-                .lineLimit(1...5)
+                .lineLimit(ApplePlatform.isDesktop ? 2...8 : 1...5)
+                .onKeyPress(.return, phases: .down) { press in
+                    guard ApplePlatform.isDesktop, !press.modifiers.contains(.shift), canSend else { return .ignored }
+                    sendMessage()
+                    return .handled
+                }
                 .disabled(model.submitting)
                 .accessibilityIdentifier("chat.composer")
             trailingButton
         }
-        .padding(.leading, Spacing.md)
-        .padding(.trailing, 5)
-        .padding(.vertical, 9)
+        .padding(.leading, ApplePlatform.isDesktop ? 20 : Spacing.md)
+        .padding(.trailing, ApplePlatform.isDesktop ? 12 : 5)
+        .padding(.vertical, ApplePlatform.isDesktop ? 16 : 9)
         .glassEffect(.regular, in: .rect(cornerRadius: Radius.xl, style: .continuous))
     }
 
@@ -544,9 +558,9 @@ struct ChatScreen: View {
             if canSend {
                 Button(action: sendMessage) {
                     AppIcon(Icon.send, size: 15)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(ApplePlatform.isDesktop && colorScheme == .dark ? .black : .white)
                         .frame(width: 30, height: 30)
-                        .background(Palette.accent, in: .circle)
+                        .background(ApplePlatform.isDesktop ? (colorScheme == .dark ? Color.white : .black) : Palette.accent, in: .circle)
                 }
                 .keyboardShortcut(.return, modifiers: .command)
                 .buttonStyle(.plain)
@@ -753,7 +767,11 @@ struct ChatScreen: View {
         guard let chat, let session = model.session else { return }
         do {
             try await ChatListActions.shared.delete(chat, stores: stores, session: session)
+            #if targetEnvironment(macCatalyst)
+            app.selectDesktop(.newChat)
+            #else
             dismiss()
+            #endif
         } catch {
             model.loadError = error.localizedDescription
         }

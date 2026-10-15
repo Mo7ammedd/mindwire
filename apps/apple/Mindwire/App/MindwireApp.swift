@@ -16,7 +16,11 @@ struct MindwireApp: App {
     var body: some Scene {
         WindowGroup {
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--app-store-preview") {
+            if NSClassFromString("XCTestCase") != nil {
+                // Unit tests supply their own stores and adapters. Starting the real
+                // app lifecycle here would access accounts and CloudKit before tests run.
+                Color.clear
+            } else if ProcessInfo.processInfo.arguments.contains("--app-store-preview") {
                 AppStorePreviewScene()
             } else { appWindow }
             #else
@@ -136,6 +140,8 @@ private struct MindwireWindow: View {
     }
 
     private func offerNotificationSignIn() {
+        // Desktop setup starts with chat. Account and notification setup remain in Settings.
+        guard !ApplePlatform.isDesktop else { return }
         // Never interrupt a chat, a pairing scan, or a sheet the user already opened.
         let atRoot = app.projectsPath.isEmpty && app.agentsPath.isEmpty
             && app.workspacesPath.isEmpty && app.settingsPath.isEmpty

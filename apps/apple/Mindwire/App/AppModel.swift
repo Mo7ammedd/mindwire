@@ -22,6 +22,30 @@ final class AppModel {
 
     let stores: Stores
 
+    #if targetEnvironment(macCatalyst)
+    var desktopDestination: DesktopDestination = .newChat
+    var desktopPath = NavigationPath()
+    /// A welcome-screen send is consumed by the existing chat composer, once it is ready.
+    var desktopSubmission: DesktopSubmission?
+
+    func takeDesktopSubmission(chatID: String, revision: UInt64) -> Bool {
+        guard let submission = desktopSubmission, submission.chatID == chatID else { return false }
+        desktopSubmission = nil
+        return submission.revision == revision
+    }
+
+    func selectDesktop(_ destination: DesktopDestination) {
+        desktopPath = NavigationPath()
+        desktopDestination = destination
+        selectedTab = switch destination {
+        case .newChat, .chat, .agents: .agents
+        case .projects: .projects
+        case .workspaces: .workspaces
+        case .settings: .settings
+        }
+    }
+    #endif
+
     init(stores: Stores) {
         self.stores = stores
     }
@@ -30,11 +54,20 @@ final class AppModel {
     // intentionally switch tabs and land on the entity's canonical tab. In-app drill-down does NOT
     // use these — it pushes within the current stack via `NavigationLink(value: AppRoute…)`.
     func openAgent(_ id: String) {
+        #if targetEnvironment(macCatalyst)
+        selectDesktop(.agents)
+        desktopPath.append(AppRoute.agentDetail(agentId: id))
+        return
+        #endif
         selectedTab = .agents
         agentsPath.append(AppRoute.agentDetail(agentId: id))
     }
 
     func openChat(_ chatId: String) {
+        #if targetEnvironment(macCatalyst)
+        selectDesktop(.chat(chatId))
+        return
+        #endif
         selectedTab = .agents
         agentsPath.append(AppRoute.chat(chatId: chatId))
         rememberChatLocation(chatId)
@@ -91,6 +124,10 @@ final class AppModel {
 
     private func openNotifiedChat(_ chatId: String, notificationID: String?) {
         stores.chatSessions.model(for: chatId).openFromNotification(id: notificationID)
+        #if targetEnvironment(macCatalyst)
+        openChat(chatId)
+        return
+        #endif
         for tab in [selectedTab, .agents, .projects, .workspaces, .settings] {
             if let location = chatLocations[tab], location.id == chatId,
                location.path.hasSameDestinations(as: path(in: tab)) {
@@ -103,6 +140,11 @@ final class AppModel {
 
     /// Context-menu actions follow the same stack as a row's NavigationLink.
     func push(_ route: AppRoute) {
+        #if targetEnvironment(macCatalyst)
+        if case .chat(let id) = route { openChat(id) }
+        else { desktopPath.append(route) }
+        return
+        #endif
         switch selectedTab {
         case .agents: agentsPath.append(route)
         case .projects: projectsPath.append(route)
@@ -112,11 +154,21 @@ final class AppModel {
     }
 
     func openProject(_ id: String) {
+        #if targetEnvironment(macCatalyst)
+        selectDesktop(.projects)
+        desktopPath.append(AppRoute.projectDetail(id: id))
+        return
+        #endif
         selectedTab = .projects
         projectsPath.append(AppRoute.projectDetail(id: id))
     }
 
     func replaceTop(_ route: AppRoute) {
+        #if targetEnvironment(macCatalyst)
+        if !desktopPath.isEmpty { desktopPath.removeLast() }
+        desktopPath.append(route)
+        return
+        #endif
         switch selectedTab {
         case .agents: if !agentsPath.isEmpty { agentsPath.removeLast() }; agentsPath.append(route)
         case .projects: if !projectsPath.isEmpty { projectsPath.removeLast() }; projectsPath.append(route)
@@ -126,11 +178,20 @@ final class AppModel {
     }
 
     func showProjects() {
+        #if targetEnvironment(macCatalyst)
+        selectDesktop(.projects)
+        return
+        #endif
         selectedTab = .projects
         projectsPath = NavigationPath()
     }
 
     func openWorkspace(_ id: String) {
+        #if targetEnvironment(macCatalyst)
+        selectDesktop(.workspaces)
+        desktopPath.append(AppRoute.workspaceDetail(id: id))
+        return
+        #endif
         selectedTab = .workspaces
         workspacesPath.append(AppRoute.workspaceDetail(id: id))
     }

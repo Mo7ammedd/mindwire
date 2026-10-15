@@ -1,13 +1,14 @@
 # Mindwire — Apple app
 
-Native **SwiftUI** client for Mindwire, built for **iOS 26** with Apple's
+Native **SwiftUI** client for Mindwire, built for **iOS 26 and macOS 26** with Apple's
 **Liquid Glass** design language and native components throughout (system `TabView`
 glass bar, glass toolbars, `.buttonStyle(.glass/.glassProminent)`, `NavigationStack`,
 sheets). Clean, protocol-oriented architecture using the Observation framework.
 
-This is the shared home for the Apple clients. The current generated target supports iPhone and
-iPad. Native macOS and visionOS targets are planned; this directory move does not enable them yet.
-Models, services, and portable SwiftUI components should remain shared as platform adapters are added.
+This is the shared home for the Apple clients. iPhone and iPad use the mobile layout. The Mac build
+uses Mac Catalyst's Mac interface idiom with a dedicated desktop SwiftUI shell. Chat, drafts,
+connections, terminal, editor, and developer tools share the same implementation. visionOS support
+is planned.
 The runtime is in [`packages/daemon`](../../packages/daemon) in this same repository.
 
 Original Mindwire material in this component is [source-available](LICENSE), not open source.
@@ -37,10 +38,30 @@ open Mindwire.xcodeproj
 # CLI:
 xcodebuild -scheme Mindwire \
   -destination 'platform=iOS Simulator,name=iPhone 16,OS=26' build
+# Mac desktop:
+xcodebuild -scheme MindwireMac \
+  -destination 'platform=macOS,variant=Mac Catalyst' build
 ```
 
 > Liquid Glass's specular highlights and motion render fully only on **physical
 > hardware** (the simulator approximates them).
+
+### Mac interface
+
+The Mac opens into chat, with a conversation sidebar, search, and a glass composer. Choose the
+computer/project context from the composer; existing computer pairing and subscription setup
+remain available through Computers. The Developer tools setting in Settings or the sidebar menu reveals
+Projects and Agent settings. Files, Git, ports, terminal, and remote desktop use the existing
+workspace and project screens.
+
+`⌘N` starts a chat, `⌘F` focuses conversation search, and `⌘,` opens Settings. Return sends;
+Shift-Return inserts a new line. Windows have independent navigation and share the existing
+bounded chat cache and draft store. A welcome-screen message is handed to the normal chat
+composer after the daemon acknowledges creating the conversation.
+
+On Mac, pairing accepts a pasted link or a QR-code image through the system file picker.
+
+[Dark preview](artifacts/mac-ui/welcome-dark.png) · [Light preview](artifacts/mac-ui/conversation-light.png)
 
 ## Architecture
 
