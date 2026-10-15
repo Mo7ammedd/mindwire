@@ -13,6 +13,10 @@ updates:
     schedule:
       interval: weekly
     labels: ["dependencies", "javascript"]
+    # TypeDoc's root compiler stays on its supported API; workspace compilers use TS 7.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: github-actions
