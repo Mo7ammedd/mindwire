@@ -105,7 +105,7 @@ struct ChatScreen: View {
         .toolbar {
             ToolbarItem(placement: ApplePlatform.isDesktop ? .topBarLeading : .principal) {
                 ChatNavigationTitle(title: ApplePlatform.isDesktop ? "Mindwire" : chat?.title ?? "",
-                                    subtitle: ApplePlatform.isDesktop ? chat?.title ?? "" : agent?.displayName ?? "",
+                                    subtitle: ApplePlatform.isDesktop ? chat?.title ?? "" : "Mindwire",
                                     refreshing: model.hasLoadedHistory && (model.preparing || model.loadingHistory
                                         || model.restoringRun || model.reconnecting || model.checkingOwnership))
             }
@@ -225,7 +225,7 @@ struct ChatScreen: View {
             presentAttachmentPicker()
         }) {
             HarnessVoiceSheet(chat: model, agentType: agent?.agentType, agentId: agent?.id,
-                              name: agent?.agentTypeName ?? agent?.displayName ?? "Agent") {
+                              name: "Mindwire") {
                 pendingAttachmentSource = .voice
                 showingVoice = false
             }
@@ -355,15 +355,9 @@ struct ChatScreen: View {
     }
 
     private var assistantGlyph: some View {
-        Group {
-            if let agent {
-                AgentLogo(id: agent.agentType, size: 20)
-            } else {
-                AppIcon(.sparkles).font(.callout).foregroundStyle(.secondary)
-            }
-        }
-        .frame(width: 30, height: 30)
-        .glassEffect(.regular, in: .circle)
+        AppLogo(size: 20)
+            .frame(width: 30, height: 30)
+            .glassEffect(.regular, in: .circle)
     }
 
     /// Real setup work keeps the shared installation progress. Routine connections use the compact

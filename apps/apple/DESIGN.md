@@ -54,9 +54,13 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
    Monospaced text belongs to code, diffs, and terminal content. Code uses the shared editor's
    user-controlled font size; source control labels use semantic system styles.
 
-8. **Agent icons are monochrome.** Render `AgentLogo` as a clean white/`.primary` glyph
-   (`.renderingMode(.template)`), never the original brand colors. Uniform size, no colored
-   container. The `AppLogo` in Settings keeps the orange mark.
+8. **One assistant identity: Mindwire.** Chats on iOS and Mac use Mindwire's name and
+   monochrome mark. Conversation lists have text titles and quiet activity indicators,
+   without harness logos. Loading, previews, commands, and voice keep this same identity.
+   Provider identities belong in subscription setup and developer configuration. App-owned
+   navigation and action icons use the shared `AppIcon` PNG catalog and `AppMenu` wrappers.
+   Mac sidebars use native `List(selection:)` styling; never override selection with a flat
+   rectangular fill. Pinned navigation occupies its own space below the scrolling history.
 
 7. **Glass for floating chrome only.** Chat composer, terminal bars, FABs →
    `.glassEffect` / `GlassEffectContainer` / `.buttonStyle(.glass)`. Never put glass behind

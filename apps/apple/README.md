@@ -54,14 +54,17 @@ remain available through Computers. The Developer tools setting in Settings or t
 Projects and Agent settings. Files, Git, ports, terminal, and remote desktop use the existing
 workspace and project screens.
 
+Chats share Mindwire's name and monochrome mark on iOS and Mac. Conversation rows remain text-first;
+provider identities belong in subscription setup and developer configuration. Navigation and actions
+use the same bundled PNG icon catalog as the phone. The Mac sidebar uses native rounded selection,
+with navigation below the scrolling conversation list.
+
 `⌘N` starts a chat, `⌘F` focuses conversation search, and `⌘,` opens Settings. Return sends;
 Shift-Return inserts a new line. Windows have independent navigation and share the existing
 bounded chat cache and draft store. A welcome-screen message is handed to the normal chat
 composer after the daemon acknowledges creating the conversation.
 
 On Mac, pairing accepts a pasted link or a QR-code image through the system file picker.
-
-[Dark preview](artifacts/mac-ui/welcome-dark.png) · [Light preview](artifacts/mac-ui/conversation-light.png)
 
 ## Architecture
 

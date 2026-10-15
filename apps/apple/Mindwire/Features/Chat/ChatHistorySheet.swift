@@ -146,7 +146,6 @@ struct ChatHistorySheet: View {
             Button { open(conversation) } label: {
                 HStack {
                     ChatRowLabel(title: conversation.title, subtitle: conversation.folderLabel,
-                                 agentType: AgentID(rawValue: conversation.agentType),
                                  status: conversation.lastStatus.flatMap(RunStatus.init(rawValue:)),
                                  date: conversation.activityDate)
                     if openingID == conversation.id { ProgressView().controlSize(.mini) }

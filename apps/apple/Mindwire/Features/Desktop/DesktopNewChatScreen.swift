@@ -29,7 +29,7 @@ struct DesktopNewChatScreen: View {
             VStack(spacing: 32) {
                 VStack(spacing: 12) {
                     Text("What can I help with?")
-                        .font(.system(size: 32, weight: .medium, design: .rounded))
+                        .font(.largeTitle.weight(.medium)).fontDesign(.rounded)
                     Text("An idea, a task, a little less on your plate.")
                         .font(.body).foregroundStyle(.secondary)
                 }
@@ -41,22 +41,21 @@ struct DesktopNewChatScreen: View {
             .padding(.horizontal, 40)
             Spacer(minLength: 48)
             HStack(spacing: 6) {
-                Image(systemName: "lock.shield").font(.caption)
+                AppIcon(.shieldCheck).font(.caption)
                 Text("Your computer. Your subscriptions. One Mindwire.").font(.caption)
             }
             .foregroundStyle(.tertiary)
             .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
         .navigationTitle("New chat")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Menu {
-                    Button("Computers", systemImage: "desktopcomputer") { app.selectDesktop(.workspaces) }
-                    Button("Settings", systemImage: "gearshape") { app.selectDesktop(.settings) }
+            AppToolbarItem(placement: .topBarLeading) {
+                AppMenu {
+                    Button("Computers", icon: Icon.workspace) { app.selectDesktop(.workspaces) }
+                    Button("Settings", icon: Icon.settings) { app.selectDesktop(.settings) }
                 } label: {
-                    HStack(spacing: 6) { Text("Mindwire").font(.headline); Image(systemName: "chevron.down").font(.caption2) }
+                    HStack(spacing: 6) { Text("Mindwire").font(.headline); AppIcon(.chevronDown).font(.caption2) }
                 }
             }
         }
@@ -79,7 +78,7 @@ struct DesktopNewChatScreen: View {
         VStack(alignment: .leading, spacing: 18) {
             TextField("Ask Mindwire to do anything…", text: $draft.text, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 17))
+                .font(.body)
                 .lineLimit(3...8)
                 .focused($focused)
                 .disabled(creating)
@@ -99,7 +98,7 @@ struct DesktopNewChatScreen: View {
                     ProgressView().controlSize(.small).frame(width: 36, height: 36)
                 } else {
                     Button(action: startChat) {
-                        Image(systemName: "arrow.up").font(.system(size: 16, weight: .semibold))
+                        AppIcon(Icon.send, size: 20)
                             .foregroundStyle(hasText ? (colorScheme == .dark ? Color.black : .white) : .secondary)
                             .frame(width: 36, height: 36)
                             .background(hasText ? (colorScheme == .dark ? Color.white : .black) : Color.primary.opacity(0.06), in: .circle)
@@ -119,14 +118,14 @@ struct DesktopNewChatScreen: View {
     private var contextMenu: some View {
         let selectedProjectID = project?.id
         let selectedAgentID = agent?.id
-        return Menu {
+        return AppMenu {
             Section("Work on") {
                 ForEach(projects) { project in
                     Button {
                         projectID = project.id
                         agentID = ""
                     } label: {
-                        Label(project.name, systemImage: selectedProjectID == project.id ? "checkmark" : "folder")
+                        Label(project.name, icon: selectedProjectID == project.id ? .check : .project)
                     }
                 }
             }
@@ -134,15 +133,15 @@ struct DesktopNewChatScreen: View {
                 Section("Connected subscription") {
                     ForEach(agents) { agent in
                         Button { agentID = agent.id } label: {
-                            Label(agent.displayName, systemImage: selectedAgentID == agent.id ? "checkmark" : "sparkles")
+                            Label(agent.displayName, icon: selectedAgentID == agent.id ? .check : Icon.agents)
                         }
                     }
                 }
             }
-            Button("Connect a computer…", systemImage: "plus") { pairing = true }
-            Button("Manage computers…", systemImage: "desktopcomputer") { app.selectDesktop(.workspaces) }
+            Button("Connect a computer…", icon: .plus) { pairing = true }
+            Button("Manage computers…", icon: Icon.workspace) { app.selectDesktop(.workspaces) }
         } label: {
-            Label(project?.name ?? "Connect a computer", systemImage: "desktopcomputer")
+            Label(project?.name ?? "Connect a computer", icon: Icon.workspace)
                 .font(.callout).foregroundStyle(.secondary).lineLimit(1)
         }
         .buttonStyle(.plain)
@@ -160,17 +159,17 @@ struct DesktopNewChatScreen: View {
 
     private var suggestions: some View {
         HStack(spacing: 12) {
-            suggestion("Build something", symbol: "hammer", text: "Help me build ")
-            suggestion("Organize my files", symbol: "folder", text: "Help me organize ")
-            suggestion("Automate a task", symbol: "sparkles", text: "Help me automate ")
+            suggestion("Build something", icon: .code, text: "Help me build ")
+            suggestion("Organize my files", icon: .folder, text: "Help me organize ")
+            suggestion("Automate a task", icon: .sparkles, text: "Help me automate ")
         }
         .buttonStyle(.plain)
         .disabled(creating)
     }
 
-    private func suggestion(_ title: String, symbol: String, text: String) -> some View {
+    private func suggestion(_ title: String, icon: AppIconName, text: String) -> some View {
         Button { draft.text = text; focused = true } label: {
-            Label(title, systemImage: symbol).font(.callout).padding(.horizontal, 16).padding(.vertical, 11)
+            Label(title, icon: icon).font(.callout).padding(.horizontal, 16).padding(.vertical, 11)
         }
         .glassEffect(.regular.interactive(), in: .capsule)
     }

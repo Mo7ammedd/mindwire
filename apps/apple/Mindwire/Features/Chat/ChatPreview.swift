@@ -50,10 +50,10 @@ struct ChatPreviewContent: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: Spacing.sm) {
-                if let agent { AgentLogo(id: agent.agentType, size: 22) }
+                AppLogo(size: 22)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.headline).lineLimit(1)
-                    if let agent { Text(agent.displayName).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                    Text("Mindwire").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
             }

@@ -122,8 +122,8 @@ struct ChatToolsSheet: View {
                             if let effort = settings.reasoningLabel {
                                 Text(t("chat.tools.reasoning", ["effort": effort]))
                                     .font(.subheadline).foregroundStyle(.secondary)
-                            } else if let agent {
-                                Text(agent.displayName).font(.subheadline).foregroundStyle(.secondary)
+                            } else {
+                                Text("Mindwire").font(.subheadline).foregroundStyle(.secondary)
                             }
                         }
                         Spacer(minLength: Spacing.sm)
@@ -157,13 +157,8 @@ struct ChatToolsSheet: View {
         }
     }
 
-    @ViewBuilder
     private var agentIcon: some View {
-        if let agent {
-            AgentLogo(id: agent.agentType, size: 24, mono: true).accessibilityHidden(true)
-        } else {
-            AppIcon(.cpu).frame(width: 24, height: 24).accessibilityHidden(true)
-        }
+        AppLogo(size: 24).accessibilityHidden(true)
     }
 
     private func resolveProject() {

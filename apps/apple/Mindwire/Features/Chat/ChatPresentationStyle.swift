@@ -15,7 +15,7 @@ struct ChatToolIcon: View {
     }
 }
 
-/// The harness stays recognizable while a small indeterminate ring shows real history work.
+/// Shared Mindwire identity while a small indeterminate ring shows real history work.
 struct ChatHistoryLoadingView: View {
     var agentType: AgentID?
 
@@ -68,7 +68,7 @@ private struct ChatHistoryProgressStyle: ProgressViewStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         VStack(spacing: Spacing.md) {
-            AgentActivityGlyph(agentType: agentType)
+            AgentActivityGlyph(agentType: nil)
             configuration.label.font(.footnote).foregroundStyle(.secondary)
         }
     }

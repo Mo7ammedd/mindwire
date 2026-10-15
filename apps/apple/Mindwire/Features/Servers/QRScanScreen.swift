@@ -72,7 +72,7 @@ struct QRScanScreen: View {
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                     Button("Use pairing link") { onScan(code) }
                         .disabled(code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reading)
-                    Button("Open QR code image…", systemImage: "qrcode") { importing = true }
+                    Button("Open QR code image…", icon: .scan) { importing = true }
                         .disabled(reading)
                     if reading { ProgressView("Reading QR code…") }
                     if let error { Text(error).foregroundStyle(.red) }

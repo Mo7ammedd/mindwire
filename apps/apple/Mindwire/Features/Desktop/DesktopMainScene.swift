@@ -41,6 +41,7 @@ struct DesktopMainScene: View {
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var search = ""
     @State private var chats: [Chat] = []
+    @State private var rowSnapshots: [String: ChatListRowSnapshot] = [:]
     @State private var restored = false
     @FocusState private var searching: Bool
     @SceneStorage("mindwire.desktop.destination") private var savedDestination = "new"
@@ -81,6 +82,7 @@ struct DesktopMainScene: View {
         .onChange(of: app.desktopDestination) { _, destination in savedDestination = destination.storageKey }
         .onChange(of: stores.chats.revision) { reloadSidebar() }
         .onChange(of: stores.projects.revision) { reloadSidebar() }
+        .onChange(of: stores.agents.revision) { reloadSidebar() }
         .onChange(of: repository.all.map(\.id)) { reloadSidebar() }
         .observeWorkspaceCache {
             reloadSidebar()
@@ -88,105 +90,105 @@ struct DesktopMainScene: View {
         }
     }
 
+    private var selection: Binding<DesktopDestination?> {
+        Binding(get: { app.desktopDestination }, set: { if let destination = $0 { app.selectDesktop(destination) } })
+    }
+
     private var sidebar: some View {
         VStack(spacing: 0) {
-            List {
-                Section {
-                    destination(.newChat, title: "New chat", symbol: "square.and.pencil")
-                        .accessibilityIdentifier("desktop.newChat")
-                    TextField("Search conversations", text: $search)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($searching)
-                        .accessibilityIdentifier("desktop.search")
-                        .listRowBackground(Color.clear)
-                }
-                Section(search.isEmpty ? "Recent chats" : "Search results") {
-                    if visibleChats.isEmpty {
-                        Text(search.isEmpty ? "Your conversations will appear here." : "No matching conversations")
-                            .font(.caption).foregroundStyle(.secondary)
-                            .listRowBackground(Color.clear)
-                    }
-                    ForEach(visibleChats) { chat in
-                        Button { app.openChat(chat.id) } label: {
-                            HStack(spacing: 8) {
-                                Text(chat.title).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                                if ChatActivityStore.shared.status(chat.id) == .running {
-                                    ProgressView().controlSize(.mini).accessibilityLabel("Working")
-                                }
-                            }
-                            .padding(.vertical, 3)
-                            .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                        .listRowBackground(app.desktopDestination == .chat(chat.id) ? Color.primary.opacity(0.08) : Color.clear)
-                        .accessibilityAddTraits(app.desktopDestination == .chat(chat.id) ? .isSelected : [])
-                        .accessibilityIdentifier("desktop.chat.\(chat.id)")
-                    }
-                }
-            }
-            .listStyle(.sidebar)
-            .environment(\.defaultMinListRowHeight, 34)
-            .listRowSpacing(2)
-            .scrollContentBackground(.hidden)
-            VStack(spacing: 0) {
-                destination(.workspaces, title: "Computers", symbol: "desktopcomputer")
-                if developerTools {
-                    destination(.projects, title: "Projects", symbol: "folder")
-                    destination(.agents, title: "Agent settings", symbol: "slider.horizontal.3")
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            Divider().opacity(0.4)
-            HStack {
-                Button { app.selectDesktop(.settings) } label: {
-                    Label("Settings", systemImage: "gearshape").font(.callout)
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(",", modifiers: .command)
-                Spacer()
-                Menu {
-                    Toggle("Developer tools", isOn: $developerTools)
-                    Button("Connect a computer", systemImage: "plus") { app.selectDesktop(.workspaces) }
-                } label: {
-                    Image(systemName: "ellipsis").frame(width: 28, height: 28)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Mindwire options")
-            }
-            .padding(16)
+            conversationList
+            navigationTools
         }
-        .background(.ultraThinMaterial)
+        .searchable(text: $search, placement: .sidebar, prompt: "Search conversations")
+        .searchFocused($searching)
         .navigationTitle("Mindwire")
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button { searching = true } label: { Image(systemName: "magnifyingglass") }
+            AppToolbarItemGroup(placement: .primaryAction) {
+                Button { searching = true } label: { AppIcon(.search) }
                     .keyboardShortcut("f", modifiers: .command)
+                    .accessibilityLabel("Search conversations")
                     .help("Search conversations (⌘F)")
-                Button { app.selectDesktop(.newChat) } label: { Image(systemName: "square.and.pencil") }
+                Button { app.selectDesktop(.newChat) } label: { AppIcon(.edit) }
                     .keyboardShortcut("n", modifiers: .command)
+                    .accessibilityLabel("New chat")
                     .help("New chat (⌘N)")
             }
         }
     }
 
+    private var conversationList: some View {
+        List(selection: selection) {
+            Section {
+                destination(.newChat, title: "New chat", icon: .edit)
+                    .accessibilityIdentifier("desktop.newChat")
+            }
+            Section(search.isEmpty ? "Recent chats" : "Search results") {
+                if visibleChats.isEmpty {
+                    Text(search.isEmpty ? "Your conversations will appear here." : "No matching conversations")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .selectionDisabled()
+                }
+                ForEach(visibleChats) { chat in
+                    ChatListRow(chat: chat, snapshot: rowSnapshots[chat.id], compact: true, onOpen: { app.openChat(chat.id) },
+                                onChanged: reloadSidebar)
+                        .buttonStyle(.plain)
+                        .font(.callout)
+                        .tag(DesktopDestination.chat(chat.id))
+                        .accessibilityIdentifier("desktop.chat.\(chat.id)")
+                }
+            }
+        }
+        .listStyle(.sidebar)
+        .environment(\.defaultMinListRowHeight, 40)
+    }
+
+    /// The same destinations and artwork as the phone, pinned below the conversation list.
+    private var navigationTools: some View {
+        List(selection: selection) {
+            Section {
+                destination(.workspaces, title: "Computers", icon: Icon.workspace)
+                if developerTools {
+                    destination(.projects, title: "Projects", icon: .project)
+                    destination(.agents, title: "Agents", icon: Icon.agents)
+                }
+                HStack {
+                    destination(.settings, title: "Settings", icon: Icon.settings)
+                        .keyboardShortcut(",", modifiers: .command)
+                    AppMenu {
+                        Toggle("Developer tools", isOn: $developerTools)
+                        Button("Connect a computer", icon: .plus) { app.selectDesktop(.workspaces) }
+                    } label: { AppIcon(.more) }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Mindwire options")
+                }
+                .tag(DesktopDestination.settings)
+            }
+        }
+        .listStyle(.sidebar)
+        .environment(\.defaultMinListRowHeight, 40)
+        .scrollDisabled(true)
+        .frame(height: developerTools ? 200 : 112)
+    }
+
     private func reloadSidebar() {
         let workspaces = Set(repository.all.map(\.id))
         let projects = Set(stores.projects.list().filter { workspaces.contains($0.workspaceId) }.map(\.id))
+        let agents = Dictionary(stores.agents.list().map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
         // Decode each metadata list once per change, never once per row or typed search character.
         chats = stores.chatsByRecency().filter { projects.contains($0.projectId) }
+        rowSnapshots = Dictionary(uniqueKeysWithValues: chats.map { chat in
+            (chat.id, ChatListRowSnapshot(notificationsMuted: chat.notificationsMuted == true || agents[chat.agentId]?.notificationsMuted == true))
+        })
     }
 
-    private func destination(_ destination: DesktopDestination, title: String, symbol: String) -> some View {
+    private func destination(_ destination: DesktopDestination, title: String, icon: AppIconName) -> some View {
         Button { app.selectDesktop(destination) } label: {
-            Label(title, systemImage: symbol)
+            Label(title, icon: icon)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 4)
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .listRowBackground(app.desktopDestination == destination ? Color.primary.opacity(0.08) : Color.clear)
-        .accessibilityAddTraits(app.desktopDestination == destination ? .isSelected : [])
+        .tag(destination)
     }
 
     @ViewBuilder private var detail: some View {
