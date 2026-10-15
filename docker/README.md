@@ -12,12 +12,12 @@ repository root. Image names and release tags remain compatible with existing in
 ## Private self-hosted installation
 
 ```bash
-cp deploy/docker/.env.example deploy/docker/.env
+cp docker/.env.example docker/.env
 # Replace the example credentials and choose a released MINDWIRE_VERSION.
-docker compose --env-file deploy/docker/.env \
-  -f deploy/docker/docker-compose.selfhost.yml config --quiet
-docker compose --env-file deploy/docker/.env \
-  -f deploy/docker/docker-compose.selfhost.yml up -d
+docker compose --env-file docker/.env \
+  -f docker/docker-compose.selfhost.yml config --quiet
+docker compose --env-file docker/.env \
+  -f docker/docker-compose.selfhost.yml up -d
 ```
 
 The console binds to loopback by default. Put a TLS reverse proxy in front when remote access is
@@ -35,9 +35,9 @@ console using its supported authentication. Existing provider limits and charges
 ## Build from this checkout
 
 ```bash
-docker build -f deploy/docker/runtime.Dockerfile -t mindwire-runtime:dev .
-docker build -f deploy/docker/console.Dockerfile -t mindwire-console:dev .
-docker build -f deploy/docker/web.Dockerfile -t mindwire-web:dev .
+docker build -f docker/runtime.Dockerfile -t mindwire-runtime:dev .
+docker build -f docker/console.Dockerfile -t mindwire-console:dev .
+docker build -f docker/web.Dockerfile -t mindwire-web:dev .
 ```
 
 The runtime build reads the Go module from `packages/daemon`. Console and website builds use the

@@ -34,7 +34,7 @@ const steps = [
     icon: MessageSquare,
     title: "Give your assistant a task.",
     body: "Organize files, prepare a report, process data, or work on code. Start with the result you want and the files your agent needs.",
-    detail: "Your agents. Your real context.",
+    detail: "Your Mindwire agent. Your real context.",
   },
   {
     id: "review",

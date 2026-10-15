@@ -10,7 +10,7 @@
 #   - the tsup-externalized runtime deps resolvable in node_modules: `mindwire` (the workspace SDK, linked)
 #     plus `oblien`/`dockerode`/`ssh2`. We keep bun's install layout intact so those resolve unchanged.
 #
-# Build context is the repo ROOT (`docker build -f deploy/docker/console.Dockerfile .`) — the console is a bun
+# Build context is the repo ROOT (`docker build -f docker/console.Dockerfile .`) — the console is a bun
 # workspace member and needs the root manifests + the SDK it links to.
 
 # ---- builder: install the workspace and build the SDK + console with bun --------------------------------

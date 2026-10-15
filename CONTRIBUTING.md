@@ -18,7 +18,7 @@ By participating you agree to abide by our [Code of Conduct](./CODE_OF_CONDUCT.m
 - **`apps/apple/`** — shared Apple app source and tests; iOS/iPadOS today.
 - **`apps/console/`** — browser client and control plane.
 - **`apps/protocol-lab/`** — HTTP/SSE diagnostic client.
-- **`deploy/docker/`** — production image definitions and self-hosted deployment.
+- **`docker/`** — production image definitions and self-hosted deployment.
 
 ## Prerequisites
 

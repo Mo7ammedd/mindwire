@@ -1,7 +1,7 @@
 {
   "name": "mindwire-monorepo",
   "version": "0.1.0",
-  "description": "A personal assistant powered by agent harnesses, across your computer, phone, and cloud.",
+  "description": "Your Mindwire agent for everyday work and coding. Bring your supported AI subscriptions and get things done from your phone.",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",

@@ -1,4 +1,4 @@
-# What NOT to send to the Docker build context. The console image (deploy/docker/console.Dockerfile) builds from
+# What NOT to send to the Docker build context. The console image (docker/console.Dockerfile) builds from
 # source inside the image, so host build output and installed deps must stay out — the builder regenerates
 # them for the image's platform. Keeping this tight also makes the context upload fast.
 

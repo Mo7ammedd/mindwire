@@ -448,7 +448,7 @@ export function AddDaemonDialog({
                     protect the shared control plane.{" "}
                     <a
                       className="underline underline-offset-4 hover:text-foreground"
-                      href="https://github.com/oblien/mindwire/tree/main/deploy/docker"
+                      href="https://github.com/oblien/mindwire/tree/main/docker"
                       target="_blank"
                       rel="noreferrer"
                     >

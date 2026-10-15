@@ -21,7 +21,7 @@ This recovery backup is local Git metadata; it is not included in commits, clone
 | `pocket-agent/icon-themes` | `mindwire/apps/apple/icon-themes` |
 | `pocket-agent/scripts/app-store`, `scripts/icons` | Same paths in the monorepo |
 | `mindwire/daemon` | `mindwire/packages/daemon` |
-| `mindwire/packages/docker` | `mindwire/deploy/docker` |
+| `mindwire/packages/docker` | `mindwire/docker` |
 
 The source app import is based on `oblien/pocket-agent` commit
 `c1cf1cba61ed56faa85ad1042c34ef9537429c1b`, plus the working-tree changes present on October 15, 2026.

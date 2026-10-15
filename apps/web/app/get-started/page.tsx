@@ -31,8 +31,8 @@ export default function GetStarted() {
           <span>you already use.</span>
         </h1>
         <p>
-          Give your assistant a place to work. Connect your computer, choose
-          a supported agent, and start a task from your phone.
+          Give Mindwire a place to work. Connect your computer, bring your
+          supported AI subscription, and start a task from your phone.
         </p>
       </section>
       <div className={styles.wrap}>

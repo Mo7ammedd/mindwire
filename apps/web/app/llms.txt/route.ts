@@ -10,7 +10,7 @@ export function GET() {
   const body = [
     "# MindWire",
     "",
-    "> A personal assistant and coding companion, powered by native agent harnesses. Apple and browser clients share a runtime for tasks, files, tools, sessions, and workspace execution. Developers can use TypeScript, Go, or HTTP + SSE. The runtime and SDKs are Apache-2.0; the Apple client is source-available under a separate license that restricts redistribution and derivative app publication.",
+    "> Mindwire is your personal agent for everyday work and coding. Bring your supported AI subscriptions, connect your computer, and get things done from your phone or browser. Existing agent harnesses power the tools under the hood. The runtime and SDKs are Apache-2.0; the Apple client is source-available under a separate license that restricts redistribution and derivative app publication.",
     "",
     "## Docs",
     "",

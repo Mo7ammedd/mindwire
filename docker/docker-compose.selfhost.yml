@@ -1,7 +1,7 @@
 # Self-hosted Mindwire: one private console and one daemon on an internal network.
 #
-# cp deploy/docker/.env.example deploy/docker/.env
-# docker compose --env-file deploy/docker/.env -f deploy/docker/docker-compose.selfhost.yml up -d
+# cp docker/.env.example docker/.env
+# docker compose --env-file docker/.env -f docker/docker-compose.selfhost.yml up -d
 #
 # Both images are published from the same MindWire release. This file intentionally has image references
 # only (no build contexts): pin MINDWIRE_VERSION in .env for deterministic upgrades. Use the root

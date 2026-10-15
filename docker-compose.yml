@@ -2,7 +2,7 @@
 # Run `docker compose up --build`; this file deliberately builds local source and never pulls
 # MindWire application images. For versioned, prebuilt self-hosted images, use the Compose file below.
 # Agent runtimes are selected per session; this stack intentionally does not mount Docker or run a daemon.
-# For a private console plus daemon, use deploy/docker/docker-compose.selfhost.yml instead.
+# For a private console plus daemon, use docker/docker-compose.selfhost.yml instead.
 
 services:
   postgres:
@@ -23,7 +23,7 @@ services:
   web:
     build:
       context: .
-      dockerfile: deploy/docker/web.Dockerfile
+      dockerfile: docker/web.Dockerfile
       args:
         NEXT_PUBLIC_CONSOLE_URL: ${NEXT_PUBLIC_CONSOLE_URL:-https://console.mindwire.sh}
         NEXT_PUBLIC_IOS_APP_URL: ${NEXT_PUBLIC_IOS_APP_URL:-}
@@ -37,7 +37,7 @@ services:
   console:
     build:
       context: .
-      dockerfile: deploy/docker/console.Dockerfile
+      dockerfile: docker/console.Dockerfile
     restart: unless-stopped
     env_file:
       - path: .env

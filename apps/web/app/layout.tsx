@@ -10,7 +10,7 @@ import HideOnDocs from "@/components/HideOnDocs";
 export const metadata: Metadata = {
   title: "Mindwire — Your personal assistant, on your terms",
   description:
-    "A personal assistant for everyday work and coding, powered by your choice of agent harness. Connect your computer, server, or cloud workspace and keep work moving from your phone.",
+    "Your Mindwire agent for everyday work and coding. Bring your supported AI subscriptions, connect your computer, and keep work moving from your phone.",
   metadataBase: new URL("https://mindwire.sh"),
   openGraph: {
     siteName: "Mindwire",

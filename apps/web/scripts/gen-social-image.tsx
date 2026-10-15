@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 
 
 export const alt =
-  "Mindwire — Your personal assistant, on your terms. Everyday work and coding, powered by your choice of agent.";
+  "Mindwire — Your personal agent for everyday work and coding. Bring the AI subscriptions you already have.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -56,7 +56,7 @@ function renderSocialImage() {
             <span style={{ color: "#797980" }}>On your terms.</span>
           </div>
           <div style={{ marginTop: 25, fontSize: 22, color: "#62626b" }}>
-            Your agents. Your computer. Your choice.
+            Your Mindwire agent. Your subscriptions.
           </div>
           <div
             style={{

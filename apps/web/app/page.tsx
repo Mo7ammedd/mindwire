@@ -34,7 +34,7 @@ import { downloadUrl, githubUrl, productAgents } from "@/lib/product";
 export const metadata: Metadata = {
   title: "Mindwire — Your personal assistant, on your terms",
   description:
-    "A personal assistant powered by Codex, Claude Code, and OpenCode. Work with files, automate tasks, and build software on your computer, server, or cloud workspace.",
+    "Meet Mindwire, your personal agent for everyday work and coding. Bring your supported AI subscriptions, connect your computer, and get things done from your phone.",
   alternates: { canonical: "/" },
 };
 
@@ -42,7 +42,7 @@ const questions = [
   {
     question: "Is Mindwire only for coding?",
     answer:
-      "Coding is one use case. A configured harness can also read and organize files, run scripts, process data, and prepare documents. Available actions depend on its tools and the access you grant. Mindwire is building a simpler personal-assistant experience on that foundation.",
+      "Mindwire helps with everyday work as well as coding. Organize files, process data, prepare documents, automate repetitive tasks, or build software. Your connected computer gives Mindwire a place to work, and you control the access it has.",
   },
   {
     question: "Which Apple apps are available?",
@@ -67,7 +67,7 @@ const questions = [
   {
     question: "Do I need to buy another AI subscription?",
     answer:
-      "Use the authentication supported by your agent, including ChatGPT or Claude subscription sign-in where available, or your own API credentials. Mindwire workspace pricing does not include model usage or change your provider’s limits.",
+      "Bring a supported AI subscription you already have, or use your own API credentials. Sign in through the supported provider flow and put Mindwire to work. Your provider’s usage limits still apply, and optional cloud workspace pricing is separate.",
   },
   {
     question: "What is open source?",
@@ -87,7 +87,7 @@ export default function Home() {
           <Corners />
           <div className={styles.heroCopy}>
             <span className={styles.kicker}>
-              <Smartphone size={15} /> Your personal assistant, connected
+              <Smartphone size={15} /> Your Mindwire agent, connected
             </span>
             <h1 id="hero-title" className={styles.heroTitle}>
               Get things done.
@@ -95,9 +95,9 @@ export default function Home() {
               <span>On your terms.</span>
             </h1>
             <p className={styles.heroDescription}>
-              Turn a folder of files into a report. Automate a repetitive task.
-              Build something new. Put your agents to work on your computer,
-              and stay connected from your phone.
+              Bring your supported AI subscriptions and put Mindwire to work.
+              Turn files into a report, automate a repetitive task, or build
+              something new. Stay connected to your computer from your phone.
             </p>
             <div className={styles.actions}>
               <Link href={downloadUrl} className={styles.primaryButton}>
@@ -120,7 +120,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={styles.wrap} aria-label="Supported agent harnesses">
+      <section className={styles.wrap} aria-label="Technology behind Mindwire">
         <div className={styles.agentStrip}>
           <Corners />
           {productAgents.map((agent) => (
@@ -173,16 +173,16 @@ export default function Home() {
         <div className={styles.harnessSection}>
           <Corners />
           <div className={styles.harnessCopy}>
-            <span className={styles.kicker}>Your agents, connected</span>
+            <span className={styles.kicker}>Bring your subscriptions</span>
             <h2 id="agents-title" className={styles.sectionTitle}>
-              Different agents.
+              Your subscriptions.
               <br />
-              <span>One familiar app.</span>
+              <span>One Mindwire agent.</span>
             </h2>
             <p className={styles.sectionDescription}>
-              Mindwire connects Codex, Claude Code, Grok Build, and OpenCode
-              through one app. Work with the files and tools on your machine,
-              using the capabilities of the harness you choose.
+              Put the AI access you already have to work with your files,
+              projects, and everyday tasks. Mindwire brings it together in
+              one personal agent.
             </p>
             <a href="#workspaces" className={styles.textButton}>
               Choose where you work <ArrowRight size={16} />

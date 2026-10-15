@@ -2,7 +2,7 @@ version: 2
 updates:
   # Go daemon
   - package-ecosystem: gomod
-    directory: /daemon
+    directory: /packages/daemon
     schedule:
       interval: weekly
     labels: ["dependencies", "go"]
