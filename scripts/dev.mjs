@@ -27,9 +27,9 @@ const daemonDir = resolve(root, "packages/daemon");
 
 const targets = process.argv.slice(2).filter(Boolean);
 if (targets.length === 0) targets.push("daemon", "console");
-const available = new Set(["daemon", "console", "web", "protocol"]);
+const available = new Set(["daemon", "console", "web"]);
 if (targets.some((target) => !available.has(target))) {
-  console.error("Usage: bun dev [daemon] [console] [web] [protocol]");
+  console.error("Usage: bun dev [daemon] [console] [web]");
   process.exit(1);
 }
 
@@ -122,8 +122,4 @@ if (targets.includes("console")) {
 if (targets.includes("web")) {
   console.log(`[dev] docs site → http://localhost:3000`);
   run("web", "bun", ["--filter=@mindwire/web", "run", "dev"], { cwd: root, env: process.env });
-}
-if (targets.includes("protocol")) {
-  console.log("[dev] protocol lab → http://127.0.0.1:5175");
-  run("protocol", "bun", ["--filter=@mindwire/protocol-lab", "run", "dev"], { cwd: root, env: process.env });
 }

@@ -1,7 +1,12 @@
 # syntax=docker/dockerfile:1
 # Build context: repository root.
-FROM golang:1.26.9-bookworm AS builder
+FROM node:22-bookworm AS builder
+COPY --from=golang:1.26.9-bookworm /usr/local/go /usr/local/go
 COPY --from=oven/bun:1.3.1 /usr/local/bin/bun /usr/local/bin/bun
+# Bun installs dependencies; Node runs the SDK/Next tools, and Go generates SDK docs.
+# Without Node, Bun silently substitutes its own runtime for node-based scripts.
+ENV PATH=/usr/local/go/bin:${PATH}
+RUN node --version && bun --version && go version
 ARG NEXT_PUBLIC_CONSOLE_URL=https://console.mindwire.sh
 ARG NEXT_PUBLIC_IOS_APP_URL=
 ENV NEXT_PUBLIC_CONSOLE_URL=${NEXT_PUBLIC_CONSOLE_URL}
@@ -12,14 +17,13 @@ COPY package.json bun.lock ./
 COPY packages/sdk/package.json packages/sdk/
 COPY apps/web/package.json apps/web/
 COPY apps/console/package.json apps/console/
-COPY apps/protocol-lab/package.json apps/protocol-lab/
 RUN bun install --frozen-lockfile
 
 COPY . .
 RUN bun --filter='mindwire' run build \
  && bun --filter='@mindwire/web' run build
 
-FROM node:22-slim AS runner
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=4327 \

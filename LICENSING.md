@@ -10,7 +10,6 @@ repository root does not replace the licenses attached to imported application c
 | `apps/console`, `apps/web` | Apache-2.0 |
 | `docker` and shared runtime/release scripts | Apache-2.0 |
 | Original Mindwire material in `apps/apple` | Mindwire Apple Client Source-Available License 1.0; see `apps/apple/LICENSE` |
-| `apps/protocol-lab` | AGPL-3.0; see its `LICENSE` |
 | `docs/apple` | AGPL-3.0; see its `LICENSE` |
 | `scripts/app-store`, `scripts/icons` | AGPL-3.0; see their `LICENSE` files |
 

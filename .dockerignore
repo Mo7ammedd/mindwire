@@ -21,8 +21,6 @@ apps/apple
 docs/apple
 scripts/app-store
 scripts/icons
-apps/protocol-lab/*
-!apps/protocol-lab/package.json
 
 # Local runtime state (the auth SQLite lives in a mounted volume, never in the image).
 **/.data

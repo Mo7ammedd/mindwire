@@ -72,7 +72,7 @@ const questions = [
   {
     question: "What is open source?",
     answer:
-      "The runtime, SDKs, website, and web Console are open source under Apache-2.0. The Apple client is source-available: inspection and private personal builds are allowed, while redistribution and publishing derivative apps require written permission. Diagnostic tools retain AGPL-3.0. Each component includes its license and third-party notices.",
+      "The runtime, SDKs, website, and web Console are open source under Apache-2.0. The Apple client is source-available: inspection and private personal builds are allowed, while redistribution and publishing derivative apps require written permission. Each component includes its license and third-party notices.",
   },
 ];
 

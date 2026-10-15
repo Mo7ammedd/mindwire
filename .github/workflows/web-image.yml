@@ -1,0 +1,67 @@
+name: Website Docker image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker/web.Dockerfile'
+      - '.dockerignore'
+      - 'package.json'
+      - 'bun.lock'
+      - 'apps/web/**'
+      - 'packages/sdk/**'
+      - 'packages/daemon/**'
+      - '.github/workflows/web-image.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/web.Dockerfile'
+      - '.dockerignore'
+      - 'package.json'
+      - 'bun.lock'
+      - 'apps/web/**'
+      - 'packages/sdk/**'
+      - 'packages/daemon/**'
+      - '.github/workflows/web-image.yml'
+  workflow_dispatch:
+    inputs:
+      source-ref:
+        description: 'Optional repository ref to reproduce an older image build'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-image-${{ github.event_name }}-${{ github.ref }}-${{ inputs.source-ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-image:
+    name: Build and start website container
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source-ref || github.ref }}
+      - name: Build production image
+        run: docker build --progress=plain -f docker/web.Dockerfile -t mindwire-web:check .
+      - name: Start image and verify website routes
+        run: |
+          set -euo pipefail
+          docker run -d --name mindwire-web-check -p 127.0.0.1:14327:4327 mindwire-web:check
+          trap 'docker logs mindwire-web-check; docker rm -f mindwire-web-check' EXIT
+          ready=0
+          for attempt in {1..30}; do
+            if curl --fail --silent --location http://127.0.0.1:14327/ >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1
+          for route in / /get-started/ /docs/ /llms.txt; do
+            curl --fail --silent --show-error --location "http://127.0.0.1:14327${route}" >/dev/null
+          done

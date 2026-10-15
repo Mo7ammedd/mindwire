@@ -17,7 +17,6 @@ By participating you agree to abide by our [Code of Conduct](./CODE_OF_CONDUCT.m
 
 - **`apps/apple/`** — shared Apple app source and tests; iOS/iPadOS today.
 - **`apps/console/`** — browser client and control plane.
-- **`apps/protocol-lab/`** — HTTP/SSE diagnostic client.
 - **`docker/`** — production image definitions and self-hosted deployment.
 
 ## Prerequisites
@@ -136,7 +135,7 @@ public issue — see [SECURITY.md](./SECURITY.md).
 
 Contributions follow the license of the component being changed: Apache-2.0 for the runtime, SDKs,
 console, and website; the source-available [Apple client license](apps/apple/LICENSE) for original
-material in `apps/apple`; and AGPL-3.0 for the protocol lab, Apple notes, and Apple tooling outside
+material in `apps/apple`; and AGPL-3.0 for Apple notes and Apple tooling outside
 that directory. Apple contributions additionally grant Oblien the copyright permissions in section 5
 of the Apple license, including commercial distribution and sublicensing, while contributors retain
 their copyright. See [LICENSING.md](LICENSING.md). Do not copy code across these boundaries under

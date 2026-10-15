@@ -15,7 +15,7 @@ This recovery backup is local Git metadata; it is not included in commits, clone
 | Before | After |
 | --- | --- |
 | `pocket-agent/apps/ios` | `mindwire/apps/apple` |
-| `pocket-agent/apps/web` | `mindwire/apps/protocol-lab` |
+| `pocket-agent/apps/web` | Retired developer test UI; preserved in Git history |
 | `pocket-agent/docs` | `mindwire/docs/apple` |
 | `pocket-agent/artifacts`, `marketing` | `mindwire/apps/apple/artifacts`, `marketing` |
 | `pocket-agent/icon-themes` | `mindwire/apps/apple/icon-themes` |
@@ -28,8 +28,9 @@ The source app import is based on `oblien/pocket-agent` commit
 The runtime base is `aa26e91f0dba38d6942415cfeaedd2e296eb060b`.
 The original repositories' prior commits have not been rewritten or squashed.
 
-`apps/web` remains the product/documentation website. `apps/console` remains the full browser app;
-`apps/protocol-lab` is a developer diagnostic client, not a second product console.
+`apps/web` remains the product/documentation website. `apps/console` contains the cloud control plane
+and its browser interface. The former iOS test browser has been removed; automated protocol coverage
+remains in the runtime and SDK tests.
 
 ## Go module
 
@@ -68,15 +69,15 @@ launcher. The Apple app no longer requires a sibling runtime checkout for local 
 Regenerate Xcode projects with `bun run apple:generate`. Generated projects, dependencies, build
 output, local credentials, and untracked captures are not imported.
 
-The former iOS test browser runs as `bun run dev:protocol` on port 5175. The full console keeps
-5174. Use one root `bun.lock`; the diagnostic client's old npm lockfile is superseded by it.
+The console runs on port 5174 during development. Use the root `bun.lock` for the remaining
+workspaces. The retired test browser and its old lockfile are recoverable from Git history.
 
 ## Licenses
 
 The runtime, SDKs, console, and website remain Apache-2.0. Original material in `apps/apple` uses
 the source-available Apple client license: inspection and private personal builds are permitted;
-redistribution and publishing derivative apps require written permission. The diagnostic client,
-Apple notes, and Apple tooling outside that directory remain AGPL-3.0. Third-party terms and
+redistribution and publishing derivative apps require written permission. Apple notes and
+Apple tooling outside that directory remain AGPL-3.0. Third-party terms and
 valid earlier license grants are unaffected. See [component licenses](../LICENSING.md).
 
 ## Migration verification — October 15, 2026

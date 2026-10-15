@@ -25,7 +25,6 @@ COPY package.json bun.lock ./
 COPY packages/sdk/package.json packages/sdk/
 COPY apps/console/package.json apps/console/
 COPY apps/web/package.json apps/web/
-COPY apps/protocol-lab/package.json apps/protocol-lab/
 # --ignore-scripts: this slim image ships no C/C++ toolchain, so ssh2's OPTIONAL native dep `cpu-features`
 # can't compile (`node-gyp` → "Unable to detect compiler type") and would fail the whole install. It's
 # optional — ssh2 degrades gracefully without it — and nothing we build or run here relies on a lifecycle
