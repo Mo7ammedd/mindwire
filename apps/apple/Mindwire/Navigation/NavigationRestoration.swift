@@ -20,6 +20,7 @@ struct AppNavigationSnapshot: Codable {
     var version = currentVersion
     let selectedTab: AppTab
     let tabs: [Tab]
+    var assistantChatID: String? = nil
 
     struct Tab: Codable {
         let tab: AppTab

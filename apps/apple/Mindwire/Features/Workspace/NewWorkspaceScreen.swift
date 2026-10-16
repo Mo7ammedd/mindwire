@@ -11,6 +11,7 @@ struct NewWorkspaceScreen: View {
     @Environment(\.dismiss) private var dismiss
 
     let onCreated: (Workspace) -> Void
+    private let assistantCloud: Bool
     var contextMessage: String?
 
     @State private var model = NewWorkspaceModel()
@@ -27,11 +28,14 @@ struct NewWorkspaceScreen: View {
         case name, runtime, image, power, review
     }
 
-    init(contextMessage: String? = nil, rootDisk: WorkspaceManagedDisk? = nil, server: Connection? = nil,
+    init(contextMessage: String? = nil, rootDisk: WorkspaceManagedDisk? = nil, server: Connection? = nil, assistantCloud: Bool = false,
          onCreated: @escaping (Workspace) -> Void) {
         self.contextMessage = contextMessage
+        self.assistantCloud = assistantCloud
         self.onCreated = onCreated
         let draft = NewWorkspaceModel()
+        if assistantCloud { draft.name = "Mindwire Cloud" }
+        _step = State(initialValue: assistantCloud ? .power : .name)
         draft.selectRoot(rootDisk)
         if let server { draft.selectedServerId = server.id; draft.name = server.name }
         if let rootDisk { draft.name = rootDisk.displayName }
@@ -82,7 +86,10 @@ struct NewWorkspaceScreen: View {
         .oblienLoginSheet(isPresented: $showLogin) {
             if loginForImages {
                 loginForImages = false
-                Task { await model.loadImages() }
+                Task {
+                    await model.loadImages()
+                    if assistantCloud { await model.loadAccountOverview() }
+                }
             } else {
                 create()
             }
@@ -93,15 +100,20 @@ struct NewWorkspaceScreen: View {
 
     /// The active step's Form plus progress chrome and the bottom Back/Next bar.
     private var wizard: some View {
-        stepForm
-            .navigationTitle(t("newWorkspace.title"))
+        Group {
+            if assistantCloud { assistantCloudForm }
+            else { stepForm }
+        }
+            .navigationTitle(t(assistantCloud ? "assistant.setup.cloud" : "newWorkspace.title"))
             // iOS 26 soft scroll-edge effect: content blurs/fades natively as it passes under the
             // floating glass bar — no opaque panel.
             .scrollEdgeEffectStyle(.soft, for: .bottom)
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: Spacing.sm) {
-                    StepIndicator(current: currentStepIndex + 1, total: steps.count)
-                        .padding(.horizontal, Spacing.xl)
+                    if !assistantCloud {
+                        StepIndicator(current: currentStepIndex + 1, total: steps.count)
+                            .padding(.horizontal, Spacing.xl)
+                    }
                     bottomBar
                 }
                 .padding(.top, Spacing.sm)
@@ -280,19 +292,7 @@ struct NewWorkspaceScreen: View {
 
     private func powerStep(model: NewWorkspaceModel) -> some View {
         Form {
-            Section {
-                if model.loadingAccount && model.accountOverview == nil {
-                    HStack { Spacer(); ProgressView(); Spacer() }
-                } else if let overview = model.accountOverview, let quota = overview.quota {
-                    LabeledContent(t("newWorkspace.account.plan"), value: quota.planLabel)
-                    if let balance = overview.balance {
-                        LabeledContent(t("newWorkspace.account.credits"),
-                                       value: String(format: "%.2f", balance))
-                    }
-                }
-            } header: {
-                Text(t("newWorkspace.account.title"))
-            }
+            cloudAccountSection
 
             Section {
                 Stepper(value: $model.customCPUs, in: model.minimumCPUs...max(model.minimumCPUs, model.customMaximumCPUs)) {
@@ -325,44 +325,105 @@ struct NewWorkspaceScreen: View {
                 }
             }
 
-            Section {
-                if model.loadingAccount {
-                    HStack { Spacer(); ProgressView(); Spacer() }
-                } else if let overview = model.accountOverview {
-                    if let estimate = overview.estimate?.estimate {
-                        LabeledContent(t("newWorkspace.account.estimate"),
-                                       value: String(format: "%.0f–%.0f credits", estimate.min, estimate.max))
-                    }
-                    if let denial = model.creationDenial {
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Label(t("newWorkspace.unavailable.title"), icon: .warning)
-                                .font(.headline)
-                                .foregroundStyle(Palette.danger)
-                            Text(denial).font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        if model.storage.validation(image: model.selectedImage) != nil {
-                            Text("Review your storage choices before creating the workspace.").font(.footnote).foregroundStyle(.secondary)
-                        } else if overview.creationDenial != nil {
-                            billingLink(t("account.addCredits"), url: "https://oblien.com/dashboard/credits/purchase")
-                        } else if overview.canUpgradePlan {
-                            billingLink(upgradeLabel(overview), url: "https://oblien.com/dashboard/plan")
-                        } else {
-                            Label(t("newWorkspace.highestPlanHint"), icon: .verified)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Label(t("newWorkspace.available"), icon: .checkCircleFilled)
-                            .foregroundStyle(Palette.success)
-                    }
-                }
-            } header: {
-                Text(t("newWorkspace.summary"))
-            } footer: {
-                Text(t("newWorkspace.serviceHint"))
-            }
+            cloudSummarySection
         }
         .task(id: model.spec) { await model.loadAccountOverview() }
+    }
+    private var cloudAccountSection: some View {
+        Section {
+            if model.loadingAccount && model.accountOverview == nil {
+                HStack { Spacer(); ProgressView(); Spacer() }
+            } else if let overview = model.accountOverview, let quota = overview.quota {
+                LabeledContent(t("newWorkspace.account.plan"), value: quota.planLabel)
+                if let balance = overview.balance {
+                    LabeledContent(t("newWorkspace.account.credits"),
+                                   value: String(format: "%.2f", balance))
+                }
+            }
+        } header: {
+            Text(t("newWorkspace.account.title"))
+        }
+    }
+
+    private var cloudSummarySection: some View {
+        Section {
+            if model.loadingAccount {
+                HStack { Spacer(); ProgressView(); Spacer() }
+            } else if let overview = model.accountOverview {
+                if let estimate = overview.estimate {
+                    LabeledContent(t("newWorkspace.account.estimate"),
+                                   value: String(format: "%.0f–%.0f credits", estimate.estimate.min, estimate.estimate.max) + " / " + estimate.period)
+                }
+                if let denial = model.creationDenial {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Label(t("newWorkspace.unavailable.title"), icon: .warning)
+                            .font(.headline)
+                            .foregroundStyle(Palette.danger)
+                        Text(denial).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    if model.storage.validation(image: model.selectedImage) != nil {
+                        Text("Review your storage choices before creating the workspace.").font(.footnote).foregroundStyle(.secondary)
+                    } else if overview.creationDenial != nil {
+                        billingLink(t("account.addCredits"), url: "https://oblien.com/dashboard/credits/purchase")
+                    } else if overview.canUpgradePlan {
+                        billingLink(upgradeLabel(overview), url: "https://oblien.com/dashboard/plan")
+                    } else {
+                        Label(t("newWorkspace.highestPlanHint"), icon: .verified)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if !assistantCloud || overview.quota != nil && overview.balance != nil && overview.estimate != nil {
+                    Label(t("newWorkspace.available"), icon: .checkCircleFilled)
+                        .foregroundStyle(Palette.success)
+                }
+            }
+        } header: {
+            Text(t("newWorkspace.summary"))
+        } footer: {
+            Text(t("newWorkspace.serviceHint"))
+        }
+    }
+
+    private var assistantCloudForm: some View {
+        Form {
+            Section {
+                Text(t("assistant.setup.cloud.review")).foregroundStyle(.secondary)
+            }
+            if model.cloudAuthRequired {
+                Section {
+                    OblienSignInPrompt { loginForImages = true; showLogin = true }
+                }
+            } else if model.loadingImages {
+                Section { ProgressView(t("assistant.setup.checking")) }
+            } else if let error = model.imagesError {
+                Section {
+                    Text(error).foregroundStyle(.secondary)
+                    Button(t("common.retry")) { Task { await loadAssistantCloud() } }.tint(.primary)
+                }
+            } else if model.selectedImage != nil {
+                cloudAccountSection
+                cloudSummarySection
+                if !model.loadingAccount,
+                   model.accountOverview?.quota == nil || model.accountOverview?.balance == nil || model.accountOverview?.estimate == nil {
+                    Section {
+                        Text(t("assistant.setup.cloud.costError")).foregroundStyle(.secondary)
+                        Button(t("common.retry")) { Task { await model.loadAccountOverview() } }.tint(.primary)
+                    }
+                }
+            } else {
+                Section {
+                    Text(t("assistant.setup.cloud.unavailable")).foregroundStyle(.secondary)
+                    Button(t("common.retry")) { Task { await loadAssistantCloud() } }.tint(.primary)
+                }
+            }
+        }
+        .task { await loadAssistantCloud() }
+    }
+
+    private func loadAssistantCloud() async {
+        await model.loadImages()
+        guard !Task.isCancelled, model.selectedImage != nil else { return }
+        await model.loadAccountOverview()
     }
 
     private func resourceLabel(_ title: String, detail: String, value: String) -> some View {
@@ -428,13 +489,13 @@ struct NewWorkspaceScreen: View {
 
     private var bottomBar: some View {
         HStack(spacing: Spacing.md) {
-            if step != .name {
+            if step != steps.first {
                 Button(t("common.back")) { goBack() }
                     .buttonStyle(.glass)
                     .controlSize(.large)
             }
             Spacer(minLength: 0)
-            Button(isLastStep ? t("newWorkspace.create") : t("common.next")) {
+            Button(t(assistantCloud ? "assistant.setup.createCloud" : isLastStep ? "newWorkspace.create" : "common.next")) {
                 advance()
             }
             .buttonStyle(.glassProminent)
@@ -450,7 +511,7 @@ struct NewWorkspaceScreen: View {
 
     /// 3 steps either way: cloud gets the power preset, a self-hosted runtime gets a review step.
     private var steps: [Step] {
-        model.isCloud ? [.name, .runtime, .image, .power] : [.name, .runtime, .review]
+        assistantCloud ? [.power] : model.isCloud ? [.name, .runtime, .image, .power] : [.name, .runtime, .review]
     }
 
     private var isLastStep: Bool {
@@ -468,6 +529,8 @@ struct NewWorkspaceScreen: View {
         case .name:  return !model.name.trimmingCharacters(in: .whitespaces).isEmpty
         case .image: return model.selectedImage != nil
         case .power: return !model.loadingAccount && model.creationDenial == nil
+            && (!assistantCloud || model.selectedImage != nil && model.accountOverview?.quota != nil
+                && model.accountOverview?.balance != nil && model.accountOverview?.estimate != nil && !model.loadingImages)
         default:     return true
         }
     }

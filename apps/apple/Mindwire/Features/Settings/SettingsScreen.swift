@@ -3,12 +3,36 @@ import SwiftUI
 
 struct SettingsScreen: View {
     @Environment(\.stores) private var stores
+    @Environment(\.appExperienceMode) private var experienceMode
     @AppStorage("mindwire.appearance") private var appearance = "system"
     @AppStorage(StorageKey.chatTextSize) private var chatTextSize = ChatTextSize.medium.rawValue
+    @State private var showingAssistantSetup = false
     private var auth = OblienAuth.shared
 
     var body: some View {
         List {
+            #if !targetEnvironment(macCatalyst)
+            Section {
+                Picker(t("experience.mode"), selection: Binding(
+                    get: { stores.experience.mode ?? .general },
+                    set: { stores.experience.mode = $0 }
+                )) {
+                    ForEach(AppExperienceMode.allCases) { mode in Text(mode.title).tag(mode) }
+                }
+            } footer: {
+                Text(t("experience.switchHint"))
+            }
+            #endif
+            if experienceMode == .general {
+                Section {
+                    Button { showingAssistantSetup = true } label: {
+                        Label(t("assistant.connection"), icon: .monitor)
+                    }
+                    .tint(.primary)
+                } footer: {
+                    Text(t("assistant.connection.hint"))
+                }
+            }
             Section(t("settings.section.account")) {
                 RootNavigationLink(value: SettingsRoute.account) {
                     Label {
@@ -24,23 +48,25 @@ struct SettingsScreen: View {
                 }
             }
 
-            Section(t("settings.section.infrastructure")) {
-                RootNavigationLink(value: SettingsRoute.servers) {
-                    Label("Computers & Servers", icon: .monitor)
-                }
-            }
-
-            Section(t("settings.section.integrations")) {
-                RootNavigationLink(value: SettingsRoute.github) {
-                    Label {
-                        Text(t("settings.github"))
-                    } icon: {
-                        ProviderLogo(id: .github, size: 20)
+            if experienceMode == .developer {
+                Section(t("settings.section.infrastructure")) {
+                    RootNavigationLink(value: SettingsRoute.servers) {
+                        Label("Computers & Servers", icon: .monitor)
                     }
                 }
-            }
 
-            ServiceUpdatesSettingsSection()
+                Section(t("settings.section.integrations")) {
+                    RootNavigationLink(value: SettingsRoute.github) {
+                        Label {
+                            Text(t("settings.github"))
+                        } icon: {
+                            ProviderLogo(id: .github, size: 20)
+                        }
+                    }
+                }
+
+                ServiceUpdatesSettingsSection()
+            }
 
             Section(t("settings.appearance")) {
                 Picker(t("settings.appearance"), selection: $appearance) {
@@ -90,6 +116,9 @@ struct SettingsScreen: View {
         .serviceUpdatePresentation()
         .navigationTitle(t("tabs.settings"))
         .principalBrand()
+        .sheet(isPresented: $showingAssistantSetup) {
+            AssistantSetupScreen { showingAssistantSetup = false }
+        }
     }
 
     @ViewBuilder private var accountIcon: some View {

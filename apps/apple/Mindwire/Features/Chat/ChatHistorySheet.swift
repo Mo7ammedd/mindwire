@@ -6,12 +6,20 @@ struct ChatHistorySheet: View {
     var agentId: String? = nil
     var workspaceId: String? = nil
     var conversationRepository: ConversationRepository? = nil
+    var onOpenChat: ((Chat) -> Void)? = nil
+    var onNewChat: (() -> Void)? = nil
+    var onSettings: (() -> Void)? = nil
 
     @Environment(AppModel.self) private var app
     @Environment(\.stores) private var stores
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appExperienceMode) private var experienceMode
 
     @State private var chats: [Chat] = []
+    @State private var savedChats: [String: Chat] = [:]
+    @State private var projects: [String: Project] = [:]
+    @State private var agents: [String: Agent] = [:]
+    @State private var rowSnapshots: [String: ChatListRowSnapshot] = [:]
     @State private var activity = ChatActivityStore.shared
     @State private var history: ConversationHistory?
     @State private var search = ""
@@ -21,23 +29,29 @@ struct ChatHistorySheet: View {
     @State private var showingService = false
     @State private var showingIssues = false
 
+    private struct HistoryRequest: Hashable {
+        let workspaceID: String?
+        let agentID: String?
+        let search: String
+    }
+
     private var globalWorkspaceId: String? {
         guard projectId == nil else { return nil }
-        return workspaceId ?? agentId.flatMap { stores.agents.get($0)?.workspaceId }
+        return workspaceId ?? agentId.flatMap { agents[$0]?.workspaceId }
     }
 
     private var filteredChats: [Chat] {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
         return activity.ordered(chats).filter { chat in
-            query.isEmpty || [activity.title(chat), stores.projects.get(chat.projectId)?.name ?? "",
-                              stores.projects.get(chat.projectId)?.path ?? ""].contains { $0.localizedCaseInsensitiveContains(query) }
+            query.isEmpty || [activity.title(chat), experienceMode == .general ? "" : projects[chat.projectId]?.name ?? "",
+                              experienceMode == .general ? "" : projects[chat.projectId]?.path ?? ""].contains { $0.localizedCaseInsensitiveContains(query) }
         }
     }
 
     var body: some View {
         NavigationStack {
             content
-                .navigationTitle(t(globalWorkspaceId != nil ? "chat.all.title" : projectId == nil ? "chat.recent" : "agentDetail.chats"))
+                .navigationTitle(t(experienceMode == .general ? "assistant.history" : globalWorkspaceId != nil ? "chat.all.title" : projectId == nil ? "chat.recent" : "agentDetail.chats"))
                 .navigationBarTitleDisplayMode(.inline)
                 .searchable(text: $search, prompt: t("chat.all.search"))
                 .refreshable { await refresh() }
@@ -46,13 +60,25 @@ struct ChatHistorySheet: View {
                         Button { dismiss() } label: { AppIcon(Icon.close) }
                             .tint(.primary)
                     }
+                    if let onNewChat {
+                        AppToolbarItem(placement: .topBarTrailing) {
+                            Button(action: onNewChat) { AppIcon(Icon.edit) }
+                                .tint(.primary).accessibilityLabel(t("assistant.newChat"))
+                        }
+                    }
+                    if let onSettings {
+                        AppToolbarItem(placement: .topBarTrailing) {
+                            Button(action: onSettings) { AppIcon(.settings) }
+                                .tint(.primary).accessibilityLabel(t("tabs.settings"))
+                        }
+                    }
                 }
         }
         .onAppear(perform: reload)
         .onDisappear { openingTask?.cancel(); openingTask = nil }
         .observeWorkspaceCache(reload)
         .observeChatActivity(agentIds: chats.map(\.agentId))
-        .task(id: search) {
+        .task(id: HistoryRequest(workspaceID: globalWorkspaceId, agentID: agentId, search: search)) {
             guard let workspaceId = globalWorkspaceId else { return }
             if !search.isEmpty {
                 do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
@@ -137,15 +163,16 @@ struct ChatHistorySheet: View {
 
     @ViewBuilder
     private func conversationRow(_ conversation: Conversation) -> some View {
-        if let id = conversation.chatId, let chat = stores.chats.get(id),
-           stores.projects.get(chat.projectId)?.workspaceId == globalWorkspaceId {
-            ChatListRow(chat: chat, subtitle: conversation.folderLabel,
+        if let id = conversation.chatId, let chat = savedChats[id],
+           projects[chat.projectId]?.workspaceId == globalWorkspaceId {
+            ChatListRow(chat: chat, subtitle: experienceMode == .general ? nil : conversation.folderLabel,
+                        snapshot: rowSnapshots[chat.id],
                         onOpen: { open(chat) }, onChanged: changed)
                 .disabled(openingID != nil)
         } else {
             Button { open(conversation) } label: {
                 HStack {
-                    ChatRowLabel(title: conversation.title, subtitle: conversation.folderLabel,
+                    ChatRowLabel(title: conversation.title, subtitle: experienceMode == .general ? nil : conversation.folderLabel,
                                  status: conversation.lastStatus.flatMap(RunStatus.init(rawValue:)),
                                  date: conversation.activityDate)
                     if openingID == conversation.id { ProgressView().controlSize(.mini) }
@@ -158,14 +185,14 @@ struct ChatHistorySheet: View {
     }
 
     private func row(_ chat: Chat) -> some View {
-        let agent = stores.agents.get(chat.agentId)
-        let subtitle = globalWorkspaceId == nil ? agent?.displayName : stores.projects.get(chat.projectId)?.name
-        return ChatListRow(chat: chat, subtitle: subtitle, onOpen: { open(chat) }, onChanged: changed)
+        let subtitle = experienceMode == .general ? nil : globalWorkspaceId == nil ? agents[chat.agentId]?.displayName : projects[chat.projectId]?.name
+        return ChatListRow(chat: chat, subtitle: subtitle, snapshot: rowSnapshots[chat.id], onOpen: { open(chat) }, onChanged: changed)
     }
 
     private func open(_ chat: Chat) {
         let id = chat.id
         dismiss()
+        if let onOpenChat { onOpenChat(chat); return }
         if projectId != nil || globalWorkspaceId != nil { app.push(.chat(chatId: id)) }
         else { app.openChat(id) }
     }
@@ -199,9 +226,18 @@ struct ChatHistorySheet: View {
     }
 
     private func reload() {
-        if let projectId { chats = stores.chats(forProjectId: projectId) }
-        else if let agentId { chats = stores.chats(forAgentId: agentId) }
-        else if let workspaceId { chats = stores.chats(forWorkspaceId: workspaceId) }
-        else { chats = stores.chatsByRecency() }
+        projects = Dictionary(stores.projects.list().map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        agents = Dictionary(stores.agents.list().map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        let all = stores.chatsByRecency()
+        savedChats = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        chats = all.filter { chat in
+            if let projectId { return chat.projectId == projectId }
+            if let agentId { return chat.agentId == agentId }
+            if let workspaceId { return agents[chat.agentId]?.workspaceId == workspaceId }
+            return true
+        }
+        rowSnapshots = Dictionary(all.map { chat in
+            (chat.id, ChatListRowSnapshot(notificationsMuted: chat.notificationsMuted == true || agents[chat.agentId]?.notificationsMuted == true))
+        }, uniquingKeysWith: { _, last in last })
     }
 }

@@ -6,6 +6,7 @@ struct AgentSetupScreen: View {
     let onReady: () -> Void
     private let onRemoved: (() -> Void)?
     @Environment(\.stores) private var stores
+    @Environment(\.appExperienceMode) private var experienceMode
     @Environment(\.dismiss) private var dismiss
     @State private var agent: Agent
     @State private var session: DaemonSession?
@@ -24,7 +25,7 @@ struct AgentSetupScreen: View {
         AgentReadinessView(agent: agent, session: session) {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationTitle(agent.displayName)
+        .navigationTitle(experienceMode == .general ? t("assistant.setup.ai") : agent.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .agentManagement(agent: agent, session: session, actions: actions,
                          showsAuthentication: false, onRemoved: removed)

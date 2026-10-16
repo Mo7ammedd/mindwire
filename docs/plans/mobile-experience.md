@@ -1,7 +1,7 @@
 # Mindwire mobile experience proposal
 
-Saved from the product discussion on October 15, 2026. This is a draft direction to revisit;
-implementation has not been approved or started.
+Saved from the product discussion on October 15, 2026. General / Developer modes and guided
+mobile setup were approved and implemented on October 16. The desktop interface remains deferred.
 
 Mindwire should open into a personal assistant chat, with optional Developer tools exposing the
 existing coding interface. Both experiences use the same Mindwire agent, conversations, execution
@@ -9,13 +9,15 @@ services, and connections. Supported subscriptions power the agent through the u
 
 ## First use
 
-1. Open into a composer with concrete examples such as organizing files, researching a topic,
-   creating a document, or automating a repetitive task.
-2. Preserve the first request while guiding the user through any required setup.
-3. Connect the computer where work will happen. Start with My computer; offer Mindwire Cloud
-   when its managed setup and account flow are ready.
-4. Detect existing authenticated agent installations before asking the user to connect AI access.
-5. Once the computer and AI connection are verified, return to the chat and submit the task once.
+1. Fresh installs choose General or Developer. Existing installations keep Developer mode.
+2. General setup explains why Mindwire needs a computer, then offers My computer, Mindwire Cloud,
+   and already connected computers. Existing pairing and cloud services own these operations.
+3. Reuse an available AI connection or connect supported AI access through the shared installation
+   and authentication screens. The selected computer and profile survive interrupted setup.
+4. After authentication, prepare `~/.mindwire-workspace` on that computer and register it through
+   the shared project API. Repeated setup reuses its directory and project; no existing files move.
+   This is a working directory, not an OS permission boundary or a sandbox.
+5. Start chatting using the existing ChatScreen and composer. History is a flat, searchable list.
 
 AI access and computer access are separate connections. Connecting a subscription alone does not
 provide a computer on which the agent can execute tasks.
@@ -31,8 +33,9 @@ ordinary task. The runtime can retain its existing workspace and agent structure
 
 ## Developer tools
 
-A setting exposes projects, Git, the terminal, file browser, port forwarding, and advanced agent
-configuration. Existing users retain access to their current interface during migration.
+Settings → App mode switches between General and Developer. Developer retains the entire existing
+Projects / Agents / Workspaces / Settings interface. General retains attachments, voice, file
+access and downloads, with the coding-specific controls in Developer mode.
 
 Changing this setting changes navigation and visible tools. Conversations, drafts, credentials,
 connections, and active work remain shared. Reuse the existing chat state, transcript cache,
@@ -53,19 +56,23 @@ hosted offerings.
 - [Claude Code authentication and platform guidance](https://code.claude.com/docs/en/legal-and-compliance)
 - [OpenAI ChatGPT plan sharing documentation](https://developers.openai.com/siwc/token-sharing-open-source)
 
-## Suggested delivery order
+## Current implementation and next work
 
-First build the chat home, guided connection setup, and Developer tools setting while preserving
-the current runtime and chat behavior. Then make computer setup install, open, and scan a QR code.
-Add managed cloud onboarding and a free offering after their infrastructure and economics are ready.
+The mobile shell, mode choice, guided setup and shared chat presentation are implemented. Each
+window restores its General conversation independently of Developer navigation. Changing the
+default computer/profile affects new conversations; existing chats keep their original context.
+Cloud setup uses a default configuration and requires a live credit estimate, balance and quota
+before enabling creation. It keeps the existing Oblien login and provisioning implementation.
+
+Computer pairing still uses the current CLI installation and QR flow. A graphical companion
+installer, a funded free offering, and further consumer-friendly activity/result presentation are
+separate follow-up work. No new provider authentication mechanism was added.
 
 The computer companion's setup is part of the consumer experience. Simplifying the mobile screens
 alone will not make terminal-based installation accessible to ordinary users.
 
 ## Decisions to revisit
 
-- The final navigation and name of the Developer tools setting.
-- The default runtime location and companion installation experience.
+- The companion installation experience.
 - Supported subscription connections and provider eligibility.
 - Whether and how to offer free use, including inference and compute limits.
-- The timing and account requirements of Mindwire Cloud.

@@ -244,6 +244,15 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
   Selecting code exposes the shared
   Send to Agent flow used by Files: pick a workspace agent, then add a comment in the chat draft.
   Diff selections retain addition/deletion markers when handed to the chat.
+- **Mobile modes**: fresh installs choose General or Developer; upgrades keep Developer. Settings
+  can switch at any time. General opens the shared chat directly with a flat searchable history.
+  Developer owns the existing four tabs. Keep one chat, composer, draft store, history component,
+  pairing flow, authentication flow and cloud provisioner. General hides coding configuration,
+  terminal and Git shortcuts while retaining attachments, voice, files and downloads. Its setup
+  prepares `~/.mindwire-workspace` through the authoritative workspace project registry, and only
+  persists IDs for the default profile/project. Existing chats never change computers when the
+  default changes. Restore the General conversation per window alongside Developer navigation.
+  Mac stays on the shared Developer shell until its interface work is explicitly resumed.
 - **File downloads**: files expose Download in every browser layout's context menu and the viewer's
   actions. Unsupported and failed previews offer Download directly. Use the same on-demand transfer
   with native progress, cancel/retry, and Save to Files for all entry points. Preserve original bytes

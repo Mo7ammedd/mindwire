@@ -11,6 +11,7 @@ struct ChatScreen: View {
     private let initialDraft: String?
 
     @Environment(\.stores) private var stores
+    @Environment(\.appExperienceMode) private var experienceMode
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -21,6 +22,7 @@ struct ChatScreen: View {
     @State private var chat: Chat?
     @State private var chatRemoved = false
     @State private var agent: Agent?
+    @State private var computerName: String?
     @State private var composer: ChatDraft
     @State private var composerBound = false
     @State private var images = ChatImageDraft()
@@ -103,7 +105,8 @@ struct ChatScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                ChatNavigationTitle(title: chat?.title ?? "", subtitle: "Mindwire",
+                ChatNavigationTitle(title: experienceMode == .general ? "Mindwire" : chat?.title ?? "",
+                                    subtitle: experienceMode == .general ? computerName ?? "" : "Mindwire",
                                     refreshing: model.hasLoadedHistory && (model.preparing || model.loadingHistory
                                         || model.restoringRun || model.reconnecting || model.checkingOwnership))
             }
@@ -115,7 +118,7 @@ struct ChatScreen: View {
                     } label: {
                         Label(t("chat.rename.title"), icon: Icon.edit)
                     }
-                    if let settings, settings.hasConfig, !model.nativeState.ownsConversation {
+                    if experienceMode == .developer, let settings, settings.hasConfig, !model.nativeState.ownsConversation {
                         Button { showingSettings = true } label: {
                             Label(t("chat.modelSettings"), icon: .sliders)
                         }
@@ -202,7 +205,7 @@ struct ChatScreen: View {
             ChatHistorySheet(projectId: chat?.projectId, agentId: chat?.agentId)
         }
         .onChange(of: input) { _, value in
-            if DaemonCommandInvocation.query(value) != nil, !commandPicker.loaded {
+            if experienceMode == .developer, DaemonCommandInvocation.query(value) != nil, !commandPicker.loaded {
                 Task { await loadCommands() }
             }
         }
@@ -271,6 +274,7 @@ struct ChatScreen: View {
             let previouslyPresent = chat != nil
             chat = stores.chats.get(chatId)
             agent = chat.flatMap { stores.agents.get($0.agentId) }
+            computerName = agent?.workspaceId.flatMap { WorkspaceRepository.shared.get($0)?.name }
             if previouslyPresent && chat == nil { chatRemoved = true; model.dispose() }
         }
         .onDisappear {
@@ -368,12 +372,12 @@ struct ChatScreen: View {
     private var emptyState: some View {
         ContentUnavailableView {
             Label {
-                Text(model.loadError == nil ? t("chat.empty.title") : t("chat.error.load"))
+                Text(model.loadError == nil ? t(experienceMode == .general ? "assistant.welcome" : "chat.empty.title") : t("chat.error.load"))
             } icon: {
                 assistantGlyph
             }
         } description: {
-            if model.loadError == nil { Text(t("chat.startHint")) }
+            if model.loadError == nil { Text(t(experienceMode == .general ? "assistant.welcome.body" : "chat.startHint")) }
         } actions: {
             if let error = model.loadError {
                 ChatErrorDisclosure(title: t("chat.error.title"), detail: error)
@@ -438,7 +442,7 @@ struct ChatScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("chat.nativeSession")
             }
-            commandSuggestions
+            if experienceMode == .developer { commandSuggestions }
             GlassEffectContainer(spacing: Spacing.sm) {
                 HStack(alignment: .bottom, spacing: Spacing.sm) {
                 composerToolsButton
@@ -477,7 +481,7 @@ struct ChatScreen: View {
             composerFocused = false
             showingTools = true
         } label: {
-            AppIcon(.sliders)
+            AppIcon(experienceMode == .general ? .plus : .sliders)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.primary)
                 // Match the input pill's collapsed height (send button 30 + 2×9 vertical padding = 48)
@@ -487,7 +491,7 @@ struct ChatScreen: View {
         }
         .buttonStyle(.plain)
         .tint(.primary)
-        .accessibilityLabel(t("chat.tools"))
+        .accessibilityLabel(t(experienceMode == .general ? "assistant.attachments" : "chat.tools"))
         .accessibilityValue(settings?.hasConfig == true ? settings?.modelSummary ?? "" : "")
         .accessibilityIdentifier("chat.tools")
     }
@@ -597,7 +601,7 @@ struct ChatScreen: View {
         resolvingCommand = true
         Task {
             defer { resolvingCommand = false }
-            let invocation = DaemonCommandInvocation.parse(text)
+            let invocation = experienceMode == .developer ? DaemonCommandInvocation.parse(text) : nil
             if model.nativeState.ownsConversation, invocation != nil {
                 showingNativeInfo = true
                 return
@@ -610,7 +614,7 @@ struct ChatScreen: View {
                     return
                 }
             }
-            let selected = commandPicker.command(text)
+            let selected = experienceMode == .developer ? commandPicker.command(text) : nil
             if let (command, invocation) = selected, command.kind != "prompt" {
                 if !attachments.isEmpty { model.turnError = t("chat.commands.attachments"); return }
                 performCommand(command, arguments: invocation.arguments)
@@ -729,6 +733,7 @@ struct ChatScreen: View {
             APILog.note("chat[\(chatId)]: no local chat record — deep-link to a chat not in this install, or store not loaded yet")
         }
         agent = chat.flatMap { stores.agents.get($0.agentId) }
+        computerName = agent?.workspaceId.flatMap { WorkspaceRepository.shared.get($0)?.name }
         model.bind(chat: chat, stores: stores)
     }
 

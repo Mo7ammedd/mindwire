@@ -3,6 +3,7 @@ import SwiftUI
 /// Saves a workspace profile and immediately prepares its CLI through the shared installation job.
 struct NewAgentScreen: View {
     private let projectName: String?
+    private let assistantSetup: Bool
     private let onFinished: ((Agent?) -> Void)?
     private let repository: WorkspaceRepository
     @Environment(\.stores) private var stores
@@ -19,11 +20,15 @@ struct NewAgentScreen: View {
     }
 
     init(workspaceId: String? = nil, agentType: AgentID = .claudeCode, releaseCatalog: ReleaseCatalog = .shared,
-         repository: WorkspaceRepository? = nil, projectName: String? = nil, onFinished: ((Agent?) -> Void)? = nil) {
+         repository: WorkspaceRepository? = nil, projectName: String? = nil, assistantSetup: Bool = false,
+         onFinished: ((Agent?) -> Void)? = nil) {
         self.projectName = projectName
+        self.assistantSetup = assistantSetup
         self.onFinished = onFinished
         self.repository = repository ?? .shared
-        _model = State(initialValue: NewAgentModel(workspaceId: workspaceId, agentType: agentType, releaseCatalog: releaseCatalog))
+        let model = NewAgentModel(workspaceId: workspaceId, agentType: agentType, releaseCatalog: releaseCatalog)
+        if assistantSetup { model.name = "Mindwire" }
+        _model = State(initialValue: model)
     }
 
     var body: some View {
@@ -76,7 +81,7 @@ struct NewAgentScreen: View {
                     footer: t("newAgent.workspace.help"), accessibilityIdentifier: "newAgent.workspace",
                     onChoose: { activeSheet = .workspaces }, onCreate: { activeSheet = .newWorkspace })
             }
-            if projectName == nil { nameSection }
+            if projectName == nil && !assistantSetup { nameSection }
             Section {
                 if model.loadingCatalog && model.catalog.isEmpty {
                     HStack { Spacer(); ProgressView(); Spacer() }
@@ -94,20 +99,24 @@ struct NewAgentScreen: View {
                     Button(t("common.retry")) { Task { await model.loadCatalog() } }
                 }
             } header: {
-                if let projectName {
+                if assistantSetup {
+                    Text(t("assistant.setup.ai.body"))
+                        .font(.subheadline).fontWeight(.regular).textCase(nil)
+                } else if let projectName {
                     Text(t("newProject.agent.body", ["name": projectName]))
                         .font(.subheadline).fontWeight(.regular).textCase(nil)
                 } else {
                     Text(t("newAgent.section.agent"))
                 }
             } footer: {
-                if projectName != nil { Text(t("newProject.agent.workspaceHint")) }
+                if assistantSetup { Text(t("assistant.setup.ai.cost")) }
+                else if projectName != nil { Text(t("newProject.agent.workspaceHint")) }
             }
-            if projectName != nil { nameSection }
+            if projectName != nil && !assistantSetup { nameSection }
         }
         .contentMargins(.top, projectName == nil ? nil : Spacing.sm, for: .scrollContent)
         .disabled(actions.running)
-        .navigationTitle(t(projectName == nil ? "newAgent.title" : "newProject.agent.title"))
+        .navigationTitle(t(assistantSetup ? "assistant.setup.connectAI" : projectName == nil ? "newAgent.title" : "newProject.agent.title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if activeSheet == nil {
@@ -119,7 +128,7 @@ struct NewAgentScreen: View {
                     if actions.running {
                         ProgressView().accessibilityLabel(t("workspace.sync.loading"))
                     } else {
-                        Button(t(projectName == nil ? "newAgent.create" : "common.continue"), action: create)
+                        Button(t(assistantSetup || projectName != nil ? "common.continue" : "newAgent.create"), action: create)
                             .tint(.primary)
                             .disabled(model.workspaceId == nil || model.catalog.isEmpty || model.loadingCatalog)
                     }
