@@ -244,6 +244,11 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
   Selecting code exposes the shared
   Send to Agent flow used by Files: pick a workspace agent, then add a comment in the chat draft.
   Diff selections retain addition/deletion markers when handed to the chat.
+- **File downloads**: files expose Download in every browser layout's context menu and the viewer's
+  actions. Unsupported and failed previews offer Download directly. Use the same on-demand transfer
+  with native progress, cancel/retry, and Save to Files for all entry points. Preserve original bytes
+  and filenames; preview limits never apply to downloads. Cancelled or failed transfers remove their
+  partial temporary files. Browsing never starts a transfer.
 - **Buttons**: `.glass` (secondary), `.glassProminent` (one primary CTA per screen).
 - **Confirmations**: centered native `.alert` with explicit Cancel and a named action
   (Sign out, Delete, Stop, etc.). Destructive actions use `.destructive` and system red,

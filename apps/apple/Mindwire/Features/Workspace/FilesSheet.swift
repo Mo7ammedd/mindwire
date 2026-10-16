@@ -264,6 +264,7 @@ private struct FolderView: View {
     @State private var showTreeSettings = false
     @State private var showUpload = false        // file importer
     @State private var infoTarget: FileEntry?    // Get Info sheet
+    @State private var download: WorkspaceFileDownloadRequest?
     @State private var loadError: String?
 
     private var canManage: Bool { !selectFolder && selectFileExtensions == nil }
@@ -313,6 +314,7 @@ private struct FolderView: View {
         .sheet(isPresented: $showViewOptions) { ViewOptionsSheet(layout: $layout) }
         .sheet(isPresented: $showTreeSettings) { FileTreeSettingsSheet() }
         .sheet(item: $infoTarget) { entry in FileInfoSheet(workspace: workspace, entry: entry) }
+        .workspaceFileDownload($download, workspace: workspace)
         .fileImporter(isPresented: $showUpload, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             Task { await upload(result) }
         }
@@ -478,7 +480,8 @@ private struct FolderView: View {
                     ExplorerTreeActions(workspace: workspace, entry: entry, clip: $clip, refresh: $refresh,
                                         expanded: expanded, selecting: selecting,
                                         onRename: { e in promptText = e.name; prompt = .rename(e) },
-                                        onDelete: { e in deleteTargets = [e] }, onInfo: { infoTarget = $0 })
+                                        onDelete: { e in deleteTargets = [e] }, onInfo: { infoTarget = $0 },
+                                        onDownload: { download = .init(path: $0.path) })
                 })
             }
         }
@@ -592,6 +595,10 @@ private struct FolderView: View {
     @ViewBuilder
     private func itemActions(_ entry: FileEntry) -> some View {
         Button { infoTarget = entry } label: { Label(t("files.info"), icon: .info) }
+        if entry.type == .file {
+            Button { download = .init(path: entry.path) } label: { Label(t("files.download"), icon: .download) }
+                .accessibilityIdentifier("files.download")
+        }
         Button { promptText = entry.name; prompt = .rename(entry) } label: { Label(t("common.rename"), icon: Icon.edit) }
         Button { setClip([entry], cut: false) } label: { Label(t("files.copy"), icon: .copy) }
         Button { setClip([entry], cut: true) } label: { Label(t("files.cut"), icon: .scissors) }
@@ -858,11 +865,16 @@ private struct ExplorerTreeActions: ViewModifier {
     let onRename: (FileEntry) -> Void
     let onDelete: (FileEntry) -> Void
     let onInfo: (FileEntry) -> Void
+    let onDownload: (FileEntry) -> Void
 
     func body(content: Content) -> some View { content.appContextMenu { if !selecting { menu } } }
 
     @ViewBuilder private var menu: some View {
         Button { onInfo(entry) } label: { Label(t("files.info"), icon: .info) }
+        if entry.type == .file {
+            Button { onDownload(entry) } label: { Label(t("files.download"), icon: .download) }
+                .accessibilityIdentifier("files.download")
+        }
         Button { onRename(entry) } label: { Label(t("common.rename"), icon: Icon.edit) }
         Button { clip = FileClip(items: [entry], cut: false) } label: { Label(t("files.copy"), icon: .copy) }
         Button { clip = FileClip(items: [entry], cut: true) } label: { Label(t("files.cut"), icon: .scissors) }

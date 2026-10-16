@@ -49,6 +49,7 @@ struct FileEditorScreen: View {
     @State private var saveError: String?
     @State private var showSettings = false
     @State private var showInfo = false
+    @State private var download: WorkspaceFileDownloadRequest?
     @State private var agentPick: SendToAgentPayload?    // presenting the agent picker for this selection
     @State private var selection: String?                // current editor text selection (for Send to Agent)
     @StateObject private var handle = EditorHandle()
@@ -76,8 +77,14 @@ struct FileEditorScreen: View {
             if loading {
                 ProgressView().controlSize(.large).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let unsupported {
-                ContentUnavailableView(t("editor.cantOpen"), icon: .fileWarning,
-                                       description: Text(unsupported))
+                ContentUnavailableView {
+                    Label(t("editor.cantOpen"), icon: .fileWarning)
+                } description: {
+                    Text(unsupported)
+                } actions: {
+                    downloadButton
+                        .buttonStyle(.glass)
+                }
             } else if loadError != nil || loadedPath != path {
                 ContentUnavailableView {
                     Label(t("editor.loadFailed"), icon: .warning)
@@ -85,6 +92,7 @@ struct FileEditorScreen: View {
                     if let loadError { Text(loadError) }
                 } actions: {
                     Button(t("common.retry")) { Task { await load() } }
+                    downloadButton
                 }
             } else if let image {
                 ImageViewer(image: image)
@@ -119,6 +127,7 @@ struct FileEditorScreen: View {
         .safeAreaBar(edge: .bottom, spacing: 0) { bottomBar }
         .sheet(isPresented: $showSettings) { EditorSettingsView() }
         .sheet(isPresented: $showInfo) { fileInfoSheet }
+        .workspaceFileDownload($download, workspace: workspace)
         .sendCodeToAgent($agentPick, projectId: projectId, onOpenChat: onOpenChat)
         .onChange(of: text) { if editing { dirty = (text != loadedText) } }
         .onChange(of: dirty) { _, value in onDirtyChange?(value) }
@@ -192,15 +201,25 @@ struct FileEditorScreen: View {
 
     // MARK: Toolbar
 
+    private var downloadButton: some View {
+        Button { download = .init(path: path) } label: {
+            Label(t("files.download"), icon: .download)
+        }
+        .tint(.primary)
+        .accessibilityIdentifier("editor.download")
+    }
+
     @ToolbarContentBuilder
     private var editorToolbar: some ToolbarContent {
         if image != nil {
-            // Image preview: no Edit/text-settings, just Get Info (path/size/dimensions).
+            // Image previews share the same binary-safe download as other file types.
             AppToolbarItem(placement: .topBarTrailing) {
-                Button { showInfo = true } label: {
-                    AppIcon(.info)
-                }
+                AppMenu {
+                    downloadButton
+                    Button { showInfo = true } label: { Label(t("editor.info.title"), icon: .info) }
+                } label: { AppIcon(Icon.ellipsis) }
                 .tint(.primary)
+                .accessibilityLabel("File actions")
             }
         } else if unsupported == nil && loadError == nil && !loading && loadedPath == path {
             // One native ⋯ menu owns Edit + Settings (plain white/primary nav button).
@@ -230,6 +249,7 @@ struct FileEditorScreen: View {
                         .accessibilityIdentifier("editor.edit")
                     }
                     Divider()
+                    downloadButton
                     Button { showInfo = true } label: { Label(t("editor.info.title"), icon: .info) }
                     Button { showSettings = true } label: { Label(t("editor.settings"), icon: Icon.settings) }
                 } label: {
