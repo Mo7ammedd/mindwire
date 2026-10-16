@@ -5,10 +5,10 @@ Native **SwiftUI** client for Mindwire, built for **iOS 26 and macOS 26** with A
 glass bar, glass toolbars, `.buttonStyle(.glass/.glassProminent)`, `NavigationStack`,
 sheets). Clean, protocol-oriented architecture using the Observation framework.
 
-This is the shared home for the Apple clients. iPhone and iPad use the mobile layout. The Mac build
-uses Mac Catalyst's Mac interface idiom with a dedicated desktop SwiftUI shell. Chat, drafts,
-connections, terminal, editor, and developer tools share the same implementation. visionOS support
-is planned.
+This is the shared home for the Apple clients. iPhone, iPad, and the Mac Catalyst build use the same
+screens and navigation. The custom Mac interface has been removed; dedicated desktop UI work is
+deferred. Chat, drafts, connections, terminal, editor, and developer tools share the same implementation.
+visionOS support is planned.
 The runtime is in [`packages/daemon`](../../packages/daemon) in this same repository.
 
 Original Mindwire material in this component is [source-available](LICENSE), not open source.
@@ -48,35 +48,20 @@ xcodebuild -scheme MindwireMac \
 > Liquid Glass's specular highlights and motion render fully only on **physical
 > hardware** (the simulator approximates them).
 
-### Mac interface
+### Mac runtime
 
-The Mac opens into chat and automatically uses **This Mac**. It reuses the current account's
+The Mac uses the shared mobile interface and automatically prepares **This Mac**. It reuses the current account's
 running Mindwire computer service, or starts the signed runtime bundled with the app. Local access
 uses authenticated loopback HTTP with the same request, streaming, files, Git and terminal services
 as the phone. Extra computers and cloud workspaces are optional.
 
-The default Personal context references the current user's home directory. Subscriptions remain
-available separately; the Developer tools setting in Settings reveals projects and their settings.
+The default Personal context references the current user's home directory.
 The computer's existing service is retained when adopting a saved pairing to this same Mac. Local
 service updates are managed by the app or computer CLI, outside remote-workspace update batches.
 
-Chats share Mindwire's name and monochrome mark on iOS and Mac. Conversation rows remain text-first;
-provider identities belong in subscription setup and developer configuration. Navigation and actions
-use the same bundled PNG icon catalog as the phone. The Mac sidebar uses native rounded selection,
-with navigation below the scrolling conversation list.
-
-The Mac opens at a display-fitted 1320 × 860, then preserves user resizing. Its persistent 250-point sidebar
-groups chats by recency and keeps This Mac, Subscriptions, and Settings available below history.
-New Chat is a sidebar action with no selected fill. Navigation stays inline beside the chat.
-Phone, welcome, and active-chat views share one compact composer with platform-specific chrome;
-the desktop's controls sit inside its field, aligned to a 720-point reading column. User bubbles
-hug their text and stay within the actual column. Neutral system selection colors preserve readable
-labels in either appearance.
-
-`⌘N` starts a chat, `⌘F` focuses conversation search, and `⌘,` opens Settings. Return sends;
-Shift-Return inserts a new line. Windows have independent navigation and share the existing
-bounded chat cache and draft store. A welcome-screen message is handed to the normal chat
-composer after the daemon acknowledges creating the conversation.
+Chats share Mindwire's name and monochrome mark. Provider identities belong in subscription setup
+and developer configuration. Navigation and actions use the same bundled PNG icon catalog as the phone.
+Windows have independent navigation and share the existing bounded chat cache and draft store.
 
 On Mac, pairing accepts a pasted link or a QR-code image through the system file picker.
 

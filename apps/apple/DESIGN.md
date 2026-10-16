@@ -59,24 +59,8 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
    without harness logos. Loading, previews, commands, and voice keep this same identity.
    Provider identities belong in subscription setup and developer configuration. App-owned
    navigation and action icons use the shared `AppIcon` PNG catalog and `AppMenu` wrappers.
-   Mac sidebars use native `List(selection:)` styling; never override selection with a flat
-   rectangular fill. Pinned navigation occupies its own space below the scrolling history.
-   New Chat is one sidebar action, never a selected destination. The Mac uses a persistent inline
-   250-point sidebar with chats grouped by recency, and a 720-point reading column shared by the
-   welcome composer, transcript, and active-chat composer. Use the same ChatComposer on phone and
-   Mac, with platform conditions for chrome. Desktop controls sit inside a compact glass field that
-   grows from one line; phone tools keep their adjacent glass circle. Use a medium system title slightly
-   above center on welcome; keep conversation titles on one line in the native toolbar. Avoid marketing
-   taglines, suggestion chips, and a duplicate title menu. Scope monochrome text tints to toolbar
-   controls; sidebar selection uses a neutral system fill and dynamic label colors.
-   Desktop starts on This Mac automatically. Local access never presents the phone's pairing form.
-   Keep additional computers optional and subscriptions separate from Mindwire's assistant identity.
-   Subscriptions remain accessible in the sidebar without enabling developer tools. The initial Mac
-   window requests 1320 × 860 points, fitted to the display; subsequent user sizing is preserved.
-   Desktop navigation stays beside the conversation when a chat opens; it never automatically
-   collapses or overlays the detail pane. User text uses the same plain selectable renderer in both
-   clients. Bubble width is measured against its actual row, capped at 78%, and short text hugs its
-   content. A neutral desktop color must never select the assistant's full-width Markdown renderer.
+   Mac currently uses the shared mobile screens and navigation. Dedicated Mac interface work is
+   deferred; do not add a desktop shell or platform-specific chat styling without a new request.
 
 7. **Glass for floating chrome only.** Chat composer, terminal bars, FABs →
    `.glassEffect` / `GlassEffectContainer` / `.buttonStyle(.glass)`. Never put glass behind

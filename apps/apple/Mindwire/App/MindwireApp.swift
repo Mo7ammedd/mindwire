@@ -140,8 +140,10 @@ private struct MindwireWindow: View {
     }
 
     private func offerNotificationSignIn() {
-        // Desktop setup starts with chat. Account and notification setup remain in Settings.
-        guard !ApplePlatform.isDesktop else { return }
+        #if targetEnvironment(macCatalyst)
+        // Notification setup remains available in Settings on Mac.
+        return
+        #else
         // Never interrupt a chat, a pairing scan, or a sheet the user already opened.
         let atRoot = app.projectsPath.isEmpty && app.agentsPath.isEmpty
             && app.workspacesPath.isEmpty && app.settingsPath.isEmpty
@@ -150,6 +152,7 @@ private struct MindwireWindow: View {
         guard stores.notificationSignInReminder.claim(owner: notificationReminderOwner, signedOut: OblienAuth.shared.isSignedOut,
             active: scenePhase == .active, canPresent: atRoot && sheet == nil && nextSheet == nil && !modalIsOpen) else { return }
         sheet = .notificationIntro
+        #endif
     }
 
     private var preferredScheme: ColorScheme? {

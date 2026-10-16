@@ -14,7 +14,6 @@ struct ChatScreen: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var model: ChatModel
     @State private var viewerID = UUID()
@@ -78,11 +77,6 @@ struct ChatScreen: View {
         nonmutating set { composer.text = newValue }
     }
 
-    private var chatTitle: String {
-        guard let title = chat?.title, !title.isEmpty else { return "Mindwire" }
-        return title
-    }
-
     private var canSend: Bool {
         (!input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !images.items.isEmpty)
             && (!model.thinking || model.canSendWhileRunning)
@@ -105,12 +99,11 @@ struct ChatScreen: View {
         .environment(\.desktopWorkspaceID, agent?.workspaceId)
         .environment(\.chatAttachmentSession, model.session)
         .toolbar(.hidden, for: .tabBar) // immersive thread — no bottom tab bar
-        .navigationTitle(chatTitle)
+        .navigationTitle(chat?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: ApplePlatform.isDesktop ? .topBarLeading : .principal) {
-                ChatNavigationTitle(title: chatTitle,
-                                    subtitle: ApplePlatform.isDesktop ? "" : "Mindwire",
+            ToolbarItem(placement: .principal) {
+                ChatNavigationTitle(title: chat?.title ?? "", subtitle: "Mindwire",
                                     refreshing: model.hasLoadedHistory && (model.preparing || model.loadingHistory
                                         || model.restoringRun || model.reconnecting || model.checkingOwnership))
             }
@@ -139,7 +132,6 @@ struct ChatScreen: View {
                 } label: {
                     AppIcon(Icon.ellipsis).foregroundStyle(.primary)
                 }
-                .menuIndicator(.hidden)
             }
         }
         .inputDialog(
@@ -298,13 +290,6 @@ struct ChatScreen: View {
             await model.load()
             guard !Task.isCancelled else { return }
             reload()
-            #if targetEnvironment(macCatalyst)
-            if app.desktopSubmission?.chatID == chatId {
-                // Use the normal command resolution, admission, retry, and draft clearing flow.
-                let requested = app.takeDesktopSubmission(chatID: chatId, revision: composer.revision)
-                if requested, canSend { sendMessage() }
-            }
-            #endif
             await loadAgentSettings()
         }
         .task(id: model.latestRequestRevision) {
@@ -405,8 +390,9 @@ struct ChatScreen: View {
 
     // MARK: - Composer
 
-    /// The desktop shares its writing surface with new chat. Attachments, queued input, and
-    /// rejected requests stay above it; completed run errors remain in the transcript.
+    /// A compact composer: one tools button + a glass field with inline
+    /// recording and send controls. Rejected requests stay compact above the input; completed
+    /// run errors live in the transcript and are not duplicated here.
     private var bottomBar: some View {
         VStack(spacing: Spacing.sm) {
             if let error = composerError, !showingInteractions {
@@ -453,21 +439,20 @@ struct ChatScreen: View {
                 .accessibilityIdentifier("chat.nativeSession")
             }
             commandSuggestions
-            ChatComposer {
-                composerEditor
-            } leading: {
+            GlassEffectContainer(spacing: Spacing.sm) {
+                HStack(alignment: .bottom, spacing: Spacing.sm) {
                 composerToolsButton
-            } trailing: {
-                trailingButton
+                    inputField
+                }
             }
         }
         // Drafting and sending stay available while native work runs. Stop
         // retains its own target when a draft reveals Send.
         .animation(.easeInOut(duration: 0.2), value: model.thinking)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: canSend)
-        .padding(.horizontal, ChatContentStyle.horizontalInset)
-        .padding(.vertical, ApplePlatform.isDesktop ? 12 : Spacing.sm)
-        .frame(maxWidth: ChatContentStyle.columnWidth + 2 * ChatContentStyle.horizontalInset)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.sm)
+        .frame(maxWidth: AdaptiveLayout.readableWidth + 2 * Spacing.lg)
         .frame(maxWidth: .infinity)
     }
 
@@ -495,53 +480,51 @@ struct ChatScreen: View {
             AppIcon(.sliders)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.primary)
-                .frame(width: ApplePlatform.isDesktop ? 34 : 48, height: ApplePlatform.isDesktop ? 34 : 48)
-                .modifier(ChatComposerAccessoryGlass())
+                // Match the input pill's collapsed height (send button 30 + 2×9 vertical padding = 48)
+                // so the circle and the field are the same size, bottom-aligned and consistent.
+                .frame(width: 48, height: 48)
+                .glassEffect(.regular.interactive(), in: .circle)
         }
         .buttonStyle(.plain)
         .tint(.primary)
         .accessibilityLabel(t("chat.tools"))
         .accessibilityValue(settings?.hasConfig == true ? settings?.modelSummary ?? "" : "")
         .accessibilityIdentifier("chat.tools")
-        .help(t("chat.tools"))
     }
 
-    /// The same draft and keyboard actions serve both platform layouts.
-    private var composerEditor: some View {
-        TextField(t("chat.placeholder"), text: Binding(get: { input }, set: { input = $0 }), axis: .vertical)
-            .font(.body)
-            .focused($composerFocused)
-            .textInputAutocapitalization(.sentences)
-            .naturalChatDirection(input)
-            .lineLimit(ApplePlatform.isDesktop ? 1...8 : 1...5)
-            #if targetEnvironment(macCatalyst)
-            .textFieldStyle(.plain)
-            #endif
-            .onKeyPress(.return, phases: .down) { press in
-                guard ApplePlatform.isDesktop, !press.modifiers.contains(.shift), canSend else { return .ignored }
-                sendMessage()
-                return .handled
-            }
-            .disabled(model.submitting)
-            .accessibilityIdentifier("chat.composer")
+    /// The text field keeps recording and send inside its trailing edge.
+    private var inputField: some View {
+        // Bottom-aligned so the inline send/mic stays pinned to the bottom-right as the field grows
+        // to multiple lines, and ONE symmetric vertical padding. A fixed-radius rounded rect (NOT a
+        // capsule, whose radius = height/2 balloons into big half-circle ends on multi-line input).
+        HStack(alignment: .bottom, spacing: 6) {
+            TextField(t("chat.placeholder"), text: Binding(get: { input }, set: { input = $0 }), axis: .vertical)
+                .font(.body)
+                .focused($composerFocused)
+                .textInputAutocapitalization(.sentences)
+                .naturalChatDirection(input)
+                .lineLimit(1...5)
+                .disabled(model.submitting)
+                .accessibilityIdentifier("chat.composer")
+            trailingButton
+        }
+        .padding(.leading, Spacing.md)
+        .padding(.trailing, 5)
+        .padding(.vertical, 9)
+        .glassEffect(.regular, in: .rect(cornerRadius: Radius.xl, style: .continuous))
     }
 
-    /// Desktop actions end with Send or Stop; the phone retains its inline voice control.
-    /// Native conversation and recording an attachment remain separate choices.
+    /// Voice stays at the trailing edge; Send and Stop appear before it as needed.
+    /// Native conversation and recording an attachment are separate, explicit choices.
     @ViewBuilder
     private var trailingButton: some View {
         HStack(spacing: 6) {
-          #if targetEnvironment(macCatalyst)
-          if !model.submittingInput && !model.cancelling && !images.importing {
-              composerVoiceButton
-          }
-          #endif
           if model.thinking && model.canCancel {
             Button { Task { await model.cancel() } } label: {
                 AppIcon(.stop, size: 13)
-                    .foregroundStyle(canSend || model.submittingInput ? Color.primary : composerActionForeground)
-                    .frame(width: composerControlSize, height: composerControlSize)
-                    .background(canSend || model.submittingInput ? Color.primary.opacity(0.08) : composerActionBackground, in: .circle)
+                    .foregroundStyle(canSend || model.submittingInput ? Color.primary : Color.white)
+                    .frame(width: 30, height: 30)
+                    .background(canSend || model.submittingInput ? Color.primary.opacity(0.08) : Palette.accent, in: .circle)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(t("chat.stop"))
@@ -550,14 +533,14 @@ struct ChatScreen: View {
             .transition(.scale.combined(with: .opacity))
           }
           if model.submittingInput || model.cancelling || images.importing {
-            ProgressView().controlSize(.small).frame(width: composerControlSize, height: composerControlSize)
+            ProgressView().controlSize(.small).frame(width: 30, height: 30)
           } else {
             if canSend {
                 Button(action: sendMessage) {
-                    AppIcon(Icon.send, size: ApplePlatform.isDesktop ? 17 : 15)
-                        .foregroundStyle(composerActionForeground)
-                        .frame(width: composerControlSize, height: composerControlSize)
-                        .background(composerActionBackground, in: .circle)
+                    AppIcon(Icon.send, size: 15)
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Palette.accent, in: .circle)
                 }
                 .keyboardShortcut(.return, modifiers: .command)
                 .buttonStyle(.plain)
@@ -566,28 +549,18 @@ struct ChatScreen: View {
                 .transition(.scale.combined(with: .opacity))
             }
 
-            #if !targetEnvironment(macCatalyst)
-            composerVoiceButton
-            #endif
+            Button { composerFocused = false; showingVoice = true } label: {
+                AppIcon(.microphone, size: 22)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(t("chat.voice.native.label"))
+            .accessibilityIdentifier("chat.microphone")
+            .transition(.scale.combined(with: .opacity))
           }
         }
     }
-
-    private var composerVoiceButton: some View {
-        Button { composerFocused = false; showingVoice = true } label: {
-            AppIcon(.microphone, size: ApplePlatform.isDesktop ? 20 : 22)
-                .foregroundStyle(.secondary)
-                .frame(width: composerControlSize, height: composerControlSize)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(t("chat.voice.native.label"))
-        .accessibilityIdentifier("chat.microphone")
-        .transition(.scale.combined(with: .opacity))
-    }
-
-    private var composerControlSize: CGFloat { ApplePlatform.isDesktop ? 34 : 30 }
-    private var composerActionForeground: Color { ApplePlatform.isDesktop && colorScheme == .dark ? .black : .white }
-    private var composerActionBackground: Color { ApplePlatform.isDesktop ? (colorScheme == .dark ? .white : .black) : Palette.accent }
 
     // MARK: - Actions
 
@@ -774,11 +747,7 @@ struct ChatScreen: View {
         guard let chat, let session = model.session else { return }
         do {
             try await ChatListActions.shared.delete(chat, stores: stores, session: session)
-            #if targetEnvironment(macCatalyst)
-            app.selectDesktop(.newChat)
-            #else
             dismiss()
-            #endif
         } catch {
             model.loadError = error.localizedDescription
         }
@@ -1097,7 +1066,7 @@ struct ChatTranscriptRowView: View {
                                attachments: row.message?.attachments ?? [])
             case .text(let text):
                 MessageContentView(text: text).equatable()
-                    .frame(maxWidth: ChatContentStyle.assistantWidth(regular: hSizeClass == .regular), alignment: .leading)
+                    .frame(maxWidth: hSizeClass == .regular ? 640 : .infinity, alignment: .leading)
             case .part(let part):
                 TurnPartView(part: part, isLive: row.isLive, isLast: row.isLast,
                              autoExpanded: row.autoExpanded,

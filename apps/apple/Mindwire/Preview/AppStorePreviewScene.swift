@@ -59,9 +59,6 @@ struct AppStorePreviewScene: View {
                     ? ProcessInfo.processInfo.environment["MINDWIRE_LIBRARY_TEST_SUITE"] : nil,
                     usesDefaultProjectIcon: scenario == "library", preloadChat: scenario != "chat-loading",
                     chatAgentType: ProcessInfo.processInfo.environment["MINDWIRE_CHAT_AGENT"] == "claude-code" ? .claudeCode : .codex)
-                #if targetEnvironment(macCatalyst)
-                if scenario == "desktop-chat" { data.app.openChat(data.chatID) }
-                #endif
                 if scenario == "chat" || scenario == "chat-loading" {
                     data.app.projectsPath = NavigationPath([AppRoute.projectDetail(id: data.projects[0].id), .chat(chatId: data.chatID)])
                 } else if (scenario == "projects" && UIDevice.current.userInterfaceIdiom == .pad) || scenario == "switch" {

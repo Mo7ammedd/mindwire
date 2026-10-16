@@ -170,21 +170,6 @@ targets:
         TEST_TARGET_NAME: Mindwire
         SUPPORTS_MACCATALYST: NO
 
-  MindwireMacUITests:
-    type: bundle.ui-testing
-    platform: iOS
-    deploymentTarget: "26.0"
-    sources:
-      - path: MindwireMacUITests
-    dependencies:
-      - target: Mindwire
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire.macuitests
-        GENERATE_INFOPLIST_FILE: YES
-        TEST_TARGET_NAME: Mindwire
-        "TARGETED_DEVICE_FAMILY[sdk=macosx*]": "6"
-
   # Rewrites incoming pushes into communication notifications (agent logo as sender). Runs only
   # when the push has mutable-content:1. Shares the app's asset catalog for the agent logos.
   NotifyService:
@@ -210,7 +195,6 @@ schemes:
       targets:
         Mindwire: all
         MindwireTests: [test]
-        MindwireMacUITests: [test]
     run:
       config: Debug
     test:
@@ -218,13 +202,11 @@ schemes:
       targets:
         - name: MindwireTests
           selectedTests:
-            - DesktopNavigationTests
             - ListStoreObservationTests
             - ChatDraftTests
             - ChatLifecycleTests
             - ChatReconnectionTests
             - NativeChatTests
-        - MindwireMacUITests
   Mindwire:
     build:
       targets:

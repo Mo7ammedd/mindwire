@@ -4,11 +4,9 @@ import SwiftUI
 struct MainScene: View {
     var repository: WorkspaceRepository = .shared
     @Environment(AppModel.self) private var app
+    @Environment(\.stores) private var stores
 
     var body: some View {
-        #if targetEnvironment(macCatalyst)
-        DesktopMainScene(repository: repository)
-        #else
         @Bindable var app = app
         TabView(selection: $app.selectedTab) {
             // Projects is the primary tab — the main way in (a project = agents working in a folder).
@@ -37,6 +35,8 @@ struct MainScene: View {
                     .accessibilityLabel(t("tabs.settings"))
             }
         }
+        #if targetEnvironment(macCatalyst)
+        .task { await LocalComputer.shared.prepare(stores: stores, repository: repository) }
         #endif
     }
 }

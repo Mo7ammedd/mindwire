@@ -4,8 +4,8 @@ import Observation
 
 /// One bootstrap for the app, shared by windows. Navigation and typing never run it again.
 @MainActor @Observable
-final class DesktopComputer {
-    static let shared = DesktopComputer()
+final class LocalComputer {
+    static let shared = LocalComputer()
     private(set) var preparing = true
     private(set) var workspaceId: String?
     private(set) var projectId: String?
