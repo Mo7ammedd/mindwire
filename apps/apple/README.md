@@ -65,11 +65,13 @@ provider identities belong in subscription setup and developer configuration. Na
 use the same bundled PNG icon catalog as the phone. The Mac sidebar uses native rounded selection,
 with navigation below the scrolling conversation list.
 
-The Mac opens at a display-fitted 1320 × 860, then preserves user resizing. Its 260-point sidebar
+The Mac opens at a display-fitted 1320 × 860, then preserves user resizing. Its persistent 250-point sidebar
 groups chats by recency and keeps This Mac, Subscriptions, and Settings available below history.
-New Chat is a sidebar action with no selected fill. The welcome and active-chat views share one
-glass composer, with text above a compact controls row, aligned to the transcript's 780-point
-reading column. Neutral system selection colors preserve readable labels in either appearance.
+New Chat is a sidebar action with no selected fill. Navigation stays inline beside the chat.
+Phone, welcome, and active-chat views share one compact composer with platform-specific chrome;
+the desktop's controls sit inside its field, aligned to a 720-point reading column. User bubbles
+hug their text and stay within the actual column. Neutral system selection colors preserve readable
+labels in either appearance.
 
 `⌘N` starts a chat, `⌘F` focuses conversation search, and `⌘,` opens Settings. Return sends;
 Shift-Return inserts a new line. Windows have independent navigation and share the existing

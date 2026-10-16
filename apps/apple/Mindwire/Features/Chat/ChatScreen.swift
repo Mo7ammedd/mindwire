@@ -78,6 +78,11 @@ struct ChatScreen: View {
         nonmutating set { composer.text = newValue }
     }
 
+    private var chatTitle: String {
+        guard let title = chat?.title, !title.isEmpty else { return "Mindwire" }
+        return title
+    }
+
     private var canSend: Bool {
         (!input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !images.items.isEmpty)
             && (!model.thinking || model.canSendWhileRunning)
@@ -100,11 +105,11 @@ struct ChatScreen: View {
         .environment(\.desktopWorkspaceID, agent?.workspaceId)
         .environment(\.chatAttachmentSession, model.session)
         .toolbar(.hidden, for: .tabBar) // immersive thread — no bottom tab bar
-        .navigationTitle(chat?.title ?? "")
+        .navigationTitle(chatTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                ChatNavigationTitle(title: chat?.title ?? "",
+            ToolbarItem(placement: ApplePlatform.isDesktop ? .topBarLeading : .principal) {
+                ChatNavigationTitle(title: chatTitle,
                                     subtitle: ApplePlatform.isDesktop ? "" : "Mindwire",
                                     refreshing: model.hasLoadedHistory && (model.preparing || model.loadingHistory
                                         || model.restoringRun || model.reconnecting || model.checkingOwnership))
@@ -134,6 +139,7 @@ struct ChatScreen: View {
                 } label: {
                     AppIcon(Icon.ellipsis).foregroundStyle(.primary)
                 }
+                .menuIndicator(.hidden)
             }
         }
         .inputDialog(
@@ -447,32 +453,21 @@ struct ChatScreen: View {
                 .accessibilityIdentifier("chat.nativeSession")
             }
             commandSuggestions
-            #if targetEnvironment(macCatalyst)
-            DesktopChatComposer {
+            ChatComposer {
                 composerEditor
-            } controls: {
-                HStack(spacing: Spacing.sm) {
-                    composerToolsButton
-                    Spacer(minLength: Spacing.sm)
-                    trailingButton
-                }
+            } leading: {
+                composerToolsButton
+            } trailing: {
+                trailingButton
             }
-            #else
-            GlassEffectContainer(spacing: Spacing.sm) {
-                HStack(alignment: .bottom, spacing: Spacing.sm) {
-                    composerToolsButton
-                    inputField
-                }
-            }
-            #endif
         }
         // Drafting and sending stay available while native work runs. Stop
         // retains its own target when a draft reveals Send.
         .animation(.easeInOut(duration: 0.2), value: model.thinking)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: canSend)
-        .padding(.horizontal, ApplePlatform.isDesktop ? 32 : Spacing.lg)
-        .padding(.vertical, ApplePlatform.isDesktop ? 16 : Spacing.sm)
-        .frame(maxWidth: AdaptiveLayout.readableWidth + 2 * (ApplePlatform.isDesktop ? 32 : Spacing.lg))
+        .padding(.horizontal, ChatContentStyle.horizontalInset)
+        .padding(.vertical, ApplePlatform.isDesktop ? 12 : Spacing.sm)
+        .frame(maxWidth: ChatContentStyle.columnWidth + 2 * ChatContentStyle.horizontalInset)
         .frame(maxWidth: .infinity)
     }
 
@@ -497,31 +492,18 @@ struct ChatScreen: View {
             composerFocused = false
             showingTools = true
         } label: {
-            #if targetEnvironment(macCatalyst)
-            Label {
-                Text("Tools").font(.callout)
-            } icon: {
-                AppIcon(.sliders, size: 17)
-            }
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .frame(height: 34)
-            .contentShape(.rect)
-            #else
             AppIcon(.sliders)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.primary)
-                // Match the input pill's collapsed height (send button 30 + 2×9 vertical padding = 48)
-                // so the circle and the field are the same size, bottom-aligned and consistent.
-                .frame(width: 48, height: 48)
-                .glassEffect(.regular.interactive(), in: .circle)
-            #endif
+                .frame(width: ApplePlatform.isDesktop ? 34 : 48, height: ApplePlatform.isDesktop ? 34 : 48)
+                .modifier(ChatComposerAccessoryGlass())
         }
         .buttonStyle(.plain)
         .tint(.primary)
         .accessibilityLabel(t("chat.tools"))
         .accessibilityValue(settings?.hasConfig == true ? settings?.modelSummary ?? "" : "")
         .accessibilityIdentifier("chat.tools")
+        .help(t("chat.tools"))
     }
 
     /// The same draft and keyboard actions serve both platform layouts.
@@ -542,21 +524,6 @@ struct ChatScreen: View {
             }
             .disabled(model.submitting)
             .accessibilityIdentifier("chat.composer")
-    }
-
-    /// The phone keeps recording and send inside the trailing edge of its compact field.
-    private var inputField: some View {
-        // Bottom-aligned so the inline send/mic stays pinned to the bottom-right as the field grows
-        // to multiple lines, and ONE symmetric vertical padding. A fixed-radius rounded rect (NOT a
-        // capsule, whose radius = height/2 balloons into big half-circle ends on multi-line input).
-        HStack(alignment: .bottom, spacing: 6) {
-            composerEditor
-            trailingButton
-        }
-        .padding(.leading, Spacing.md)
-        .padding(.trailing, 5)
-        .padding(.vertical, 9)
-        .glassEffect(.regular, in: .rect(cornerRadius: Radius.xl, style: .continuous))
     }
 
     /// Desktop actions end with Send or Stop; the phone retains its inline voice control.
@@ -1130,7 +1097,7 @@ struct ChatTranscriptRowView: View {
                                attachments: row.message?.attachments ?? [])
             case .text(let text):
                 MessageContentView(text: text).equatable()
-                    .frame(maxWidth: hSizeClass == .regular ? 640 : .infinity, alignment: .leading)
+                    .frame(maxWidth: ChatContentStyle.assistantWidth(regular: hSizeClass == .regular), alignment: .leading)
             case .part(let part):
                 TurnPartView(part: part, isLive: row.isLive, isLast: row.isLast,
                              autoExpanded: row.autoExpanded,

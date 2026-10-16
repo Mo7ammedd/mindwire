@@ -4,6 +4,12 @@ enum ChatContentStyle {
     static let partSpacing = Spacing.sm - 1
     static let iconSize: CGFloat = 18
     static let iconWidth: CGFloat = 20
+    static let columnWidth: CGFloat = ApplePlatform.isDesktop ? 720 : AdaptiveLayout.readableWidth
+    static let horizontalInset: CGFloat = ApplePlatform.isDesktop ? 32 : Spacing.lg
+
+    static func assistantWidth(regular: Bool) -> CGFloat {
+        ApplePlatform.isDesktop || !regular ? .infinity : 640
+    }
 }
 
 struct ChatToolIcon: View {
@@ -80,10 +86,10 @@ struct ChatUserBubble: View {
     var joinsAbove = false
     var joinsBelow = false
     var attachments: [DaemonAttachment] = []
+    @Environment(\.layoutDirection) private var direction
 
     var body: some View {
-        HStack(spacing: 0) {
-            Spacer(minLength: Spacing.xl)
+        OutgoingBubbleLayout(direction: direction) {
             VStack(alignment: .trailing, spacing: Spacing.sm) {
                 if !attachments.isEmpty {
                     let photos = attachments.filter(\.isImage)
@@ -103,18 +109,36 @@ struct ChatUserBubble: View {
                     }
                 }
                 if !text.isEmpty {
-                    MessageContentView(text: text, onAccent: !ApplePlatform.isDesktop).equatable()
+                    MessageContentView(text: text, isUserMessage: true).equatable()
                         .padding(.horizontal, Spacing.md + 2)
                         .padding(.vertical, Spacing.sm + 2)
-                        .padding(.trailing, 6)
+                        .padding(.trailing, ApplePlatform.isDesktop ? 0 : 6)
                         .background(ApplePlatform.isDesktop ? Color.primary.opacity(0.07) : Palette.accent,
                                     in: OutgoingBubbleShape(joinsAbove: joinsAbove, joinsBelow: joinsBelow))
                 }
             }
-            .containerRelativeFrame(.horizontal, alignment: .trailing) { width, _ in
-                (width - Spacing.lg * 2) * 0.78
-            }
         }
+    }
+}
+
+/// Measure against this row's actual reading column, including inside recycled UIKit cells.
+/// This avoids scroll-container sizing and requires no per-row geometry state or callbacks.
+private struct OutgoingBubbleLayout: Layout {
+    let direction: LayoutDirection
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        let width = proposal.width.flatMap { $0.isFinite ? max(0, $0) : nil } ?? ChatContentStyle.columnWidth
+        let size = content.sizeThatFits(.init(width: width * 0.78, height: nil))
+        return CGSize(width: width, height: size.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let content = subviews.first else { return }
+        let right = direction == .leftToRight
+        content.place(at: CGPoint(x: right ? bounds.maxX : bounds.minX, y: bounds.minY),
+                      anchor: right ? .topTrailing : .topLeading,
+                      proposal: .init(width: bounds.width * 0.78, height: nil))
     }
 }
 

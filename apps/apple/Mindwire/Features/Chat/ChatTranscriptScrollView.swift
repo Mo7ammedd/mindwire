@@ -179,7 +179,7 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
                             self.environment.openURL(url)
                             return .handled
                         })
-                        .frame(maxWidth: AdaptiveLayout.readableWidth, alignment: .leading)
+                        .frame(maxWidth: ChatContentStyle.columnWidth, alignment: .leading)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .fixedSize(horizontal: false, vertical: true)
                         // The table owns bar/keyboard insets. A recycled cell passing underneath a
@@ -188,7 +188,7 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
                         // Reusing a cell must never reuse another tool's disclosure state.
                         .id(id)
                 }
-                .margins(.horizontal, ApplePlatform.isDesktop ? 32 : Spacing.lg)
+                .margins(.horizontal, ChatContentStyle.horizontalInset)
                 .margins(.vertical, ChatContentStyle.partSpacing / 2)
                 .minSize(height: 0)
                 return cell

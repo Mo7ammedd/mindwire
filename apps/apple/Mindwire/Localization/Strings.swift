@@ -1237,7 +1237,7 @@ enum Strings {
         "chat.attach.camera": "Camera",
         "chat.attach.file": "Files",
         "chat.attach.media": "Attach media",
-        "chat.placeholder": "Message your agent…",
+        "chat.placeholder": "Message Mindwire…",
         "chat.startHint": "Send a message to get started.",
         "chat.thinking": "Working…",
         "chat.copy": "Copy",

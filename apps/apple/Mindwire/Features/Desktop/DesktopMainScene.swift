@@ -44,9 +44,7 @@ struct DesktopMainScene: View {
     var repository: WorkspaceRepository = .shared
     @Environment(AppModel.self) private var app
     @Environment(\.stores) private var stores
-    @State private var columns: NavigationSplitViewVisibility = .all
     @State private var search = ""
-    @State private var showingSearch = false
     @State private var chats: [Chat] = []
     @State private var chatGroups: [DesktopChatGroup] = []
     @State private var rowSnapshots: [String: ChatListRowSnapshot] = [:]
@@ -62,29 +60,20 @@ struct DesktopMainScene: View {
 
     var body: some View {
         @Bindable var app = app
-        NavigationSplitView(columnVisibility: $columns) {
+        HStack(spacing: 0) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
-        } detail: {
+                .frame(width: 250)
+                .frame(maxHeight: .infinity)
+                .background(.regularMaterial)
+            Divider()
             NavigationStack(path: $app.desktopPath) {
                 detail
                     .withAppRoutes(repository: repository)
-                    .toolbar {
-                        if columns == .detailOnly {
-                            AppToolbarItem(placement: .primaryAction) {
-                                Button { app.selectDesktop(.newChat) } label: { AppIcon(.edit) }
-                                    .keyboardShortcut("n", modifiers: .command)
-                                    .accessibilityLabel("New chat")
-                                    .help("New chat (⌘N)")
-                                    .tint(.primary)
-                            }
-                        }
-                    }
             }
             .id(app.desktopDestination)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.background)
         }
-        .navigationSplitViewStyle(.prominentDetail)
         .background(DesktopWindowConfiguration())
         .onAppear {
             reloadSidebar()
@@ -119,21 +108,29 @@ struct DesktopMainScene: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            newChatAction
-            conversationList
-            navigationTools
-        }
-        .searchable(text: $search, isPresented: $showingSearch, placement: .sidebar, prompt: "Search conversations")
-        .searchFocused($searching)
-        .navigationTitle("Mindwire")
-        .toolbar {
-            AppToolbarItemGroup(placement: .primaryAction) {
-                Button { showingSearch = true; searching = true } label: { AppIcon(.search) }
+            HStack(spacing: 9) {
+                AppLogo(size: 20).accessibilityHidden(true)
+                Text("Mindwire").font(.headline)
+                Spacer()
+                Button { searching = true } label: { AppIcon(.search, size: 16).frame(width: 30, height: 30) }
+                    .buttonStyle(.plain)
                     .keyboardShortcut("f", modifiers: .command)
                     .accessibilityLabel("Search conversations")
                     .help("Search conversations (⌘F)")
-                    .tint(.primary)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+            newChatAction
+            TextField("Search chats", text: $search)
+                .textFieldStyle(.roundedBorder)
+                .font(.callout)
+                .focused($searching)
+                .accessibilityLabel("Search conversations")
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            conversationList
+            navigationTools
         }
     }
 
@@ -150,8 +147,8 @@ struct DesktopMainScene: View {
         .keyboardShortcut("n", modifiers: .command)
         .accessibilityIdentifier("desktop.newChat")
         .help("New chat (⌘N)")
-        .padding(.horizontal, 24)
-        .padding(.top, 8)
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
         .padding(.bottom, 12)
     }
 
@@ -179,6 +176,7 @@ struct DesktopMainScene: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
         .listSectionSpacing(16)
         .tint(Color(uiColor: .systemGray4))
         .environment(\.defaultMinListRowHeight, 36)
@@ -211,6 +209,7 @@ struct DesktopMainScene: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
         .tint(Color(uiColor: .systemGray4))
         .environment(\.defaultMinListRowHeight, 36)
         .scrollDisabled(true)

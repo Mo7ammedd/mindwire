@@ -65,7 +65,7 @@ struct TurnPartView: View, Equatable {
             if let input = part.input { ChatUserBubble(text: input.text, attachments: input.attachments ?? []) }
         case .text:
             MessageContentView(text: part.text ?? "")
-                .frame(maxWidth: hSizeClass == .regular ? 640 : .infinity, alignment: .leading)
+                .frame(maxWidth: ChatContentStyle.assistantWidth(regular: hSizeClass == .regular), alignment: .leading)
         case .thinking:
             ThinkingBlock(text: part.text ?? "", durationMs: part.durationMs, tokens: part.tokens,
                           isLive: isLive && part.durationMs == nil && isLast)

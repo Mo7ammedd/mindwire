@@ -3,25 +3,26 @@ import MarkdownUI
 
 /// Renders a message's content.
 ///
-/// - Assistant turns (`onAccent == false`) render full **GitHub-Flavored Markdown** via MarkdownUI
+/// - Assistant turns render full **GitHub-Flavored Markdown** via MarkdownUI
 ///   (cmark-gfm): headings, bold/italic, links, fenced code, blockquotes, ordered/unordered lists,
 ///   task lists, strikethrough, and **tables**. cmark tolerates partial input, so it stays clean as
 ///   tokens stream in. It fills the available width (assistant rows are full-width — no avatar).
-/// - User turns (`onAccent == true`) are plain, selectable text on the accent bubble — it HUGS its
-///   content so the bubble stays small for short messages (ChatScreen caps it at ~78% and pins right).
+/// - User turns are plain selectable text that hugs its content. The desktop's neutral bubble
+///   changes its text color, never its renderer or width behavior.
 struct MessageContentView: View, Equatable {
     let text: String
-    var onAccent: Bool = false
+    var isUserMessage: Bool = false
     @AppStorage(StorageKey.chatTextSize) private var textSizeRaw = ChatTextSize.medium.rawValue
     @State private var selection = ChatRenderedSelection()
 
     private var base: CGFloat { (ChatTextSize(rawValue: textSizeRaw) ?? .medium).points }
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.text == rhs.text && lhs.onAccent == rhs.onAccent }
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.text == rhs.text && lhs.isUserMessage == rhs.isUserMessage }
 
     var body: some View {
-        if onAccent {
-            ChatSelectableText(text: text, size: base, lineSpacing: 3, fillsWidth: false, tone: .onAccent)
+        if isUserMessage {
+            ChatSelectableText(text: text, size: base, lineSpacing: 3, fillsWidth: false,
+                               tone: ApplePlatform.isDesktop ? .primary : .onAccent)
                 .naturalChatDirection(text)
         } else {
             let source = selection.source ?? text

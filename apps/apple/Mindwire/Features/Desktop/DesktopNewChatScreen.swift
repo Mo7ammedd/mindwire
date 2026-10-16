@@ -57,8 +57,8 @@ struct DesktopNewChatScreen: View {
                     }
                     Spacer(minLength: 32)
                 }
-                .frame(maxWidth: AdaptiveLayout.readableWidth)
-                .padding(.horizontal, 32)
+                .frame(maxWidth: ChatContentStyle.columnWidth)
+                .padding(.horizontal, ChatContentStyle.horizontalInset)
                 .padding(.bottom, geometry.size.height * 0.12)
                 .frame(maxWidth: .infinity, minHeight: geometry.size.height)
             }
@@ -69,6 +69,7 @@ struct DesktopNewChatScreen: View {
         .onAppear {
             draft = stores.chatDrafts.draft(for: draftKey)
             reloadContext()
+            focused = true
         }
         .onChange(of: stores.projects.revision) { reloadContext() }
         .onChange(of: stores.agents.revision) { reloadContext() }
@@ -88,8 +89,8 @@ struct DesktopNewChatScreen: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            DesktopChatComposer {
-                TextField("Ask Mindwire anything…", text: $draft.text, axis: .vertical)
+            ChatComposer {
+                TextField(t("chat.placeholder"), text: $draft.text, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...8)
                     .focused($focused)
@@ -102,16 +103,14 @@ struct DesktopNewChatScreen: View {
                     }
                     .accessibilityLabel("Message Mindwire")
                     .accessibilityIdentifier("desktop.composer")
-            } controls: {
+            } leading: {
+                contextMenu
+            } trailing: {
                 HStack(spacing: 12) {
                     if computer.preparing {
-                        ProgressView().controlSize(.mini)
-                        Text("Starting Mindwire…").font(.callout).foregroundStyle(.secondary)
-                    } else {
-                        contextMenu
-                    }
-                    Spacer(minLength: 12)
-                    if creating {
+                        ProgressView().controlSize(.small).frame(width: 34, height: 34)
+                            .accessibilityLabel("Starting Mindwire")
+                    } else if creating {
                         ProgressView().controlSize(.small).frame(width: 34, height: 34)
                     } else {
                         Button(action: startChat) {
@@ -163,19 +162,16 @@ struct DesktopNewChatScreen: View {
             Button("Subscriptions…", icon: .key) { app.selectDesktop(.agents) }
             Button("Other computers…", icon: .monitor) { app.selectDesktop(.workspaces) }
         } label: {
-            HStack(spacing: 7) {
-                AppIcon(.monitor, size: 16)
-                Text(project?.workspaceId == computer.workspaceId ? "This Mac" : project?.name ?? "This Mac")
-                AppIcon(.chevronDown, size: 9)
-            }
-            .font(.callout).foregroundStyle(.secondary).lineLimit(1)
-            .padding(.horizontal, 8).frame(minHeight: 34)
+            AppIcon(.sliders, size: 18)
+            .foregroundStyle(.primary)
+            .frame(width: 34, height: 34)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .disabled(creating)
         .accessibilityLabel("Choose where Mindwire works")
+        .help(project?.workspaceId == computer.workspaceId ? "This Mac · Chat settings" : project?.name ?? "Chat settings")
     }
 
     private func reloadContext() {
