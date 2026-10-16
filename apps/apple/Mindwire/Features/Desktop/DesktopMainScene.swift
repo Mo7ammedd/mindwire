@@ -33,6 +33,12 @@ struct DesktopSubmission {
     let revision: UInt64
 }
 
+private struct DesktopChatGroup: Identifiable {
+    let title: String
+    let chats: [Chat]
+    var id: String { title }
+}
+
 /// The desktop owns navigation and presentation. All work stays in the shared services and screens.
 struct DesktopMainScene: View {
     var repository: WorkspaceRepository = .shared
@@ -42,6 +48,7 @@ struct DesktopMainScene: View {
     @State private var search = ""
     @State private var showingSearch = false
     @State private var chats: [Chat] = []
+    @State private var chatGroups: [DesktopChatGroup] = []
     @State private var rowSnapshots: [String: ChatListRowSnapshot] = [:]
     @State private var restored = false
     @State private var computer = DesktopComputer.shared
@@ -57,16 +64,27 @@ struct DesktopMainScene: View {
         @Bindable var app = app
         NavigationSplitView(columnVisibility: $columns) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 230, ideal: 260, max: 340)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
         } detail: {
             NavigationStack(path: $app.desktopPath) {
                 detail
                     .withAppRoutes(repository: repository)
+                    .toolbar {
+                        if columns == .detailOnly {
+                            AppToolbarItem(placement: .primaryAction) {
+                                Button { app.selectDesktop(.newChat) } label: { AppIcon(.edit) }
+                                    .keyboardShortcut("n", modifiers: .command)
+                                    .accessibilityLabel("New chat")
+                                    .help("New chat (⌘N)")
+                                    .tint(.primary)
+                            }
+                        }
+                    }
             }
             .id(app.desktopDestination)
             .background(.background)
         }
-        .navigationSplitViewStyle(.balanced)
+        .navigationSplitViewStyle(.prominentDetail)
         .background(DesktopWindowConfiguration())
         .onAppear {
             reloadSidebar()
@@ -101,6 +119,7 @@ struct DesktopMainScene: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
+            newChatAction
             conversationList
             navigationTools
         }
@@ -114,39 +133,68 @@ struct DesktopMainScene: View {
                     .accessibilityLabel("Search conversations")
                     .help("Search conversations (⌘F)")
                     .tint(.primary)
-                Button { app.selectDesktop(.newChat) } label: { AppIcon(.edit) }
-                    .keyboardShortcut("n", modifiers: .command)
-                    .accessibilityLabel("New chat")
-                    .accessibilityIdentifier("desktop.newChat")
-                    .help("New chat (⌘N)")
-                    .tint(.primary)
             }
         }
     }
 
+    /// Stay outside the lazy history so New Chat and its shortcut remain available while scrolling.
+    private var newChatAction: some View {
+        Button { app.selectDesktop(.newChat) } label: {
+            Label("New chat", icon: .edit)
+                .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .font(.callout.weight(.medium))
+        .foregroundStyle(.primary)
+        .keyboardShortcut("n", modifiers: .command)
+        .accessibilityIdentifier("desktop.newChat")
+        .help("New chat (⌘N)")
+        .padding(.horizontal, 24)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+    }
+
     private var conversationList: some View {
         List(selection: selection) {
-            Section(search.isEmpty ? "Recent chats" : "Search results") {
-                if visibleChats.isEmpty {
-                    Text(search.isEmpty ? "Your conversations will appear here." : "No matching conversations")
-                        .font(.caption).foregroundStyle(.secondary)
+            if !search.isEmpty {
+                Section("Search results") {
+                    if visibleChats.isEmpty {
+                        Text("No matching conversations")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .selectionDisabled()
+                    }
+                    conversationRows(visibleChats)
+                }
+            } else if chatGroups.isEmpty {
+                Section("Chats") {
+                    Text("No chats yet")
+                        .font(.callout).foregroundStyle(.tertiary)
                         .selectionDisabled()
                 }
-                ForEach(visibleChats) { chat in
-                    ChatListRow(chat: chat, snapshot: rowSnapshots[chat.id], compact: true, onOpen: { app.openChat(chat.id) },
-                                onChanged: reloadSidebar)
-                        .buttonStyle(.plain)
-                        .font(.callout)
-                        .foregroundStyle(Color(uiColor: .label))
-                        .listItemTint(.monochrome)
-                        .tag(DesktopDestination.chat(chat.id))
-                        .accessibilityIdentifier("desktop.chat.\(chat.id)")
+            } else {
+                ForEach(chatGroups) { group in
+                    Section(group.title) { conversationRows(group.chats) }
                 }
             }
         }
         .listStyle(.sidebar)
+        .listSectionSpacing(16)
         .tint(Color(uiColor: .systemGray4))
-        .environment(\.defaultMinListRowHeight, 34)
+        .environment(\.defaultMinListRowHeight, 36)
+    }
+
+    private func conversationRows(_ items: [Chat]) -> some View {
+        ForEach(items) { chat in
+            ChatListRow(chat: chat, snapshot: rowSnapshots[chat.id], compact: true, onOpen: { app.openChat(chat.id) },
+                        onChanged: reloadSidebar)
+                .buttonStyle(.plain)
+                .font(.callout)
+                .foregroundStyle(Color(uiColor: .label))
+                .listItemTint(.monochrome)
+                .tag(DesktopDestination.chat(chat.id))
+                .accessibilityIdentifier("desktop.chat.\(chat.id)")
+        }
     }
 
     /// The same destinations and artwork as the phone, pinned below the conversation list.
@@ -156,17 +204,17 @@ struct DesktopMainScene: View {
                 destination(.workspaces, title: "This Mac", icon: .monitor)
                 if developerTools {
                     destination(.projects, title: "Projects", icon: .project)
-                    destination(.agents, title: "Subscriptions", icon: .key)
                 }
+                destination(.agents, title: "Subscriptions", icon: .key)
                 destination(.settings, title: "Settings", icon: Icon.settings)
                     .keyboardShortcut(",", modifiers: .command)
             }
         }
         .listStyle(.sidebar)
         .tint(Color(uiColor: .systemGray4))
-        .environment(\.defaultMinListRowHeight, 34)
+        .environment(\.defaultMinListRowHeight, 36)
         .scrollDisabled(true)
-        .frame(height: developerTools ? 176 : 100)
+        .frame(height: developerTools ? 178 : 140)
     }
 
     private func reloadSidebar() {
@@ -175,6 +223,21 @@ struct DesktopMainScene: View {
         let agents = Dictionary(stores.agents.list().map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
         // Decode each metadata list once per change, never once per row or typed search character.
         chats = stores.chatsByRecency().filter { projects.contains($0.projectId) }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let week = calendar.date(byAdding: .day, value: -7, to: today) ?? yesterday
+        let grouped = Dictionary(grouping: chats) { chat -> Int in
+            guard let date = ChatActivityStore.shared.lastActivity(chat) else { return 3 }
+            if date >= today { return 0 }
+            if date >= yesterday { return 1 }
+            if date >= week { return 2 }
+            return 3
+        }
+        chatGroups = ["Today", "Yesterday", "Previous 7 days", "Earlier"].enumerated().compactMap { index, title in
+            guard let items = grouped[index], !items.isEmpty else { return nil }
+            return DesktopChatGroup(title: title, chats: items)
+        }
         rowSnapshots = Dictionary(uniqueKeysWithValues: chats.map { chat in
             (chat.id, ChatListRowSnapshot(notificationsMuted: chat.notificationsMuted == true || agents[chat.agentId]?.notificationsMuted == true))
         })
@@ -210,20 +273,4 @@ struct DesktopMainScene: View {
     }
 }
 
-/// Catalyst's Mac idiom uses native control sizes and a normal resizable Mac window.
-private struct DesktopWindowConfiguration: UIViewRepresentable {
-    func makeUIView(context: Context) -> WindowView { WindowView() }
-    func updateUIView(_ uiView: WindowView, context: Context) { uiView.configure() }
-
-    final class WindowView: UIView {
-        override func didMoveToWindow() { super.didMoveToWindow(); configure() }
-        func configure() {
-            guard let scene = window?.windowScene else { return }
-            scene.sizeRestrictions?.minimumSize = CGSize(width: 850, height: 620)
-            scene.titlebar?.titleVisibility = .hidden
-            backgroundColor = .clear
-            isUserInteractionEnabled = false
-        }
-    }
-}
 #endif

@@ -61,12 +61,17 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
    navigation and action icons use the shared `AppIcon` PNG catalog and `AppMenu` wrappers.
    Mac sidebars use native `List(selection:)` styling; never override selection with a flat
    rectangular fill. Pinned navigation occupies its own space below the scrolling history.
-   New Chat is one toolbar action, never a selected sidebar destination. The welcome view uses a
-   system title, a composer that grows from one line, and its connection control. Avoid marketing
+   New Chat is one sidebar action, never a selected destination. The Mac uses a 260-point sidebar
+   with chats grouped by recency, and a 780-point reading column shared by the welcome composer,
+   transcript, and active-chat composer. Both composers use the same native glass surface: a text
+   field growing from one line above a compact controls row. Use a medium system title slightly
+   above center on welcome; keep conversation titles on one line in the native toolbar. Avoid marketing
    taglines, suggestion chips, and a duplicate title menu. Scope monochrome text tints to toolbar
    controls; sidebar selection uses a neutral system fill and dynamic label colors.
    Desktop starts on This Mac automatically. Local access never presents the phone's pairing form.
    Keep additional computers optional and subscriptions separate from Mindwire's assistant identity.
+   Subscriptions remain accessible in the sidebar without enabling developer tools. The initial Mac
+   window requests 1320 × 860 points, fitted to the display; subsequent user sizing is preserved.
 
 7. **Glass for floating chrome only.** Chat composer, terminal bars, FABs →
    `.glassEffect` / `GlassEffectContainer` / `.buttonStyle(.glass)`. Never put glass behind

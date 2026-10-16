@@ -188,7 +188,7 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
                         // Reusing a cell must never reuse another tool's disclosure state.
                         .id(id)
                 }
-                .margins(.horizontal, Spacing.lg)
+                .margins(.horizontal, ApplePlatform.isDesktop ? 32 : Spacing.lg)
                 .margins(.vertical, ChatContentStyle.partSpacing / 2)
                 .minSize(height: 0)
                 return cell

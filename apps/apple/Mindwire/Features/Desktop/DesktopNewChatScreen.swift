@@ -24,39 +24,46 @@ struct DesktopNewChatScreen: View {
     private var agents: [Agent] { project.map { project in allAgents.filter { $0.workspaceId == project.workspaceId } } ?? [] }
     private var agent: Agent? { agentID.isEmpty ? agents.first : agents.first { $0.id == agentID } }
     private var hasText: Bool { !draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var canSubmit: Bool { hasText && !creating && !computer.preparing && project != nil }
 
     var body: some View {
-        VStack(spacing: 28) {
-            Text("How can I help?")
-                .font(.title2.weight(.medium))
-            VStack(alignment: .leading, spacing: 12) {
-                composer
-                HStack(spacing: Spacing.sm) {
-                    if computer.preparing {
-                        ProgressView().controlSize(.mini)
-                        Text("Starting Mindwire…").font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        contextMenu
-                        if !computer.preparing, computer.error == nil, agent == nil {
-                            Spacer()
-                            Button("Add a subscription") { app.selectDesktop(.agents) }
-                                .buttonStyle(.plain).font(.caption)
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 30) {
+                    Spacer(minLength: 32)
+                    Text("What can I help with?")
+                        .font(.largeTitle.weight(.medium))
+                        .multilineTextAlignment(.center)
+                        .accessibilityAddTraits(.isHeader)
+                    VStack(alignment: .leading, spacing: 16) {
+                        composer
+                        if let error = computer.error {
+                            HStack(alignment: .top, spacing: 16) {
+                                ChatErrorDisclosure(title: "Couldn't start on this Mac", detail: error)
+                                Button("Try again") {
+                                    Task { await computer.prepare(stores: stores, repository: repository) }
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        } else if !computer.preparing, agent == nil {
+                            HStack(spacing: 6) {
+                                Text("Bring your subscription.").foregroundStyle(.secondary)
+                                Button("Set up Mindwire") { app.selectDesktop(.agents) }
+                                    .buttonStyle(.borderless)
+                            }
+                            .font(.callout)
+                            .frame(maxWidth: .infinity)
                         }
                     }
+                    Spacer(minLength: 32)
                 }
-                .padding(.horizontal, Spacing.md)
-                if let error = computer.error {
-                    ChatErrorDisclosure(title: "Couldn't start on this Mac", detail: error)
-                    Button("Try again") {
-                        Task { await computer.prepare(stores: stores, repository: repository) }
-                    }
-                    .buttonStyle(.plain)
-                }
+                .frame(maxWidth: AdaptiveLayout.readableWidth)
+                .padding(.horizontal, 32)
+                .padding(.bottom, geometry.size.height * 0.12)
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .frame(maxWidth: 680)
-        .padding(.horizontal, 32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Mindwire")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -81,39 +88,47 @@ struct DesktopNewChatScreen: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(alignment: .bottom, spacing: Spacing.sm) {
-                TextField(t("chat.placeholder"), text: $draft.text, axis: .vertical)
+            DesktopChatComposer {
+                TextField("Ask Mindwire anything…", text: $draft.text, axis: .vertical)
                     .textFieldStyle(.plain)
-                    .font(.body)
                     .lineLimit(1...8)
                     .focused($focused)
+                    .naturalChatDirection(draft.text)
                     .disabled(creating)
                     .onKeyPress(.return, phases: .down) { press in
-                        guard !press.modifiers.contains(.shift), hasText, !creating else { return .ignored }
+                        guard !press.modifiers.contains(.shift), canSubmit else { return .ignored }
                         startChat()
                         return .handled
                     }
+                    .accessibilityLabel("Message Mindwire")
                     .accessibilityIdentifier("desktop.composer")
-                if creating {
-                    ProgressView().controlSize(.small).frame(width: 30, height: 30)
-                } else {
-                    Button(action: startChat) {
-                        AppIcon(Icon.send, size: 16)
-                            .foregroundStyle(hasText ? (colorScheme == .dark ? Color.black : .white) : .secondary)
-                            .frame(width: 30, height: 30)
-                            .background(hasText ? (colorScheme == .dark ? Color.white : .black) : Color.primary.opacity(0.06), in: .circle)
+            } controls: {
+                HStack(spacing: 12) {
+                    if computer.preparing {
+                        ProgressView().controlSize(.mini)
+                        Text("Starting Mindwire…").font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        contextMenu
                     }
-                    .buttonStyle(.plain)
-                    .disabled(!hasText || computer.preparing || project == nil)
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .accessibilityLabel("Send message")
-                    .accessibilityIdentifier("desktop.send")
+                    Spacer(minLength: 12)
+                    if creating {
+                        ProgressView().controlSize(.small).frame(width: 34, height: 34)
+                    } else {
+                        Button(action: startChat) {
+                            AppIcon(Icon.send, size: 16)
+                                .foregroundStyle(canSubmit ? (colorScheme == .dark ? Color.black : .white) : .secondary)
+                                .frame(width: 34, height: 34)
+                                .background(canSubmit ? (colorScheme == .dark ? Color.white : .black) : Color.primary.opacity(0.06), in: .circle)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!canSubmit)
+                        .keyboardShortcut(.return, modifiers: .command)
+                        .accessibilityLabel("Send message")
+                        .accessibilityIdentifier("desktop.send")
+                        .help("Send message (Return)")
+                    }
                 }
             }
-            .padding(.leading, Spacing.lg)
-            .padding(.trailing, Spacing.sm)
-            .padding(.vertical, 9)
-            .chromeGlass(.rect(cornerRadius: Radius.xl, style: .continuous))
             if let error {
                 ChatErrorDisclosure(detail: error) { self.error = nil }
             }
@@ -148,8 +163,14 @@ struct DesktopNewChatScreen: View {
             Button("Subscriptions…", icon: .key) { app.selectDesktop(.agents) }
             Button("Other computers…", icon: .monitor) { app.selectDesktop(.workspaces) }
         } label: {
-            Label(project?.workspaceId == computer.workspaceId ? "This Mac" : project?.name ?? "This Mac", icon: .monitor)
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            HStack(spacing: 7) {
+                AppIcon(.monitor, size: 16)
+                Text(project?.workspaceId == computer.workspaceId ? "This Mac" : project?.name ?? "This Mac")
+                AppIcon(.chevronDown, size: 9)
+            }
+            .font(.callout).foregroundStyle(.secondary).lineLimit(1)
+            .padding(.horizontal, 8).frame(minHeight: 34)
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
