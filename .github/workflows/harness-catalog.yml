@@ -26,6 +26,6 @@ jobs:
       - name: Validate policy, managed installation and adapter contracts
         working-directory: packages/daemon
         run: go test -race ./internal/toolchain ./internal/setup ./internal/agent/... ./cmd/daemon
-      - name: Verify the runtime image has an approved version for every CLI
+      - name: Verify an approved managed version exists for every CLI
         working-directory: packages/daemon
         run: go run ./cmd/daemon --print-toolchains

@@ -1,24 +1,20 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
+import { operationError } from "../errors";
 import { sql } from "drizzle-orm";
 import { env } from "../env";
-import { addDaemon, getOrCreateSession, hydrateSessionSecrets, persistSessionFleet } from "../session";
 import { consoleRows } from "../database";
 import { COMPUTER_CATALOG_VERSION, COMPUTER_PLANS } from "../../shared/cloud";
 import { linkLegacyAccount, legacyStatus, refreshLegacyAccounts } from "./legacy";
 import { ComputerService } from "./service";
-import { CloudError, publicComputer, computerRuntime, type ComputerRow } from "./types";
+import { CloudError, publicComputer, type ComputerRow } from "./types";
 import { hostedUrl } from "./provider";
 import { cloudAccount, cloudBody, cloudRawBody } from "./access";
 import { registerComputerGateway } from "./gateway";
 
 export function registerCloud(root: Hono, service = new ComputerService()) {
   const app = new Hono();
-  app.onError((error, c) => {
-    if (error instanceof CloudError) return c.json({ error: error.message, code: error.code }, error.status);
-    console.error("[cloud] operation failed", error instanceof Error ? error.name : "unknown");
-    return c.json({ error: "The Cloud Computer operation could not finish. Retry shortly.", code: "cloud_unavailable" }, 503);
-  });
+  app.onError(operationError);
   app.get("/api/cloud/catalog", c => c.json({ version: COMPUTER_CATALOG_VERSION, currency: "usd", interval: "monthly", plans: COMPUTER_PLANS, available: service.provider.configured() }));
   app.get("/api/cloud/account", async c => {
     const user = await cloudAccount(c);
@@ -41,16 +37,6 @@ export function registerCloud(root: Hono, service = new ComputerService()) {
   for (const action of ["cancel", "resume"] as const) {
     app.post(`/api/cloud/computers/:id/subscription/${action}`, async c => c.json({ computer: publicComputer(await service.subscription((await cloudAccount(c)).id, c.req.param("id"), action)) }));
   }
-  app.post("/api/cloud/computers/:id/use", async c => {
-    const user = await cloudAccount(c), row = await service.store.get(user.id, c.req.param("id"));
-    const runtime = computerRuntime(row);
-    const session = getOrCreateSession(user.id);
-    await hydrateSessionSecrets(session);
-    const existing = session.daemons.find(d => d.runtime.provider === "oblien" && d.runtime.computerId === row.id);
-    const record = existing ?? addDaemon(session, runtime);
-    await persistSessionFleet(session);
-    return c.json({ url: new URL(`/daemons/${record.id}`, env.baseUrl).href });
-  });
   app.post("/api/cloud/computers/:id/billing-portal", async c => {
     const row = await service.store.get((await cloudAccount(c)).id, c.req.param("id"));
     const result = await service.provider.master().billing.portal({ namespace: row.namespace, returnUrl: new URL("/computers", env.baseUrl).href });

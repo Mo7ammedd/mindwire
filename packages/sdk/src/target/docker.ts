@@ -11,7 +11,6 @@
 // unchanged.
 import { MindwireError } from "../errors.js";
 import { ensureDaemon, type SandboxHost, type EnsureEvent } from "./host.js";
-import { SDK_VERSION } from "../version.js";
 import type { Target, TargetHandle, ConnectSpec } from "./index.js";
 
 /**
@@ -51,7 +50,7 @@ export interface DockerConfig {
   docker?: DockerodeLike;
   /** How to reach the Docker engine (remote host / socket / TLS). Ignored when `docker` is passed. */
   engine?: DockerEngineOptions;
-  /** Create + own a container from this image. Defaults to the SDK-matched MindWire runtime image. */
+  /** Create + own a container from this image. Defaults to Node 24 on Debian; the matching released daemon is installed separately. */
   image?: string;
   /** Image acquisition policy for a container MindWire creates. Defaults to pulling only when absent. */
   pull?: "missing" | "always" | "never";
@@ -90,7 +89,7 @@ export function docker(config: DockerConfig = {}): Target {
 const DEFAULT_PORT = 8790;
 const DEFAULT_AGENT = "claude-code";
 const DEFAULT_AGENT_CWD = "/root";
-const DEFAULT_RUNTIME_IMAGE = `ghcr.io/oblien/mindwire-runtime:${SDK_VERSION}`;
+const DEFAULT_RUNTIME_IMAGE = "node:24-bookworm";
 
 // ---- minimal structural view of the `dockerode` package --------------------
 // Declared locally so the SDK typechecks and builds WITHOUT `dockerode` installed (optional peer).
@@ -121,6 +120,7 @@ interface ContainerLike {
 }
 
 export interface DockerodeLike {
+  modem: { followProgress(stream: DuplexLike, done: (error: Error | null, output?: Array<{ error?: string; errorDetail?: { message?: string } }>) => void): void };
   getContainer(id: string): ContainerLike;
   getImage(name: string): { inspect(): Promise<unknown> };
   pull(name: string): Promise<DuplexLike>;
@@ -213,13 +213,14 @@ export async function provisionDocker(
     await ensureImage(docker, image, config.pull ?? "missing", onLog);
     const portKey = `${port}/tcp`;
     container = await docker.createContainer({
-      // The runtime image starts mindwired itself. Do not replace its command: doing so turns the
-      // image ENTRYPOINT into `mindwired sleep infinity` and prevents the runtime from starting.
+      // Keep the default base container alive while the shared binary installer bootstraps it.
+      // A custom image retains its own entrypoint and command.
       Image: image,
+      ...(config.image === undefined ? { Cmd: ["sleep", "infinity"] } : {}),
       Env: [`ADDR=:${port}`, `AGENT_TYPE=${agent}`, `AGENT_CWD=${agentCwd}`, "MINDWIRE_ISOLATION=container"],
       Tty: false,
       ExposedPorts: { [portKey]: {} },
-      HostConfig: { PortBindings: { [portKey]: [{ HostPort: "0" }] } },
+      HostConfig: { PortBindings: { [portKey]: [{ HostIp: "127.0.0.1", HostPort: "0" }] } },
       ...(config.createOptions ?? {}),
     });
   }
@@ -293,9 +294,14 @@ async function ensureImage(
   try {
     const stream = await docker.pull(image);
     await new Promise<void>((resolve, reject) => {
-      stream.on("end", () => resolve());
-      stream.on("close", () => resolve());
-      stream.on("error", (error: unknown) => reject(error));
+      // Docker's progress stream must be consumed; just waiting for end can hang on a full buffer.
+      // The client's parser also reports registry failures delivered inside otherwise successful HTTP streams.
+      docker.modem.followProgress(stream, (error, output) => {
+        if (error) { reject(error); return; }
+        const failure = output?.find(frame => frame.error || frame.errorDetail?.message);
+        if (failure) reject(new Error(failure.error ?? failure.errorDetail!.message));
+        else resolve();
+      });
     });
     emit(`runtime image ready: ${image}`);
   } catch (error) {

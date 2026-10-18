@@ -46,8 +46,8 @@ installation can be started on macOS; its first installation/setup must be compl
 Inventory, navigation and status checks never install Docker or start a stopped workspace. Only a
 local Unix Docker socket is accepted, so the SSH tunnel and container always refer to the same host.
 
-Docker names and ownership labels make creation retryable. The initial runtime image is pinned to
-an available official GHCR version; the shared installer downloads the chosen Mindwire service from
+Docker names and ownership labels make creation retryable. A standard Node 24 Debian container
+starts without a bundled Mindwire binary; the shared installer downloads the chosen service from
 GitHub releases and upgrades it under the existing idle/update lock. Its executable lives on the
 persistent volume, so restarting the container keeps the updated version. Containers stay
 unprivileged, run as `node`, and use Docker's default namespace and syscall restrictions.

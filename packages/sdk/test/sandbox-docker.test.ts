@@ -1,17 +1,20 @@
 import { test, expect } from "bun:test";
 import { EventEmitter } from "node:events";
+import { Readable } from "node:stream";
+import { createRequire } from "node:module";
+const Docker = createRequire(import.meta.url)("dockerode");
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { provisionDocker, SDK_VERSION, type DockerodeLike, type EnsureEvent } from "../src/index.js";
+import { provisionDocker, type DockerodeLike, type EnsureEvent } from "../src/index.js";
 
 // A fake dockerode: enough of the container/exec/modem surface for `provisionDocker` to run the
 // ensure-cycle end-to-end with no Docker engine. `exec` streams a scripted stdout (matched by the
 // marker each ensure phase emits) demultiplexed through a fake `modem.demuxStream`; `putArchive`
 // and lifecycle calls are captured.
 function fakeDocker(
-  opts: { hostPort?: string; health?: string; noPort?: boolean; running?: boolean; imagePresent?: boolean } = {},
+  opts: { hostPort?: string; health?: string; noPort?: boolean; running?: boolean; imagePresent?: boolean; pullError?: string } = {},
 ) {
   const hostPort = opts.hostPort ?? "49160";
   const health = opts.health ?? "";
@@ -92,6 +95,7 @@ function fakeDocker(
   };
 
   const docker = {
+    modem: new Docker().modem,
     getContainer: (id: string) => {
       calls.get.push(id);
       container.id = id;
@@ -106,9 +110,9 @@ function fakeDocker(
     }),
     pull: async (name: string) => {
       calls.pull.push(name);
-      const stream = new EventEmitter();
-      process.nextTick(() => stream.emit("end"));
-      return stream;
+      const progress = Array.from({ length: 2048 }, () => JSON.stringify({ status: "Downloading layer" }) + "\n");
+      if (opts.pullError) progress.push(JSON.stringify({ error: opts.pullError }) + "\n");
+      return Readable.from(progress);
     },
     createContainer: async (o: Record<string, unknown>) => {
       calls.create.push(o);
@@ -148,7 +152,7 @@ test("provisionDocker: creates a container publishing the port, deploys the daem
   expect(create["Cmd"]).toBeUndefined();
   expect(create["Env"]).toEqual(["ADDR=:8790", "AGENT_TYPE=claude-code", "AGENT_CWD=/root", "MINDWIRE_ISOLATION=container"]);
   expect(create["ExposedPorts"]).toEqual({ "8790/tcp": {} });
-  expect(create["HostConfig"]).toEqual({ PortBindings: { "8790/tcp": [{ HostPort: "0" }] } });
+  expect(create["HostConfig"]).toEqual({ PortBindings: { "8790/tcp": [{ HostIp: "127.0.0.1", HostPort: "0" }] } });
 
   // Deploy ran: mkdir + a tar putArchive into the daemon dir, then a version-gated launch.
   expect(calls.putArchive.length).toBe(1);
@@ -193,10 +197,11 @@ test("provisionDocker: throws when the container publishes no host port for the 
   );
 });
 
-test("provisionDocker: defaults to the SDK-matched runtime image", async () => {
+test("provisionDocker: installs the released daemon into a standard base container", async () => {
   const { docker: engine, calls } = fakeDocker({});
   await provisionDocker(engine, { daemonBin: tempBin() });
-  expect(calls.create[0]?.["Image"]).toBe(`ghcr.io/oblien/mindwire-runtime:${SDK_VERSION}`);
+  expect(calls.create[0]?.["Image"]).toBe("node:24-bookworm");
+  expect(calls.create[0]?.["Cmd"]).toEqual(["sleep", "infinity"]);
 });
 
 test("provisionDocker: pulls a missing runtime image before creating its container", async () => {
@@ -204,7 +209,7 @@ test("provisionDocker: pulls a missing runtime image before creating its contain
   const events: EnsureEvent[] = [];
   await provisionDocker(engine, { daemonBin: tempBin() }, (event) => events.push(event));
 
-  const image = `ghcr.io/oblien/mindwire-runtime:${SDK_VERSION}`;
+  const image = "node:24-bookworm";
   expect(calls.inspectImage).toEqual([image]);
   expect(calls.pull).toEqual([image]);
   expect(calls.create[0]?.["Image"]).toBe(image);
@@ -235,4 +240,11 @@ test("docker(): factory is inert and reports a missing optional peer without con
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test("provisionDocker: registry progress errors fail before creating a container", async () => {
+  const { docker, calls } = fakeDocker({ imagePresent: false, pullError: "denied: registry access rejected" });
+  await expect(provisionDocker(docker, { daemonBin: tempBin() })).rejects.toThrow(/denied: registry access rejected/);
+  expect(calls.create).toHaveLength(0);
 });

@@ -85,7 +85,7 @@ final class DockerWorkspaceTests: XCTestCase {
         XCTAssertEqual(after, count)
     }
 
-    func testRuntimeAndImageReleaseSelectionPreserveCompatibility() throws {
+    func testRuntimeIdentityAndLegacyContainersPreserveCompatibility() throws {
         let runtime = AgentRuntime.container(serverId: "ssh-host", sandbox: sandbox)
         let restored = try JSONDecoder().decode(AgentRuntime.self, from: JSONEncoder().encode(runtime))
         XCTAssertEqual(restored, runtime)
@@ -94,9 +94,15 @@ final class DockerWorkspaceTests: XCTestCase {
         XCTAssertFalse(restored.isCloud)
         let legacy = try JSONDecoder().decode(AgentRuntime.self, from: Data(#"{"kind":"server","serverId":"ssh-host"}"#.utf8))
         XCTAssertNil(legacy.sandbox)
-        XCTAssertEqual(RuntimeImageRelease.select(["latest", "0.1", "0.1.14", "0.1.15", "0.1.17", "0.1.16-beta.1"], target: "0.1.16"), "0.1.15")
-        XCTAssertEqual(RuntimeImageRelease.select(["0.1.15", "0.1.16"], target: "0.1.16"), "0.1.16")
-        XCTAssertNil(RuntimeImageRelease.select(["0.1.14", "0.1.17"], target: "0.1.16"))
+        XCTAssertEqual(sandbox.image, "node:24-bookworm")
+        for (image, version) in [(sandbox.image, sandbox.version), ("ghcr.io/oblien/mindwire-runtime:" + sandbox.version, nil)] {
+            var metadata: [String: Any] = ["id": "owned", "owner": sandbox.id, "image": image,
+                "status": "running", "created": "", "memory": 0, "nanoCPUs": 0]
+            if let version { metadata["runtimeVersion"] = version }
+            let snapshot = try JSONDecoder().decode(DockerWorkspaceHost.Snapshot.self,
+                from: JSONSerialization.data(withJSONObject: metadata))
+            XCTAssertEqual(snapshot.sandbox, sandbox)
+        }
     }
 }
 
@@ -132,7 +138,7 @@ private actor DockerFixture {
         if arguments.starts(with: ["docker", "inspect"]) {
             guard let status else { return absent("container") }
             return ok(String(decoding: try JSONSerialization.data(withJSONObject: [
-                "id": "owned-container-id", "owner": owner, "displayName": "Sandbox", "image": sandbox.image,
+                "id": "owned-container-id", "owner": owner, "displayName": "Sandbox", "image": sandbox.image, "runtimeVersion": sandbox.version,
                 "status": status, "created": "2026-09-23T00:00:00Z", "ports": [["HostIp": bindHost, "HostPort": "32100"]],
                 "memory": 2_147_483_648, "nanoCPUs": 2_000_000_000
             ]), as: UTF8.self))

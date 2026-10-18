@@ -121,7 +121,6 @@ test("only the host key can change or revoke a record; website login stays indep
     await request(f, "PUT", "/records/" + host.id, good);
     const account = await f.newAccount();
     const cookie = { Cookie: account.cookie, Origin: new URL(f.url).origin };
-    expect(await f.control("hasFleet", account.id)).toBe(false);
     expect((await request(f, "GET", "/registrations", undefined, cookie)).status).toBe(404);
     expect((await request(f, "DELETE", "/registrations/" + host.id, {}, cookie)).status).toBe(401);
     const forged = envelope(stranger, "mindwire-directory-enroll-v1", {
@@ -141,7 +140,6 @@ test("only the host key can change or revoke a record; website login stays indep
     expect((await request(f, "DELETE", "/registrations/" + host.id, wrongRevoke, cookie)).status).toBe(403);
     expect((await lookup(f, host, { ...phone, privateKey: stranger.privateKey })).status).toBe(401);
     expect((await lookup(f, host, phone)).status).toBe(200);
-    expect(await f.control("hasFleet", account.id)).toBe(false);
     const session = await f.accountRequest("/get-session", "GET", undefined, account);
     expect(((await session.json()) as any)?.user?.id === account.id).toBe(true);
     const protectedURL = new URL(f.url).origin + "/api/session";
@@ -149,7 +147,7 @@ test("only the host key can change or revoke a record; website login stays indep
     expect(anonymous.status).toBe(401);
     await anonymous.body?.cancel();
     const loggedIn = await fetch(protectedURL, { headers: cookie });
-    expect(loggedIn.status).toBe(200);
+    expect(loggedIn.status).toBe(404);
     await loggedIn.body?.cancel();
     await f.control("deleteUser", account.id);
     await f.control("prune");

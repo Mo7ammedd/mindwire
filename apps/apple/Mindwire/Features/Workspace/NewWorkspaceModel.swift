@@ -163,9 +163,8 @@ final class NewWorkspaceModel {
                 guard DaemonRelease.satisfies(version, target: ServerSandbox.minimumServiceVersion) else {
                     throw BackendError.message("Docker workspaces need Mindwire service \(ServerSandbox.minimumServiceVersion) or later. Try again when that release is available.")
                 }
-                let imageVersion = try await RuntimeImageRelease.version(for: version)
                 serviceVersion = version
-                sandbox = ServerSandbox(id: UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(), version: imageVersion)
+                sandbox = ServerSandbox(id: UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(), version: version)
             }
             let provisioner = BackendFactory.provisioner(
                 for: choice,

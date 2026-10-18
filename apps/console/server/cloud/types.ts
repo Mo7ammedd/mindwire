@@ -1,9 +1,6 @@
-import type { AddDaemonRequest } from "../../shared/api";
 import type { ComputerPlan, ComputerState } from "../../shared/cloud";
 
-export class CloudError extends Error {
-  constructor(public status: 400 | 401 | 403 | 404 | 409 | 413 | 429 | 502 | 503, public code: string, message: string) { super(message); }
-}
+export { OperationError as CloudError } from "../errors";
 export interface ComputerContract {
   version: string;
   name?: string;
@@ -25,14 +22,4 @@ export function publicComputer(row: ComputerRow) {
   return { id: row.id, name: row.name, plan: saved.plan, image: saved.image, state: row.state,
     workspaceId: row.workspace_id, checkout: row.checkout_id && row.checkout_url ? { id: row.checkout_id, url: row.checkout_url } : null,
     subscription: saved.subscription ?? null, error: row.error };
-}
-
-/** The saved purchase, not a client payload, defines a managed runtime. */
-export function computerRuntime(row: ComputerRow): AddDaemonRequest {
-  if (!row.workspace_id || ["deleting", "deleted"].includes(row.state))
-    throw new CloudError(409, "computer_unavailable", "Finish preparing this Cloud Computer first.");
-  const saved = contract(row);
-  return { provider: "oblien", computerId: row.id, workspaceId: row.workspace_id,
-    label: row.name, image: saved.image, cpus: saved.plan.vcpus, memoryMb: saved.plan.memoryMb,
-    diskMb: saved.plan.diskGb * 1024, lifecycle: "permanent" };
 }

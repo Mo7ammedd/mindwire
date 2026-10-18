@@ -1,68 +1,38 @@
-// The global auth boundary. One middleware guards *every* data route: everything under `/api` and
-// `/events` requires a signed-in user, except the public login/config/liveness
-// endpoints and the computer directory, which authenticates key signatures. Anything that isn't a data
-// route (the static SPA, its assets) passes straight through so the app can boot and show its login.
-//
-// On an authenticated request it resolves the user's isolated console session ONCE and stashes it on the
-// context, so `resolveSession(c)` downstream is a plain synchronous read. This is the single choke point
-// the user asked for: workspace routes require a session, and the SDK is only ever driven on
-// behalf of a resolved user.
 import type { Hono } from "hono";
-
 import { auth, AUTH_BASE_PATH, userIdFromRequest } from "./auth";
-import { getOrCreateSession, hydrateSessionSecrets } from "./session";
-import { DIRECTORY_PATH } from "./computer-directory/protocol";
-import { NOTIFICATIONS_PATH } from "./notifications/types";
 
-/**
- * Paths reachable without a session: the auth surface itself (how you sign in), the liveness ping, and
- * the public config the login gate reads to brand itself and show the right sign-in buttons.
- */
-function isPublic(path: string): boolean {
-  return (
-    path === AUTH_BASE_PATH ||
-    path.startsWith(`${AUTH_BASE_PATH}/`) ||
-    path === "/api/ping" ||
-    path === "/api/public-config"
-  );
-}
-
-/** Whether a path is a guarded data route (the JSON API or the SSE turn stream). */
-function isGuarded(path: string): boolean {
-  return path.startsWith("/api/") || path.startsWith("/events/");
-}
-
+/** Each account, Cloud, push and directory module owns its authentication boundary. */
 export function registerAuth(app: Hono): void {
   app.use("*", async (c, next) => {
     await next();
     c.header("X-Frame-Options", "DENY");
     c.header("Content-Security-Policy", "frame-ancestors 'none'");
     c.header("Referrer-Policy", "no-referrer");
+    if (c.req.path.startsWith("/api/")) c.header("Cache-Control", "no-store");
   });
-  // Gate first, so it runs before any route handler. Non-data paths and the auth endpoints are waved
-  // through; workspace routes must carry a valid session or get a clean 401.
+  // A new API must opt into its own boundary or require a Mindwire account by default.
   app.use("*", async (c, next) => {
-    const path = new URL(c.req.url).pathname;
-    // The address directory authenticates computer/phone signatures. It has no
-    // account session and never instantiates a workspace or hydrates a fleet.
-    if (path === DIRECTORY_PATH || path.startsWith(DIRECTORY_PATH + "/")) return next();
-    // Push has its own account verifier and send-only credential boundary.
-    if (path === NOTIFICATIONS_PATH || path.startsWith(NOTIFICATIONS_PATH + "/")) return next();
-    // Cloud has an independent account/owner boundary. It must not hydrate
-    // a browser daemon for native requests.
-    if (path === "/api/cloud" || path.startsWith("/api/cloud/")) return next();
-    if (!isGuarded(path) || isPublic(path)) return next();
-
-    const userId = await userIdFromRequest(c);
-    if (!userId) return c.json({ error: "Not authenticated." }, 401);
-    const session = getOrCreateSession(userId);
-    await hydrateSessionSecrets(session);
-    c.set("mwSession", session);
+    const path = c.req.path;
+    const ownedBoundaries = [
+      AUTH_BASE_PATH,
+      "/api/cloud",
+      "/api/portal",
+      "/api/notifications",
+      "/api/computer-directory/v1",
+    ];
+    if (
+      (!path.startsWith("/api/") && !path.startsWith("/events/")) ||
+      ["/api/ping", "/api/public-config"].includes(path) ||
+      ownedBoundaries.some(
+        (prefix) => path === prefix || path.startsWith(prefix + "/"),
+      )
+    )
+      return next();
+    if (!(await userIdFromRequest(c)))
+      return c.json({ error: "Not authenticated." }, 401);
     return next();
   });
-
-  // Better Auth owns its whole subtree (sign-up / sign-in / sign-out / get-session, all methods).
-  // Hono's subtree wildcard is `/*`; `/**` can fall through to a 404 for nested Better Auth routes
-  // such as `/sign-in/email` and `/get-session` when running behind Vite's dev proxy.
-  app.on(["POST", "GET"], `${AUTH_BASE_PATH}/*`, (c) => auth.handler(c.req.raw));
+  app.on(["POST", "GET"], `${AUTH_BASE_PATH}/*`, (c) =>
+    auth.handler(c.req.raw),
+  );
 }

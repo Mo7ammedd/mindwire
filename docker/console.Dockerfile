@@ -1,21 +1,6 @@
 # syntax=docker/dockerfile:1
-#
-# MindWire console (@mindwire/console) — the control-plane image.
-#
-# This is a Vite SPA (dist/) plus a Hono/Node server (dist-server/) that drives the mindwire SDK on behalf
-# of each signed-in user. It runs as ONE Node process (`node dist-server/index.js`) and needs:
-#   - Node >= 24            — Better Auth and Drizzle use the stable `better-sqlite3` driver for the
-#                             self-host SQLite fallback. The app's own `start` script runs flagless.
-#   - a persistent volume   — for AUTH_DB_PATH (the user/session SQLite), so accounts survive restarts.
-#   - the tsup-externalized runtime deps resolvable in node_modules: `mindwire` (the workspace SDK, linked)
-#     plus `oblien`/`dockerode`/`ssh2`. We keep bun's install layout intact so those resolve unchanged.
-#
-# Build context is the repo ROOT (`docker build -f docker/console.Dockerfile .`) — the console is a bun
-# workspace member and needs the root manifests + the SDK it links to.
-
-# ---- builder: install the workspace and build the SDK + console with bun --------------------------------
-# Pinned to the repo's packageManager (bun@1.4.3). Debian-based (glibc), same libc as the runner below,
-# so any prebuilt node_modules we carry across stages stay ABI-compatible.
+# Source deployment for Mindwire's hosted account and Cloud management service.
+# This image is built locally by Compose, never published to GHCR.
 FROM node:24-bookworm AS builder
 COPY --from=oven/bun:1.4.3 /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
@@ -33,11 +18,7 @@ RUN bun install --frozen-lockfile
 # Now the sources (node_modules/dist are excluded by .dockerignore, so the installed deps survive).
 COPY . .
 
-# Build the SDK first — the console typechecks and bundles against mindwire's built dist/index.d.ts — then
-# the console (vite build → dist/, tsup → dist-server/). No Go toolchain needed: this is the SDK's `build`
-# (tsup), not `build:daemon`.
-RUN bun --filter='mindwire' run build \
- && bun --filter='@mindwire/console' run build
+RUN bun --filter='@mindwire/console' run build
 
 # ---- runner: a slim Node 24 image carrying only what the console needs at runtime ----------------------
 FROM node:24-bookworm-slim AS runner
@@ -46,34 +27,25 @@ ENV NODE_ENV=production \
     PORT=8787 \
     AUTH_DB_PATH=/data/auth.db
 
-# Carry the resolved workspace so the externalized deps resolve via bun's on-disk layout:
-#   - root node_modules      — hoisted transitive deps shared across the workspace
-#   - packages/sdk           — the SDK the console links to (the `mindwire` symlink resolves here, and it
-#                              carries its built dist/)
-#   - apps/console/node_modules — the console's direct deps (mindwire/oblien/dockerode/ssh2 live here)
-# We deliberately skip the apps/web tree — the docs site is not part of this image.
+# Preserve Bun’s dependency layout, assigning the runtime user ownership even when a
+# native package or its cache directory was installed with private permissions.
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/sdk ./packages/sdk
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder /app/apps/console/package.json ./apps/console/package.json
-COPY --from=builder /app/apps/console/node_modules ./apps/console/node_modules
+COPY --from=builder --chown=node:node /app/apps/console/node_modules ./apps/console/node_modules
 COPY --from=builder /app/apps/console/dist ./apps/console/dist
 COPY --from=builder /app/apps/console/dist-server ./apps/console/dist-server
 COPY --from=builder /app/apps/console/drizzle ./apps/console/drizzle
 
-# `mindwire` resolves optional peers from packages/sdk, while Bun installs the Console's direct peers
-# beneath apps/console. Put resolver-visible links at /app/node_modules so all shipped targets work:
-# Oblien sandboxes, SSH hosts, and Docker engines. Do this after copying the Console workspace because
-# the links point at Bun's content-addressed store already copied under the root node_modules.
-RUN for pkg in oblien ssh2 dockerode better-sqlite3; do \
+# Make external dependencies resolvable from the application root.
+RUN for pkg in oblien better-sqlite3; do \
       if [ ! -e "node_modules/$pkg" ]; then \
         target="$(readlink -f "apps/console/node_modules/$pkg")"; \
         ln -s "${target#/app/node_modules/}" "node_modules/$pkg"; \
       fi; \
     done
 
-# Persist the self-host SQLite fallback outside the layer, and run unprivileged (the base image ships a
-# `node` user). SaaS supplies DATABASE_URL and uses Postgres instead.
+# Run unprivileged. The hosted deployment supplies DATABASE_URL for PostgreSQL.
 RUN mkdir -p /data && chown -R node:node /data
 USER node
 # Verify the copied dependency graph as the runtime user before publishing it.
