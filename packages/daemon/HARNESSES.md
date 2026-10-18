@@ -86,7 +86,7 @@ those tools without upgrading an existing CLI, and invalidates cached dependency
 job ends. Checks are shared for 30 seconds; explicit software refresh bypasses that cache.
 
 Codex requires the distribution's `bubblewrap` package (`bwrap` on PATH) on Linux. It is installed
-through the shared setup graph and included in runtime images. macOS uses built-in Seatbelt and
+through the shared setup graph. macOS uses built-in Seatbelt and
 does not install Bubblewrap. This follows [Codex sandbox prerequisites](https://developers.openai.com/codex/sandboxing).
 If a host restricts user namespaces, follow its distribution's Bubblewrap/AppArmor profile guidance;
 Mindwire does not disable the sandbox or change global kernel security settings.
