@@ -22,6 +22,7 @@
     "personal-computers",
     "desktops",
     "project-library",
-    "project-sync"
+    "project-sync",
+    "push-service"
   ]
 }

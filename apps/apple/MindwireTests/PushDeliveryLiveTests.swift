@@ -93,8 +93,8 @@ final class PushDeliveryLiveTests: XCTestCase {
             }
         }
         defer { poller.cancel() }
-        let minted = try await OblienCloud.client.notifications.createSendToken(
-            workspaceId: scope.cloudWorkspaceID,
+        let minted = try await NotificationsAPI().createSendToken(
+            workspaceID: scope.cloudWorkspaceID,
             tag: "mindwire-push-check-\(DeviceID.current())", name: "Mindwire notification check",
             metadata: ["device_id": String(deviceRowID), "channel": workspaceID], expiresInDays: 1)
         let handoff = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -135,10 +135,10 @@ final class PushDeliveryLiveTests: XCTestCase {
             }
             XCTAssertEqual(conditions, ["finished", "waiting_approval", "error"])
         } catch {
-            try? await OblienCloud.client.notifications.deleteSendToken(id: minted.id)
+            try? await NotificationsAPI().deleteSendToken(id: minted.id)
             throw error
         }
-        try await OblienCloud.client.notifications.deleteSendToken(id: minted.id)
+        try await NotificationsAPI().deleteSendToken(id: minted.id)
         print("Push check: temporary send credential removed.")
         try await captureWorkspaces(stores: stores)
         #endif

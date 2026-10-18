@@ -79,3 +79,6 @@ packages/daemon/catalog.json
 apps/apple/artifacts/app-store/
 apps/apple/artifacts/Mindwire-App-Store.zip
 **/__pycache__/
+
+# Local push service account and migration exports; never build or commit.
+.secrets/

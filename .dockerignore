@@ -51,3 +51,6 @@ docker-compose*.yml
 **/.env
 **/.env.*
 !**/.env.example
+
+# Local push service account and migration exports; never build or commit.
+.secrets/

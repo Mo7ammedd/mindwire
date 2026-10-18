@@ -12,6 +12,7 @@ import type { Hono } from "hono";
 import { auth, AUTH_BASE_PATH, userIdFromRequest } from "./auth";
 import { getOrCreateSession, hydrateSessionSecrets } from "./session";
 import { DIRECTORY_PATH } from "./computer-directory/protocol";
+import { NOTIFICATIONS_PATH } from "./notifications/types";
 
 /**
  * Paths reachable without a session: the auth surface itself (how you sign in), the liveness ping, and
@@ -39,6 +40,8 @@ export function registerAuth(app: Hono): void {
     // The address directory authenticates computer/phone signatures. It has no
     // account session and never instantiates a workspace or hydrates a fleet.
     if (path === DIRECTORY_PATH || path.startsWith(DIRECTORY_PATH + "/")) return next();
+    // Push has its own account verifier and send-only credential boundary.
+    if (path === NOTIFICATIONS_PATH || path.startsWith(NOTIFICATIONS_PATH + "/")) return next();
     if (!isGuarded(path) || isPublic(path)) return next();
 
     const userId = await userIdFromRequest(c);

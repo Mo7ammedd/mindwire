@@ -149,22 +149,22 @@ private actor WorkspaceTokenFixture {
     var tags: [String] = []
     var scopes: [WorkspaceNotificationScope] = []
     var listed: [String?] = []
-    var values: [WorkspaceSendToken] = []
+    var values: [NotificationSendToken] = []
     var offline = false
     func setOffline(_ value: Bool) { offline = value }
-    func list(_ workspace: String?) throws -> [WorkspaceSendToken] {
+    func list(_ workspace: String?) throws -> [NotificationSendToken] {
         listed.append(workspace)
         if offline { throw APIError.transport("offline") }
         return values
     }
-    func mint(_ scope: WorkspaceNotificationScope, _ tag: String) async throws -> WorkspaceSendToken {
+    func mint(_ scope: WorkspaceNotificationScope, _ tag: String) async throws -> NotificationSendToken {
         tags.append(tag)
         scopes.append(scope)
         let id = tags.count
         try await Task.sleep(for: .milliseconds(20))
         let bytes = try JSONSerialization.data(withJSONObject: ["id": id, "tag": tag, "status": "active",
-                                                               "tokenPrefix": "send-\(id)-", "token": "send-\(id)-secret"])
-        let token = try JSONDecoder().decode(WorkspaceSendToken.self, from: bytes)
+                                                               "token_prefix": "send-\(id)-", "token": "send-\(id)-secret"])
+        let token = try JSONDecoder().decode(NotificationSendToken.self, from: bytes)
         values.append(token)
         return token
     }

@@ -5,7 +5,7 @@ import { defineConfig } from "tsup";
 // (`oblien`/`dockerode`/`ssh2`), which must never be inlined here. `node server` then serves the
 // built SPA (`dist/`) plus the JSON API and SSE stream from one process.
 export default defineConfig({
-  entry: ["server/index.ts"],
+  entry: { index: "server/index.ts", "import-push": "scripts/import-push.ts" },
   outDir: "dist-server",
   format: ["esm"],
   platform: "node",

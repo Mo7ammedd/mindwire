@@ -1,0 +1,65 @@
+---
+title: Mobile push service
+description: Configure Firebase delivery in Mindwire Console and migrate existing mobile devices safely.
+---
+
+Mindwire Console owns `/api/notifications`: device registrations, hashed send-only
+credentials and Firebase delivery. The daemon stays a generic webhook sender.
+The Apple app provisions `https://console.mindwire.sh/api/notifications/send`.
+Existing installations calling Oblien's `/notifications` use a compatibility
+forwarder to this same service. There is no fallback sender or dual database write.
+
+## Authentication and secrets
+
+Console cookies identify browser users as `console:<id>`. Native apps currently
+sign in through Oblien; Mindwire verifies that session against the configured
+provider and uses `oblien:<id>`. A submitted user id, anonymous session or delegated
+send token cannot manage devices. Send tokens resolve locally and can deliver only
+to their owner's devices; workspace/channel values are delivery labels, not VM
+permissions. Namespace/API-key credentials are not accepted as native login sessions.
+
+Set `FCM_SERVICE_ACCOUNT_PATH` to a read-only service-account file. For Compose,
+set `MINDWIRE_FIREBASE_CREDENTIALS_FILE` and add `docker/docker-compose.push.yml`.
+The file must be readable by container uid 1000. Local credentials and exports
+belong under `.secrets/`, excluded from Git and Docker. Never paste them into PRs,
+logs or images. Device tokens use the existing Console vault encryption key;
+virtual credentials are stored only as SHA-256 hashes and shown once at minting.
+
+## One-owner cutover
+
+1. Back up the old notification source, serving artifact and tables. Deploy and
+   verify the new Console image and its additive PostgreSQL migrations first.
+2. Configure the Oblien compatibility forwarder with an operator-owned
+   `MINDWIRE_NOTIFICATIONS_PAUSE_FILE` on persistent storage. Create that file
+   **before** starting the forwarder. All old endpoints temporarily return 503
+   with `Retry-After`; they cannot write or invoke an old sender.
+3. Wait for earlier notification requests to settle, then export `push_devices`
+   and `workspace_push_tokens` in one consistent read-only database transaction.
+   Write a restricted file with shape
+   `{ "format": "mindwire-push-export-v1", "devices": [...], "tokens": [...] }`.
+   Raw device tokens occur only in this private export. Do not export other tables.
+4. In the new Console's deployment environment, preview and apply:
+
+   ```sh
+   node apps/console/dist-server/import-push.js /private/push-export.json
+   node apps/console/dist-server/import-push.js /private/push-export.json --apply
+   ```
+
+   The operator validates every record, locks the destination tables, refuses a
+   nonempty target, imports in one transaction and verifies all fields before
+   committing. Device/token ids, token hashes, tags, scope labels, expiry and
+   revoked state survive. Device tokens are encrypted. Identity sequences advance
+   past imported ids. A failed or repeated import changes no target records.
+5. Check counts and routing, then remove the pause file. New clients use Mindwire
+   directly; old clients and existing daemon credentials use the forwarder.
+   Run a device-pinned delivery test to an explicitly selected operator device.
+6. Keep the original tables as a restricted rollback backup during validation.
+   Do not drop them as part of a normal API boot or migration. Remove obsolete
+   credentials only after checking whether another Google service uses them.
+
+Before traffic resumes, rollback restores the previous Oblien artifact and leaves
+the original tables intact. After the new service accepts writes, do not switch
+back to the old database: pause the endpoints and reconcile those writes first.
+
+The compatibility path can be removed after installed clients have adopted the
+Mindwire URL. It should never regain device storage or Firebase delivery logic.

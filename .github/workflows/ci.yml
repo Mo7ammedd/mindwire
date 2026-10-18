@@ -180,3 +180,7 @@ jobs:
         env:
           MINDWIRE_DIRECTORY_TEST_DATABASE_URL: postgresql://mindwire_test:local_test_only@127.0.0.1:5432/postgres
         run: bun test apps/console/test/computer-directory.test.ts packages/sdk/test/computer-directory.test.ts
+      - name: Test notification delivery and legacy import with PostgreSQL
+        env:
+          PUSH_TEST_POSTGRES_URL: postgresql://mindwire_test:local_test_only@127.0.0.1:5432/postgres
+        run: bun --cwd apps/console test test/push-notifications.test.ts

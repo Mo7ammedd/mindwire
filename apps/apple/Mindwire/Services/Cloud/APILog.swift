@@ -35,7 +35,7 @@ enum APILog {
             (#"(?i)("(?:token|fcm_token|access_token|refresh_token|privateKey|private_key|password)"\s*:\s*")[^"]+(")"#, "$1…$2"),
             (#"(https?://)[^\s/@]+:[^\s/@]+@"#, "$1[REDACTED]@"),
             (#"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"#, "[JWT REDACTED]"),
-            (#"(ghs_|ghp_|gho_|github_pat_|onp_)[A-Za-z0-9_-]+"#, "$1…")
+            (#"(ghs_|ghp_|gho_|github_pat_|onp_|mwp_)[A-Za-z0-9_-]+"#, "$1…")
         ]
         return patterns.reduce(s) { value, item in
             guard let re = try? NSRegularExpression(pattern: item.0) else { return value }
