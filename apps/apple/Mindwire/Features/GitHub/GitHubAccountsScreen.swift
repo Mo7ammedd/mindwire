@@ -33,7 +33,7 @@ struct GitHubAccountsScreen: View {
             accounts = stores.gitHubAccounts()
         }
         .sheet(isPresented: $showLogin) {
-            OblienLoginSheet {
+            MindwireLoginSheet {
                 authed = true
                 if let step = pendingStep { pendingStep = nil; startStep(step) }
                 else { Task { await reload() } }
@@ -66,7 +66,7 @@ struct GitHubAccountsScreen: View {
     private var content: some View {
         List {
             connectionsSection
-            appSection
+            if ghStatus?.available != false { appSection }
             if ghStatus?.connected == true { installationsSection }
             if let error {
                 Section { Text(error).foregroundStyle(.red).font(.footnote) }
@@ -198,7 +198,7 @@ struct GitHubAccountsScreen: View {
     private func reload() async {
         accounts = stores.gitHubAccounts()
         error = nil
-        authed = OblienAuth.shared.authenticated
+        authed = MindwireAuth.shared.authenticated
         guard authed == true else { ghStatus = nil; installs = []; return }
         do { ghStatus = try await GitHubConnectAPI().status() }
         catch { self.error = error.localizedDescription; return }
@@ -223,7 +223,7 @@ struct GitHubAccountsScreen: View {
         Task {
             defer { working = false }
             do {
-                guard await OblienAuth.shared.ensure() else { pendingStep = step; showLogin = true; return }
+                guard await MindwireAuth.shared.ensure() else { pendingStep = step; showLogin = true; return }
                 let api = GitHubConnectAPI()
                 appSafari = IdentifiedURL(url: step == .connect ? try await api.connectURL() : try await api.installURL())
             } catch {

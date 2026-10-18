@@ -127,8 +127,8 @@ struct ProviderLogo: View {
 
     var body: some View {
         switch id {
-        case .oblien:
-            OblienMark(size: size + 10, color: Palette.text)
+        case .mindwire:
+            AppIcon(.cloud).frame(width: size, height: size)
         case .google:
             Image("provider-google").resizable().scaledToFit().frame(width: size, height: size)
         case .apple:

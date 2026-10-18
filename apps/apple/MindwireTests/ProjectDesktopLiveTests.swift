@@ -111,9 +111,9 @@ final class ProjectDesktopLiveTests: XCTestCase {
         let oldIdle = UIApplication.shared.isIdleTimerDisabled
         UIApplication.shared.isIdleTimerDisabled = true
         defer { UIApplication.shared.isIdleTimerDisabled = oldIdle }
-        await OblienAuth.shared.refresh()
-        XCTAssertTrue(OblienAuth.shared.authenticated)
-        let live = try await OblienCloud.client.workspaces.get(workspaceId)
+        await MindwireAuth.shared.refresh()
+        XCTAssertTrue(MindwireAuth.shared.authenticated)
+        let live = try await MindwireCloud.client.workspaces.get(workspaceId)
         XCTAssertTrue(live.isRunning)
         let workspace = Workspace(id: workspaceId, name: live.name ?? "Desktop check", runtime: .cloud(workspaceId: workspaceId), createdAt: isoNow())
         let suite = "project-desktop-live-\(UUID().uuidString)"
@@ -146,7 +146,7 @@ final class ProjectDesktopLiveTests: XCTestCase {
         XCTAssertEqual(replay.id, desktop.id)
         let linked = try await remote.list()
         XCTAssertEqual(linked.sessions.map(\.id), [desktop.id])
-        let catalog = try await OblienCloud.client.workspace(workspaceId).desktop.sessions.list()
+        let catalog = try await MindwireCloud.client.workspace(workspaceId).desktop.sessions.list()
         XCTAssertTrue(catalog.sessions.contains { $0.id == desktop.id })
         print("PROJECT_DESKTOP_PHONE created one saved desktop through the project catalog")
 

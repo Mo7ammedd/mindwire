@@ -1,6 +1,6 @@
 import Foundation
 
-/// DEBUG request/response logging for the app's HTTP layers (OblienAPI + direct GitHub REST), so
+/// DEBUG request/response logging for the app's HTTP layers (MindwireAPI + direct GitHub REST), so
 /// the live Oblien flow is visible in the Xcode console. Filter the console by `🌐`. Token-shaped
 /// values are redacted so logs are safe to paste. Compiled out of release builds.
 enum APILog {

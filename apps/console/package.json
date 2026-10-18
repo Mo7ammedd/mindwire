@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Self-hostable Mindwire console \u2014 a Vite SPA and Hono server for managing runtimes and driving coding agents.",
+  "description": "Self-hostable Mindwire console — a Vite SPA and Hono server for managing runtimes and driving coding agents.",
   "scripts": {
     "dev": "node dev.mjs",
     "dev:client": "vite",

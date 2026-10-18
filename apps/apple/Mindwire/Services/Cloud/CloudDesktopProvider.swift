@@ -60,7 +60,7 @@ final class CloudDesktopProvider {
 
     func connection() async throws -> DesktopSSHGrant {
         if let grant, (grant.expiresAt?.timeIntervalSinceNow ?? 0) > 300 { return grant }
-        let value = try await perform { try await OblienCloud.client.workspace(workspaceId).desktop.sshConnection(sessionId: desktopId) }
+        let value = try await perform { try await MindwireCloud.workspace(workspaceId).desktop.sshConnection(sessionId: desktopId) }
         let result = DesktopSSHGrant(expires_at: value.expiresAt,
             ssh: .init(host: value.ssh.host, port: value.ssh.port, username: value.ssh.username,
                        password: value.ssh.password, host_key_fingerprint: value.ssh.hostKeyFingerprint),
@@ -72,7 +72,7 @@ final class CloudDesktopProvider {
 
     func prepareSavedDesktop(resuming: Bool) async throws {
         guard let desktopId else { return }
-        let api = OblienCloud.client.workspace(workspaceId).desktop
+        let api = MindwireCloud.workspace(workspaceId).desktop
         var saved = try await api.getSession(desktopId).session
         if saved.state == "stopped" || saved.state == "failed" {
             guard !resuming else { throw DesktopProblem(code: "desktop_stopped", message: "This desktop was stopped. Connect to start it again.") }
@@ -114,7 +114,7 @@ final class CloudDesktopProvider {
     private func runtimeClient() async throws -> RuntimeClient {
         if let runtime { return runtime }
         if let runtimeTask { return try await runtimeTask.value }
-        let handle = OblienCloud.client.workspace(workspaceId)
+        let handle = MindwireCloud.workspace(workspaceId)
         let task = Task {
             guard try await handle.runtimeAccess.status().enabled == true else {
                 throw DesktopProblem(code: "runtime_disabled", message: "Set up the Mindwire service in this workspace before connecting to its desktop.")

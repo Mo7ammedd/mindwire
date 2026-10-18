@@ -1195,9 +1195,9 @@ final class DaemonManager {
             var forced = force
             repeat {
                 let revision = self.notificationRepairRevision
-                let account = OblienAuth.shared.user?.id
+                let account = MindwireAuth.shared.user?.id
                 for session in Array(self.sessions.values) { await session.reconcileNotifications(force: forced) }
-                if revision == self.notificationRepairRevision, account == OblienAuth.shared.user?.id { return }
+                if revision == self.notificationRepairRevision, account == MindwireAuth.shared.user?.id { return }
                 forced = true // A registration/account change crossed the previous configuration.
             } while !Task.isCancelled
         }

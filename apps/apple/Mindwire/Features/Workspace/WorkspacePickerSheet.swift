@@ -89,7 +89,7 @@ struct WorkspacePickerSheet: View {
             List {
                 if repository.requiresSignIn {
                     Section {
-                        OblienSignInRow(bodyKey: "workspaces.signIn.body") { showLogin = true }
+                        MindwireSignInRow(bodyKey: "workspaces.signIn.body") { showLogin = true }
                     }
                 }
                 if repository.refreshError != nil {
@@ -158,7 +158,7 @@ struct WorkspacePickerSheet: View {
             guard workspaces.contains(where: { $0.runtime.isCloud && $0.image != nil }) else { return }
             catalog = await CloudImages.cached()
         }
-        .oblienLoginSheet(isPresented: $showLogin) {
+        .mindwireLoginSheet(isPresented: $showLogin) {
             Task { await repository.refresh() }
         }
     }

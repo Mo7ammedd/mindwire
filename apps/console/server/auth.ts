@@ -14,6 +14,7 @@ import type { Context } from "hono";
 import { betterAuth } from "better-auth";
 import { hashPassword } from "better-auth/crypto";
 import { getMigrations } from "better-auth/db/migration";
+import { bearer, deviceAuthorization } from "better-auth/plugins";
 
 import { env } from "./env";
 import { authDatabase, migrateConsoleDatabase } from "./database";
@@ -47,8 +48,19 @@ function makeAuth(disableSignUp: boolean) {
   baseURL: env.baseUrl,
   basePath: AUTH_BASE_PATH,
   trustedOrigins: env.trustedOrigins,
-  // Secure cookies require HTTPS; only force them in prod so dev over http still sets the cookie.
-  advanced: { useSecureCookies: env.isProd },
+  plugins: [bearer(), deviceAuthorization({
+    expiresIn: "10m", interval: "5s",
+    verificationUri: new URL("/device", env.baseUrl).href,
+    validateClient: (client) => client === "mindwire-native",
+  })],
+  // Better Auth otherwise prepends __Secure- before custom names. Use explicit
+  // Secure attributes so production cookies retain the browser-enforced __Host-
+  // prefix: guest computer subdomains cannot plant a parent-domain auth cookie.
+  advanced: {
+    useSecureCookies: false,
+    cookiePrefix: env.isProd ? "__Host-mindwire" : "mindwire",
+    defaultCookieAttributes: { secure: env.isProd, path: "/", httpOnly: true, sameSite: "lax" },
+  },
   });
 }
 

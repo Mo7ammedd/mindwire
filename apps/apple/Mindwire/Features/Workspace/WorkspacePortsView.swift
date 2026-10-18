@@ -33,7 +33,7 @@ struct WorkspacePortsView: View {
         ) {
             submitExpose()
         }
-        .oblienLoginSheet(isPresented: $showLogin) {
+        .mindwireLoginSheet(isPresented: $showLogin) {
             if let port = pendingPort { pendingPort = nil; Task { await model.exposePort(port) } }
         }
     }
@@ -69,7 +69,7 @@ struct WorkspacePortsView: View {
             return
         }
         Task {
-            if await OblienAuth.shared.ensure() {
+            if await MindwireAuth.shared.ensure() {
                 await model.exposePort(port)
             } else {
                 pendingPort = port

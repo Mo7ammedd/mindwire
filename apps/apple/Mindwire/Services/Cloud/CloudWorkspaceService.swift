@@ -23,7 +23,7 @@ actor CloudWorkspaceService: WorkspaceService {
         guard let workspaceId else {
             throw BackendError.notImplemented("cloud workspace: no workspace provisioned for this agent")
         }
-        return OblienCloud.client.workspace(workspaceId)
+        return MindwireCloud.workspace(workspaceId)
     }
 
     private func runtime() async throws -> RuntimeClient {
@@ -153,7 +153,7 @@ actor CloudWorkspaceService: WorkspaceService {
             guard let workspaceId else { continuation.finish(); return }
             let task = Task {
                 do {
-                    let rt = try await OblienCloud.client.workspace(workspaceId).runtime()
+                    let rt = try await MindwireCloud.workspace(workspaceId).runtime()
                     let result = try await Self.execute(cmd, runtime: rt, timeout: 600)
                     let combined = [result.stdout, result.stderr]
                         .filter { !$0.isEmpty }.joined(separator: "\n")
@@ -169,10 +169,11 @@ actor CloudWorkspaceService: WorkspaceService {
     }
 
     func terminalEndpoint() async throws -> WorkspaceTerminalEndpoint {
+        guard let workspaceId else { throw BackendError.notImplemented("Choose a Cloud Computer first.") }
         let rt = try await runtime()
         let token = try await rt.token()
         let wsURL = rt.websocketURL().absoluteString
-        let createURL = OblienCloud.client.config.runtimeURL.absoluteString + "/terminals"
+        let createURL = MindwireCloud.client.config.runtimeURL.absoluteString + "/terminals"
         return WorkspaceTerminalEndpoint(wsUrl: wsURL, createUrl: createURL, token: token, protocol: "oblien")
     }
 
@@ -180,7 +181,7 @@ actor CloudWorkspaceService: WorkspaceService {
     /// `MetricsAPI` — an instant first value.
     func stats() async throws -> WorkspaceStatsSample? {
         guard let workspaceId else { return nil }
-        return Self.sample(from: try await OblienCloud.client.workspace(workspaceId).metrics.stats())
+        return Self.sample(from: try await MindwireCloud.workspace(workspaceId).metrics.stats())
     }
 
     /// Live VM stats over the SDK's SSE stream (`/workspace/:id/stats/stream`). `workspaceId` is an
@@ -191,7 +192,7 @@ actor CloudWorkspaceService: WorkspaceService {
             let task = Task {
                 do {
                     APILog.note("SSE stats: opening stream for \(workspaceId)")
-                    for try await s in OblienCloud.client.workspace(workspaceId).metrics.statsStream() {
+                    for try await s in MindwireCloud.workspace(workspaceId).metrics.statsStream() {
                         // Temporary diagnostic — confirms what the SSE actually decodes (toggle off
                         // later; APILog is DEBUG-only). cpu/mem%/disk% + cumulative net bytes.
                         APILog.note("SSE stats: cpu=\(s.cpuUsage ?? -1) mem=\(s.memoryUsedMB ?? -1)/\(s.memoryTotalMB ?? -1) diskPct=\(s.guestDiskUsedPct ?? -1) netIn=\(s.networkInBytes ?? -1) netOut=\(s.networkOutBytes ?? -1)")

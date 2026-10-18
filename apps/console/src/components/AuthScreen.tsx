@@ -90,7 +90,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
     setError(null);
     setSocial(provider);
     try {
-      const res = await api.account.socialSignIn(provider, window.location.origin);
+      const res = await api.account.socialSignIn(provider, window.location.origin + window.location.pathname + window.location.search);
       if (res.url) {
         window.location.href = res.url;
         return;

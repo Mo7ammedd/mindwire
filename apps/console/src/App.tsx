@@ -8,6 +8,8 @@ import { Loader2 } from "lucide-react";
 import { api, type AuthUser } from "@/lib/api";
 import { AppShell } from "@/components/AppShell";
 import { AuthScreen } from "@/components/AuthScreen";
+import { CloudComputers } from "@/components/CloudComputers";
+import { DeviceAuthorization } from "@/components/DeviceAuthorization";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -40,7 +42,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user) bootstrapSession();
+    if (user && !["/device", "/computers"].includes(window.location.pathname)) bootstrapSession();
   }, [user, bootstrapSession]);
 
   const onAuthed = useCallback((u: AuthUser) => {
@@ -63,6 +65,10 @@ export default function App() {
         </div>
       ) : user === null ? (
         <AuthScreen onAuthed={onAuthed} />
+      ) : window.location.pathname === "/device" ? (
+        <DeviceAuthorization email={user.email} />
+      ) : window.location.pathname === "/computers" ? (
+        <CloudComputers email={user.email} onSignOut={onSignOut} />
       ) : loading ? (
         <div className="grid min-h-dvh place-items-center">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />

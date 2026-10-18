@@ -58,7 +58,7 @@ struct GitHubReposScreen: View {
                 model.refreshID += 1
             }
         }
-        .sheet(isPresented: $showLogin) { OblienLoginSheet { model.refreshID += 1 } }
+        .sheet(isPresented: $showLogin) { MindwireLoginSheet { model.refreshID += 1 } }
         .sheet(item: $managingAccount, onDismiss: {
             model.reloadAccounts(stores.gitHubAccounts(), workspaceId: workspaceId)
             model.refreshID += 1

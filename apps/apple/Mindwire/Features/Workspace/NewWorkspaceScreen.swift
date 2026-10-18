@@ -65,6 +65,12 @@ struct NewWorkspaceScreen: View {
                 Text(model.errorMessage ?? "")
             }
         }
+        .sheet(item: $model.pendingPurchase) { computer in
+            CloudPurchaseSheet(computer: computer) { id in
+                model.pendingPurchase = nil
+                Task { await finishCreation(.cloud(workspaceId: id)) }
+            }
+        }
         .onAppear(perform: reload)
         .sheet(item: $addDestination, onDismiss: {
             if let workspace = pairedWorkspace {
@@ -79,7 +85,7 @@ struct NewWorkspaceScreen: View {
                 if connection.isLocal { pairedWorkspace = stores.workspaces(forServerId: connection.id).first }
             }
         }
-        .oblienLoginSheet(isPresented: $showLogin) {
+        .mindwireLoginSheet(isPresented: $showLogin) {
             if loginForImages {
                 loginForImages = false
                 Task { await model.loadImages() }
@@ -225,7 +231,7 @@ struct NewWorkspaceScreen: View {
                 Section { HStack { Spacer(); ProgressView(); Spacer() } }
             } else if model.cloudAuthRequired {
                 Section {
-                    OblienSignInPrompt {
+                    MindwireSignInPrompt {
                         loginForImages = true
                         showLogin = true
                     }
@@ -279,113 +285,26 @@ struct NewWorkspaceScreen: View {
     }
 
     private func powerStep(model: NewWorkspaceModel) -> some View {
-        Form {
+        @Bindable var model = model
+        return Form {
             Section {
-                if model.loadingAccount && model.accountOverview == nil {
-                    HStack { Spacer(); ProgressView(); Spacer() }
-                } else if let overview = model.accountOverview, let quota = overview.quota {
-                    LabeledContent(t("newWorkspace.account.plan"), value: quota.planLabel)
-                    if let balance = overview.balance {
-                        LabeledContent(t("newWorkspace.account.credits"),
-                                       value: String(format: "%.2f", balance))
-                    }
+                if model.loadingAccount { ProgressView() }
+                Picker("Monthly plan", selection: $model.selectedPlanId) {
+                    ForEach(model.cloudPlans) { plan in Text("\(plan.name) · \(plan.monthlyPrice)").tag(plan.id) }
                 }
-            } header: {
-                Text(t("newWorkspace.account.title"))
+                if let plan = model.selectedPlan {
+                    LabeledContent("CPU", value: "\(plan.vcpus) vCPU")
+                    LabeledContent("Memory", value: "\(plan.memoryMb / 1024) GB")
+                    LabeledContent("Storage", value: "\(plan.diskGb) GB")
+                }
+            } header: { Text("Cloud Computer") } footer: {
+                Text("One monthly subscription per computer. Shared CPU, RAM and included storage are covered for your paid month. Your own computers remain free.")
             }
-
-            Section {
-                Stepper(value: $model.customCPUs, in: model.minimumCPUs...max(model.minimumCPUs, model.customMaximumCPUs)) {
-                    resourceLabel(t("workspace.cpu"), detail: t("newWorkspace.resource.cpuHint"),
-                                  value: "\(model.customCPUs) vCPU")
-                }
-                Stepper(value: $model.customMemoryGb, in: model.minimumMemoryGb...max(model.minimumMemoryGb, model.customMaximumMemoryGb)) {
-                    resourceLabel(t("workspace.memory"), detail: t("newWorkspace.resource.memoryHint"),
-                                  value: "\(model.customMemoryGb) GB")
-                }
-                if let root = model.storage.root {
-                    LabeledContent("Root Disk", value: WorkspaceControlFormat.capacity(root.sizeMb))
-                } else {
-                    Stepper(value: $model.customDiskGb, in: model.minimumDiskGb...max(model.minimumDiskGb, model.customMaximumDiskGb)) {
-                        resourceLabel(t("workspace.disk"), detail: t("newWorkspace.resource.diskHint"),
-                                      value: "\(model.customDiskGb) GB")
-                    }
-                }
-            } header: {
-                Text(t("newWorkspace.custom.title"))
-            } footer: {
-                Text(t("newWorkspace.custom.limitHint"))
-            }
-
-            Section {
-                NavigationLink {
-                    WorkspaceCreationStorageScreen(model: model)
-                } label: {
-                    LabeledContent("Storage", value: model.storage.summary)
-                }
-            }
-
-            Section {
-                if model.loadingAccount {
-                    HStack { Spacer(); ProgressView(); Spacer() }
-                } else if let overview = model.accountOverview {
-                    if let estimate = overview.estimate?.estimate {
-                        LabeledContent(t("newWorkspace.account.estimate"),
-                                       value: String(format: "%.0f–%.0f credits", estimate.min, estimate.max))
-                    }
-                    if let denial = model.creationDenial {
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Label(t("newWorkspace.unavailable.title"), icon: .warning)
-                                .font(.headline)
-                                .foregroundStyle(Palette.danger)
-                            Text(denial).font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        if model.storage.validation(image: model.selectedImage) != nil {
-                            Text("Review your storage choices before creating the workspace.").font(.footnote).foregroundStyle(.secondary)
-                        } else if overview.creationDenial != nil {
-                            billingLink(t("account.addCredits"), url: "https://oblien.com/dashboard/credits/purchase")
-                        } else if overview.canUpgradePlan {
-                            billingLink(upgradeLabel(overview), url: "https://oblien.com/dashboard/plan")
-                        } else {
-                            Label(t("newWorkspace.highestPlanHint"), icon: .verified)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Label(t("newWorkspace.available"), icon: .checkCircleFilled)
-                            .foregroundStyle(Palette.success)
-                    }
-                }
-            } header: {
-                Text(t("newWorkspace.summary"))
-            } footer: {
-                Text(t("newWorkspace.serviceHint"))
+            if let denial = model.creationDenial {
+                Section { Label(denial, systemImage: "exclamationmark.circle").foregroundStyle(.secondary) }
             }
         }
-        .task(id: model.spec) { await model.loadAccountOverview() }
-    }
-
-    private func resourceLabel(_ title: String, detail: String, value: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(detail).font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(value).fontWeight(.semibold).monospacedDigit()
-        }
-    }
-
-    private func billingLink(_ title: String, url: String) -> some View {
-        Link(destination: URL(string: url)!) {
-            Text(title).frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.glassProminent)
-        .tint(Palette.accent)
-    }
-
-    private func upgradeLabel(_ overview: CloudAccountOverview) -> String {
-        overview.nextPlanName.map { "Upgrade to \($0)" } ?? t("account.upgrade")
+        .task { await model.loadAccountOverview() }
     }
 
     /// Final step for a self-hosted runtime — confirm name + where it'll run before provisioning.
@@ -518,26 +437,27 @@ struct NewWorkspaceScreen: View {
         Task {
             // Creating an Oblien Cloud workspace is account-scoped — require Oblien login first.
             // Self-hosted runtimes (SSH to your own server) don't.
-            if model.isCloud, await OblienAuth.shared.ensure() == false {
+            if model.isCloud, await MindwireAuth.shared.ensure() == false {
                 loginForImages = false
                 showLogin = true
                 return
             }
             guard let runtime = await model.provision(servers: servers) else { return }
-            // The repository routes by runtime: self-hosted persists locally, cloud is surfaced
-            // live from Oblien (never stored on device).
-            guard let workspace = await WorkspaceRepository.shared.adopt(
-                name: model.name,
-                runtime: runtime,
-                spec: model.isCloud || model.useSandbox ? model.spec : nil
-            ) else {
-                model.isProvisioning = false
-                model.errorMessage = "The workspace was created, but its list could not be refreshed. Refresh Workspaces to open it."
-                return
-            }
-            onCreated(workspace)
-            dismiss()
+            await finishCreation(runtime)
         }
+    }
+
+    private func finishCreation(_ runtime: AgentRuntime) async {
+        guard let workspace = await WorkspaceRepository.shared.adopt(
+            name: model.name, runtime: runtime,
+            spec: model.isCloud || model.useSandbox ? model.spec : nil
+        ) else {
+            model.isProvisioning = false
+            model.errorMessage = "The computer was created, but its list could not be refreshed. Refresh Computers to open it."
+            return
+        }
+        onCreated(workspace)
+        dismiss()
     }
 
     // MARK: Local formatting helpers

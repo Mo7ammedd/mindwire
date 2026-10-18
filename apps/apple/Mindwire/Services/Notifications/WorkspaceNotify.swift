@@ -28,7 +28,7 @@ enum WorkspaceNotify {
     static var sendURL: String { AppConstants.mindwireServicesBase + "/api/notifications/send" }
 
     static func sendToken(scope: WorkspaceNotificationScope) async -> String? {
-        guard await OblienAuth.shared.ensure(), let userID = OblienAuth.shared.user?.id else { return nil }
+        guard await MindwireAuth.shared.ensure(), let userID = MindwireAuth.shared.user?.id else { return nil }
         return await WorkspaceNotificationTokens.shared.token(scope: scope, accountID: userID,
                                                                deviceID: DeviceID.current())
     }
@@ -61,7 +61,7 @@ actor WorkspaceNotificationTokens {
         self.read = read; self.write = write; self.list = list; self.mint = mint
     }
 
-    func token(scope: WorkspaceNotificationScope, accountID: Int, deviceID: String) async -> String? {
+    func token(scope: WorkspaceNotificationScope, accountID: String, deviceID: String) async -> String? {
         // Keep the cache key through the service migration: imported token ids
         // and hashes remain valid, so existing daemons need no secret rotation.
         let key = "oblien.notify.v2.\(accountID).\(scope.credentialID).\(deviceID)"

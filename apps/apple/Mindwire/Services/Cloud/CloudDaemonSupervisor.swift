@@ -8,7 +8,7 @@ struct CloudDaemonSupervisor: DaemonSupervisor {
     let workspaceId: String
 
     func ensureRunning(destination: DaemonBootstrap.Destination) async throws {
-        let workloads = OblienCloud.client.workspace(workspaceId).workloads
+        let workloads = MindwireCloud.workspace(workspaceId).workloads
         try await Self.ensure(destination: destination,
             get: { try await workloads.get(Self.workloadID) },
             create: { try await workloads.create($0) },

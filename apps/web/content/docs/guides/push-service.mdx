@@ -11,9 +11,14 @@ forwarder to this same service. There is no fallback sender or dual database wri
 
 ## Authentication and secrets
 
-Console cookies identify browser users as `console:<id>`. Native apps currently
-sign in through Oblien; Mindwire verifies that session against the configured
-provider and uses `oblien:<id>`. A submitted user id, anonymous session or delegated
+Mindwire account sessions identify browser and native users as `console:<id>`.
+Existing native apps can still use a verified previous provider session as
+`oblien:<id>`. Explicitly connecting both accounts creates a unique ownership
+alias; existing device IDs and send-token hashes remain valid without copying
+registrations or sending duplicate messages. Device-pinned channels use the
+physical phone’s newest registration after linking. Duplicate channel names
+retain the previous daemon credential and close the duplicate; subsequent
+rotations serialize with account linking in one database transaction. A submitted user id, anonymous session or delegated
 send token cannot manage devices. Send tokens resolve locally and can deliver only
 to their owner's devices; workspace/channel values are delivery labels, not VM
 permissions. Namespace/API-key credentials are not accepted as native login sessions.

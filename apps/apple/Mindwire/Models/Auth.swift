@@ -2,7 +2,7 @@ import Foundation
 
 /// Sign-in providers. `slug` is the Oblien social slug used in `GET /auth/{slug}/url`.
 enum CloudProvider: String, Codable, CaseIterable, Identifiable, Hashable {
-    case oblien, google, apple, github, x
+    case mindwire, google, apple, github, x
     var id: String { rawValue }
 }
 
@@ -15,7 +15,7 @@ struct CloudProviderMeta: Identifiable, Hashable {
 enum CloudProviders {
     /// Order matches `CLOUD_PROVIDERS`.
     static let all: [CloudProviderMeta] = [
-        .init(id: .oblien, name: "Oblien", slug: nil),
+        .init(id: .mindwire, name: "Mindwire", slug: nil),
         .init(id: .google, name: "Google", slug: "google"),
         .init(id: .apple, name: "Apple", slug: "apple"),
         .init(id: .github, name: "GitHub", slug: "github"),
@@ -24,9 +24,9 @@ enum CloudProviders {
     static func slug(_ id: CloudProvider) -> String? { all.first { $0.id == id }?.slug }
 }
 
-/// Matches `GET /auth/status` → `user`: `{ id (number), name, email, image, show_welcome }`.
+/// Mindwire account identity. IDs are opaque strings; never provider user numbers.
 struct AuthUser: Codable, Hashable {
-    var id: Int?
+    var id: String?
     var name: String?
     var email: String?
     var image: String?

@@ -17,7 +17,7 @@ struct ServersScreen: View {
                     Button { adding = .server } label: { ConnectionDestinationRow(type: .ssh) }
                         .tint(.primary)
                 } footer: {
-                    Text("Manage your own computers and servers here. Oblien Cloud workspaces stay in Workspaces.")
+                    Text("Manage your own computers and servers here. Cloud Computers stay in Workspaces.")
                 }
             } else {
                 group("Computers", servers.filter(\.isLocal))

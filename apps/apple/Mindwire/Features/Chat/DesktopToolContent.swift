@@ -55,7 +55,7 @@ struct DesktopToolContent: View {
             error = "Open this chat in its workspace to load the screenshot."; return
         }
         let context = WorkspaceConnectionContext(workspace, stores: stores)
-        let key = "\(OblienAuth.shared.user?.id ?? 0):\(workspaceID):\(capture.artifactId)"
+        let key = "\(MindwireAuth.shared.user?.id ?? "signed-out"):\(workspaceID):\(capture.artifactId)"
         if let cached = DesktopImageCache.shared.object(forKey: key as NSString) { image = cached; return }
         do {
             let api = try await stores.workspaceData.desktopHTTP(workspace)

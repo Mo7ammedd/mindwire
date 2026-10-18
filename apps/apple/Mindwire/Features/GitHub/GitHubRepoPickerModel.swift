@@ -45,11 +45,11 @@ final class GitHubRepoPickerModel {
     private var repoLoadID = UUID()
     private var loadingRepoKey: String?
     private var loadedRepoKey: String?
-    private let auth: OblienAuth
+    private let auth: MindwireAuth
     private let makeService: (GitHubAccount, Stores) -> GitHubService
 
     init(selectedRepo: GitHubRepo? = nil, selectedAccount: GitHubAccount? = nil,
-         auth: OblienAuth? = nil,
+         auth: MindwireAuth? = nil,
          makeService: @escaping (GitHubAccount, Stores) -> GitHubService = {
              BackendFactory.githubService(for: $0, stores: $1)
          }) {

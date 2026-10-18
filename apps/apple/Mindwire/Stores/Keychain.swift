@@ -132,3 +132,11 @@ enum SessionToken {
     static func set(_ token: String) { Keychain.set(token, for: KeychainKey.sessionToken) }
     static func clear() { Keychain.delete(KeychainKey.sessionToken) }
 }
+
+/// Dedicated Mindwire device session, independent of the browser and legacy identity.
+enum MindwireSessionToken {
+    private static let key = "mindwire.account.session.v1"
+    static func get() -> String? { Keychain.get(key) }
+    @discardableResult static func set(_ token: String) -> Bool { Keychain.set(token, for: key) }
+    static func clear() { Keychain.delete(key) }
+}

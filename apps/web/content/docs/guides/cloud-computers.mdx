@@ -1,0 +1,83 @@
+---
+title: Cloud Computers
+description: Sign in to Mindwire and manage monthly computers, payments and existing Cloud machines.
+---
+
+Mindwire Console owns your Cloud Computer account and purchases. Sign in at
+[console.mindwire.sh/computers](https://console.mindwire.sh/computers), or choose
+**Sign in to Mindwire** in the Apple app. Your own computers, SSH connections and
+self-hosted daemons remain free. They do not require a Cloud subscription.
+
+## Choose a computer
+
+Each computer has its own monthly subscription and isolated resource allowance.
+The current plans are **Essential** ($24, 2 vCPU, 4 GB RAM, 60 GB storage), **Pro**
+($49, 4 vCPU, 8 GB RAM, 120 GB storage), and **Max** ($99, 8 vCPU, 24 GB RAM,
+240 GB storage). The Console catalog supplies prices to the website and clients.
+A saved purchase retains its agreed price and resources when the catalog changes.
+
+Choose an image and a plan that meets its published minimum. The prepared
+**Mac + Xcode** image requires Max. Image presets are selected by their catalog
+identity, so choosing Xcode retains its software disks rather than falling back
+to a plain Mac image. Monthly computer creation does not import an existing root
+disk or move disks across subscriptions; use the original computer for retained data.
+
+Checkout opens Stripe. Returning from checkout does not grant a computer: the
+server verifies the paid subscription and resource coverage before provisioning.
+A lost response or closing the app preserves the purchase. Resume it from
+**Account → Cloud Computers** or the Console instead of starting another payment.
+Unpaid checkouts can be canceled in Console before choosing a different plan.
+
+Use **Manage billing** for payment methods and invoices. **Stop renewal** keeps
+access through the paid period; it does not delete the computer or refund that
+period. Console also supports resuming renewal before expiry. Compute expiry and
+retained storage follow the provider's saved contract; retained storage may incur
+charges. Deleting a computer stops renewal first and verifies resource removal.
+It does not refund the paid month.
+
+## Native sign-in
+
+The app opens Mindwire's browser sign-in with a short device code. Compare that
+code with the one shown in the app, then approve the request. The code expires in
+10 minutes and can be redeemed once by the Mindwire native client. Signing out
+revokes that native session without signing out your browser or deleting computers.
+
+## Existing Cloud accounts
+
+After signing in to Mindwire, open **Account → Connect previous cloud account**
+to explicitly connect the previous account. The server verifies both identities; matching email addresses alone never
+links accounts. Existing computers, disks, paid terms, notification devices and
+send-only credentials stay in place. New computers use Mindwire's monthly plans.
+If both accounts already named the same notification channel, linking closes the
+duplicate while retaining the previous daemon credential; later rotations use one
+atomic write transaction. The compatibility credential is encrypted and renewed while still valid. If
+Console remains offline beyond its validity, reconnect the previous account;
+an expired credential is never used to recover ownership.
+
+Previous GitHub App installations remain available through this verified link.
+New accounts can configure their own GitHub token, SSH key or CLI credentials;
+Mindwire social sign-in does not grant access to private repositories.
+
+## Deploying the control plane
+
+Use the SaaS Compose stack with `CONSOLE_MODE=cloud`, PostgreSQL, a random
+`AUTH_SECRET`, and a separate `SECRETS_ENCRYPTION_KEY`. Configure server-only
+`OBLIEN_CLIENT_ID` / `OBLIEN_CLIENT_SECRET` for the Mindwire reseller account.
+Never use a namespace chosen by the client or expose master credentials in app,
+website or browser bundles. Each new computer has a private namespace restricted
+to one VM and its purchased resources. Native clients receive only their Mindwire
+session and short-lived credentials for a computer they own.
+
+Configure `computers.mindwire.sh` as a custom hostname for Oblien’s existing
+`workspace.oblien.com` runtime gateway, including TLS and WebSocket upgrades.
+A DNS CNAME alone does not configure the provider’s certificate or virtual host.
+The native app uses this single hostname directly with the unchanged short-lived
+computer JWT; the Mindwire account session stays on Console. Runtime traffic does
+not pass through Console, and published web ports keep their separate public URLs.
+No wildcard DNS is needed. Verify runtime access through the custom hostname before
+releasing the updated app. Production account cookies use the `__Host-` prefix.
+
+Billing webhooks may call `/api/cloud/webhook` with an HMAC SHA-256 signature in
+`X-Webhook-Signature` using `OBLIEN_WEBHOOK_SECRET`. Events only schedule fresh
+provider verification. A bounded background reconciliation also recovers pending
+purchases and provisioning when an app closes or webhook delivery is interrupted.

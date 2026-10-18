@@ -10,8 +10,8 @@ actor CloudWorkspaceManagement: WorkspaceManagementService {
     private nonisolated var handle: WorkspaceHandle { client.workspace(workspaceId) }
     private var runtime: RuntimeClient?
 
-    init(workspaceId: String, client: OblienClient = OblienCloud.client) {
-        self.workspaceId = workspaceId; self.client = client
+    init(workspaceId: String, client: OblienClient? = nil) {
+        self.workspaceId = workspaceId; self.client = client ?? MindwireCloud.client
     }
     private func runtimeClient() async throws -> RuntimeClient {
         if let runtime { return runtime }

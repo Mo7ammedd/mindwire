@@ -21,14 +21,14 @@ final class WorkspaceNotificationTests: XCTestCase {
         let fixture = WorkspaceTokenFixture(), cache = NotificationCredentialCache()
         let tokens = makeTokens(fixture, cache)
         let remote = try XCTUnwrap(WorkspaceNotificationScope(workspaceID: "workspace", runtime: .server(serverId: "mac")))
-        let cloud = await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone")
-        async let first = tokens.token(scope: remote, accountID: 1, deviceID: "phone")
-        async let second = tokens.token(scope: remote, accountID: 1, deviceID: "phone")
+        let cloud = await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone")
+        async let first = tokens.token(scope: remote, accountID: "1", deviceID: "phone")
+        async let second = tokens.token(scope: remote, accountID: "1", deviceID: "phone")
         let (a, b) = await (first, second)
         XCTAssertNotNil(a)
         XCTAssertEqual(a, b)
         XCTAssertNotEqual(a, cloud)
-        let reused = await tokens.token(scope: remote, accountID: 1, deviceID: "phone")
+        let reused = await tokens.token(scope: remote, accountID: "1", deviceID: "phone")
         XCTAssertEqual(reused, a)
         let scopes = await fixture.scopes
         XCTAssertEqual(scopes, [Self.cloudScope, remote])
@@ -60,14 +60,14 @@ final class WorkspaceNotificationTests: XCTestCase {
         let fixture = WorkspaceTokenFixture(), cache = NotificationCredentialCache()
         let tokens = makeTokens(fixture, cache)
         let values = await withTaskGroup(of: String?.self) { group in
-            for _ in 0..<6 { group.addTask { await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone") } }
+            for _ in 0..<6 { group.addTask { await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone") } }
             var values: [String?] = []
             for await value in group { values.append(value) }
             return values
         }
         XCTAssertEqual(Set(values.compactMap { $0 }).count, 1)
         XCTAssertFalse(values.contains { $0 == nil })
-        let again = await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone")
+        let again = await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone")
         XCTAssertEqual(again, values.first!)
         let minted = await fixture.tags
         XCTAssertEqual(minted.count, 1)
@@ -76,9 +76,9 @@ final class WorkspaceNotificationTests: XCTestCase {
     func testRevokedCredentialIsReplacedBeforeConfiguringDaemon() async {
         let fixture = WorkspaceTokenFixture(), cache = NotificationCredentialCache()
         let tokens = makeTokens(fixture, cache)
-        let old = await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone")
+        let old = await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone")
         await fixture.revoke()
-        let refreshed = await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone")
+        let refreshed = await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone")
         XCTAssertNotNil(refreshed)
         XCTAssertNotEqual(old, refreshed)
         let count = await fixture.tags.count
@@ -88,9 +88,9 @@ final class WorkspaceNotificationTests: XCTestCase {
     func testAccountAndDeviceCredentialsAreIsolated() async {
         let fixture = WorkspaceTokenFixture(), cache = NotificationCredentialCache()
         let tokens = makeTokens(fixture, cache)
-        let a = await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone-a")
-        let b = await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone-b")
-        let c = await tokens.token(scope: Self.cloudScope, accountID: 2, deviceID: "phone-a")
+        let a = await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone-a")
+        let b = await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone-b")
+        let c = await tokens.token(scope: Self.cloudScope, accountID: "2", deviceID: "phone-a")
         XCTAssertEqual(Set([a, b, c].compactMap { $0 }).count, 3)
         let tags = await fixture.tags
         XCTAssertNotEqual(tags[0], tags[1], "Another phone must not rotate this phone's send credential")
@@ -100,12 +100,12 @@ final class WorkspaceNotificationTests: XCTestCase {
     func testFailedValidationRetriesWithoutReinstallingDaemon() async {
         let fixture = WorkspaceTokenFixture(), cache = NotificationCredentialCache()
         let tokens = makeTokens(fixture, cache)
-        let initial = await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone")
+        let initial = await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone")
         await fixture.setOffline(true)
-        let offline = await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone")
+        let offline = await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone")
         XCTAssertNil(offline)
         await fixture.setOffline(false)
-        let recovered = await tokens.token(scope: Self.cloudScope, accountID: 1, deviceID: "phone")
+        let recovered = await tokens.token(scope: Self.cloudScope, accountID: "1", deviceID: "phone")
         XCTAssertEqual(initial, recovered)
         let count = await fixture.tags.count
         XCTAssertEqual(count, 1)

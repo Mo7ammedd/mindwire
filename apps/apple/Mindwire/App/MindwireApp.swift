@@ -30,7 +30,7 @@ struct MindwireApp: App {
             // Brief system overlays are still foreground work. Only backgrounding every
             // window stops the shared synchronization loop.
             .onChange(of: AppActivityContext(active: appPhase != .background,
-                                            accountID: OblienAuth.shared.user?.id), initial: true) { _, context in
+                                            accountID: MindwireAuth.shared.user?.id), initial: true) { _, context in
                 lifecycle.update(context)
             }
     }
@@ -78,7 +78,7 @@ private struct MindwireWindow: View {
                 PushRouter.shared.attach(app)
                 offerNotificationSignIn()
             }
-            .onChange(of: OblienAuth.shared.isSignedOut) { _, _ in offerNotificationSignIn() }
+            .onChange(of: MindwireAuth.shared.isSignedOut) { _, _ in offerNotificationSignIn() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { offerNotificationSignIn() }
             }
@@ -102,9 +102,9 @@ private struct MindwireWindow: View {
                         sheet = nil
                     }
                 case .notificationLogin:
-                    OblienLoginSheet {
+                    MindwireLoginSheet {
                         Task {
-                            await OblienAuth.shared.refresh()
+                            await MindwireAuth.shared.refresh()
                             await BackendFactory.pushService().start()
                         }
                     }
@@ -141,7 +141,7 @@ private struct MindwireWindow: View {
             && app.workspacesPath.isEmpty && app.settingsPath.isEmpty
         let modalIsOpen = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows).contains { $0.isKeyWindow && $0.rootViewController?.presentedViewController != nil }
-        guard stores.notificationSignInReminder.claim(owner: notificationReminderOwner, signedOut: OblienAuth.shared.isSignedOut,
+        guard stores.notificationSignInReminder.claim(owner: notificationReminderOwner, signedOut: MindwireAuth.shared.isSignedOut,
             active: scenePhase == .active, canPresent: atRoot && sheet == nil && nextSheet == nil && !modalIsOpen) else { return }
         sheet = .notificationIntro
     }

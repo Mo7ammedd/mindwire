@@ -48,7 +48,7 @@ struct NotificationDeviceSection: View {
     private let refreshAccount: () async -> Void
 
     init(push: LivePushService? = nil,
-         refreshAccount: @escaping () async -> Void = { await OblienAuth.shared.refresh() }) {
+         refreshAccount: @escaping () async -> Void = { await MindwireAuth.shared.refresh() }) {
         self.push = push ?? .shared
         self.refreshAccount = refreshAccount
     }
@@ -106,7 +106,7 @@ struct NotificationDeviceSection: View {
             guard scenePhase == .active else { return }
             await refresh()
         }
-        .oblienLoginSheet(isPresented: $showLogin) {
+        .mindwireLoginSheet(isPresented: $showLogin) {
             Task { await refresh() }
         }
     }
@@ -145,7 +145,7 @@ struct NotificationDeviceSection: View {
     private var deliveryHint: String {
         switch push.state {
         case .signInRequired:
-            "Sign in to Oblien to receive alerts from your Mac, servers and cloud workspaces. Your SSH connections keep working without this login."
+            "Sign in to Mindwire to receive alerts from your Mac, servers and cloud workspaces. Your SSH connections keep working without this login."
         case .waitingForToken, .failed:
             "Notification setup retries automatically while Mindwire is open. You can retry now."
         default:
@@ -175,7 +175,7 @@ struct NotificationPreferencesScreen: View {
         Form {
             NotificationDeviceSection()
             if requiresSignIn {
-                Section { OblienSignInRow(bodyKey: "workspace.signIn.body") { showLogin = true } }
+                Section { MindwireSignInRow(bodyKey: "workspace.signIn.body") { showLogin = true } }
             }
             Section {
                 Toggle(isOn: Binding(get: { !parentMuted && (pending ?? !muted) }, set: save)) {
@@ -210,7 +210,7 @@ struct NotificationPreferencesScreen: View {
         .observeWorkspaceCache(reload)
         .task { await refresh() }
         .refreshable { await refresh(force: true) }
-        .oblienLoginSheet(isPresented: $showLogin) {
+        .mindwireLoginSheet(isPresented: $showLogin) {
             Task { await WorkspaceRepository.shared.refresh(); await refresh() }
         }
     }

@@ -57,36 +57,14 @@ final class ModelCodableTests: XCTestCase {
         XCTAssertNotNil(defaults.data(forKey: StorageKey.workspaces))
     }
 
-    func testCloudQuotaEnforcesPlanAndPools() throws {
-        let json = #"{"plan":"free","planLabel":"Free","limits":{"cpus":2,"memory_mb":2048,"disk_size_mb":10240},"pool":{"cpus":4,"memory_mb":4096,"disk_size_mb":20480},"pool_usage":{"count":1,"cpus":3,"memory_mb":1024,"disk_size_mb":4096},"running_pool":{"cpus":2,"memory_mb":2048,"disk_size_mb":10240},"running_pool_usage":{"count":1,"cpus":1,"memory_mb":512,"disk_size_mb":2048},"maxWorkspaces":2,"currentWorkspaces":1,"canCreate":true}"#.data(using: .utf8)!
-        let quota = try dec.decode(CloudWorkspaceQuota.self, from: json)
-        XCTAssertNil(quota.denial(for: WorkspaceSpec(cpus: 1, memoryMb: 1024, diskMb: 4096, persistent: true)))
-        XCTAssertNotNil(quota.denial(for: WorkspaceSpec(cpus: 2, memoryMb: 1024, diskMb: 4096, persistent: true)))
-
-        var overview = CloudAccountOverview(balance: 100, quota: quota, estimate: nil,
-                                            plans: [.init(family: "free", name: "Free"),
-                                                    .init(family: "pro", name: "Pro"),
-                                                    .init(family: "scale", name: "Scale")])
-        XCTAssertTrue(overview.canUpgradePlan)
-        XCTAssertEqual(overview.nextPlanName, "Pro")
-
-        overview.quota?.plan = "scale"
-        overview.quota?.planLabel = "Scale"
-        XCTAssertFalse(overview.canUpgradePlan)
-        XCTAssertNil(overview.nextPlanName)
-    }
-
-    func testWorkspaceCreationErrorAcceptsLegacyErrorFieldCode() {
-        let error = NSError(domain: "Oblien", code: 402,
-                            userInfo: [NSLocalizedDescriptionKey: "INSUFFICIENT_CREDITS"])
-        XCTAssertTrue(OblienBilling.creationMessage(for: error).contains("credit balance"))
-    }
-
-    func testCreditUsageEnvelopeValuesDecode() throws {
-        let usage = try dec.decode(CloudDailyCreditUsage.self,
-                                   from: #"{"date":"2026-09-01","usage":12.5,"purchases":100}"#.data(using: .utf8)!)
-        XCTAssertEqual(usage.usage, 12.5)
-        XCTAssertEqual(usage.purchases, 100)
+    func testMonthlyComputerPreservesSavedPriceAndOpaqueAccountIdentity() throws {
+        let computer = try dec.decode(CloudComputer.self, from: Data(#"{"id":"computer_1","name":"Mac + Xcode","state":"ready","plan":{"id":"max","name":"Max","monthlyCents":9900,"vcpus":8,"memoryMb":24576,"diskGb":240},"workspaceId":"vm_1","checkout":null,"subscription":{"status":"active","paidThrough":"2026-11-18T00:00:00Z","cancelAtPeriodEnd":true}}"#.utf8))
+        XCTAssertEqual(computer.plan.memoryMb, 24576)
+        XCTAssertEqual(computer.plan.diskGb, 240)
+        XCTAssertEqual(computer.plan.monthlyCents, 9900)
+        XCTAssertTrue(try XCTUnwrap(computer.subscription).cancelAtPeriodEnd)
+        let status = try dec.decode(AuthStatus.self, from: Data(#"{"authenticated":true,"user":{"id":"mindwire-user_opaque","email":"owner@example.test","name":"Owner"}}"#.utf8))
+        XCTAssertEqual(status.user?.id, "mindwire-user_opaque")
     }
 
     #if DEBUG

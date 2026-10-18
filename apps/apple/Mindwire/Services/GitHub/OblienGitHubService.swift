@@ -1,13 +1,13 @@
 import Foundation
 
 /// GitHub via the **Oblien GitHub App** (`api.oblien.com/github/*`), authenticated with the
-/// app's Oblien session JWT. Goes through the shared `OblienAPI` actor, so token mint, Keychain
+/// app's Oblien session JWT. Goes through the shared `MindwireAPI` actor, so token mint, Keychain
 /// persistence and 401-refresh are reused. Clone uses a short-lived, repo-scoped clone token
 /// minted on demand — no long-lived credential ever touches the device.
 final class OblienGitHubService: GitHubService {
-    private let api: OblienAPI
+    private let api: MindwireAPI
 
-    init(api: OblienAPI = .shared) { self.api = api }
+    init(api: MindwireAPI = .shared) { self.api = api }
 
     func owners(for account: GitHubAccount) async throws -> [GitHubOwner] {
         let data = try await api.send("GET", "/github/user/orgs") ?? Data("[]".utf8)

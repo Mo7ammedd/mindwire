@@ -5,7 +5,7 @@
 //
 // SECURITY: Oblien credentials, daemon tokens, and SSH secrets (key/password/passphrase) reach the SDK
 // ONLY here, straight from the server-side session — never from a browser payload. None is ever echoed.
-import { Mindwire, remote, local, ssh, oblien, docker, ApiError, catalogProviders, catalogModels } from "mindwire";
+import { Mindwire, remote, local, ssh, oblien, provisionOblien, docker, ApiError, catalogProviders, catalogModels } from "mindwire";
 import type {
   Target,
   TargetHandle,
@@ -17,6 +17,9 @@ import type {
 } from "mindwire";
 
 import { env } from "./env";
+import { ComputerStore } from "./cloud/store";
+import { computerRuntime } from "./cloud/types";
+import { CloudProvider } from "./cloud/provider";
 import { publicRemoteFetch } from "./public-remote";
 import { persistSessionFleet, type Session, type DaemonRecord, type DaemonRuntime } from "./session";
 import type { CatalogProviderSummary } from "../shared/api";
@@ -61,6 +64,7 @@ function runtimeKey(r: DaemonRuntime): string {
   if (r.provider === "docker") {
     return `docker ${r.image ?? ""} ${r.container ?? ""} ${r.engineHost ?? ""} ${r.lifecycle}`;
   }
+  if (r.computerId) return `mindwire-cloud ${r.computerId}`;
   return `oblien ${r.image} ${r.cpus ?? ""} ${r.memoryMb ?? ""} ${r.diskMb ?? ""} ${r.lifecycle}`;
 }
 
@@ -146,6 +150,21 @@ function buildTarget(session: Session, record: DaemonRecord, options: DaemonClie
       const port = portOf(h.baseUrl);
       if (port) record.runtime.hostPort = port;
     });
+  }
+
+  if (r.computerId) {
+    return {
+      name: "mindwire-cloud",
+      async connect(spec) {
+        const computer = await new ComputerStore().get(session.id, r.computerId!);
+        computerRuntime(computer);
+        const client = await new CloudProvider().scoped(computer.namespace);
+        return provisionOblien(client, { workspaceId: computer.workspace_id!, agent: record.agent,
+          mode: "permanent", stopOnExit: false, daemonToken: r.token,
+          onWorkspace: () => { if (record.runtime.provider === "oblien") record.runtime.workspaceId = computer.workspace_id!; },
+        }, spec.onLog);
+      },
+    };
   }
 
   // Oblien: the Node-only sandbox target. Creds come from the session (the auth path), not the client.

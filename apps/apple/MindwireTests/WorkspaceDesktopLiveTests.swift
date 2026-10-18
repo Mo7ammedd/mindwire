@@ -19,8 +19,8 @@ final class WorkspaceDesktopLiveTests: XCTestCase {
         let oldIdle = UIApplication.shared.isIdleTimerDisabled
         UIApplication.shared.isIdleTimerDisabled = true
         defer { UIApplication.shared.isIdleTimerDisabled = oldIdle }
-        await OblienAuth.shared.refresh()
-        let live = try await OblienCloud.client.workspaces.get(workspaceId)
+        await MindwireAuth.shared.refresh()
+        let live = try await MindwireCloud.client.workspaces.get(workspaceId)
         XCTAssertTrue(live.isRunning)
         let workspace = Workspace(id: workspaceId, name: live.name ?? "Desktop",
             runtime: .cloud(workspaceId: workspaceId), createdAt: isoNow())
@@ -29,7 +29,7 @@ final class WorkspaceDesktopLiveTests: XCTestCase {
         if env["MINDWIRE_DESKTOP_DIAGNOSTICS"] == "1" {
             let token = try await CloudDesktopProvider(workspaceId: workspaceId).gatewayToken()
             try JSONSerialization.data(withJSONObject: ["workspaceId": workspaceId, "token": token,
-                "baseURL": OblienCloud.client.config.runtimeURL.absoluteString])
+                "baseURL": MindwireCloud.client.config.runtimeURL.absoluteString])
                 .write(to: diagnosticFixture, options: [.atomic, .completeFileProtection])
             let boot = try await CloudWorkspaceService(workspaceId: workspaceId).exec(["/bin/sh", "-c",
                 "uname -s; uptime; sysctl -n kern.boottime 2>/dev/null || true; pgrep -x mindwired || true"])
@@ -132,10 +132,10 @@ final class WorkspaceDesktopLiveTests: XCTestCase {
         let oldIdle = UIApplication.shared.isIdleTimerDisabled
         UIApplication.shared.isIdleTimerDisabled = true
         defer { UIApplication.shared.isIdleTimerDisabled = oldIdle }
-        await OblienAuth.shared.refresh()
-        XCTAssertTrue(OblienAuth.shared.authenticated)
+        await MindwireAuth.shared.refresh()
+        XCTAssertTrue(MindwireAuth.shared.authenticated)
         let workspaceId = try XCTUnwrap(env["MINDWIRE_DESKTOP_WORKSPACE"])
-        let live = try await OblienCloud.client.workspaces.get(workspaceId)
+        let live = try await MindwireCloud.client.workspaces.get(workspaceId)
         XCTAssertTrue(live.isRunning)
         let workspace = Workspace(id: workspaceId, name: live.name ?? "Desktop check",
             runtime: .cloud(workspaceId: workspaceId), createdAt: isoNow())
@@ -224,10 +224,10 @@ final class WorkspaceDesktopLiveTests: XCTestCase {
         let oldIdle = UIApplication.shared.isIdleTimerDisabled
         UIApplication.shared.isIdleTimerDisabled = true
         defer { UIApplication.shared.isIdleTimerDisabled = oldIdle }
-        await OblienAuth.shared.refresh()
-        XCTAssertTrue(OblienAuth.shared.authenticated, "The device must be signed in.")
+        await MindwireAuth.shared.refresh()
+        XCTAssertTrue(MindwireAuth.shared.authenticated, "The device must be signed in.")
         let chosen = try XCTUnwrap(env["MINDWIRE_DESKTOP_WORKSPACE"])
-        let list = try await OblienCloud.client.workspaces.list()
+        let list = try await MindwireCloud.client.workspaces.list()
         let workspace = try XCTUnwrap(list.workspaces.first { $0.id == chosen || $0.name == chosen }, "Selected workspace must exist.")
         XCTAssertTrue(workspace.isRunning, "Selected workspace must be running.")
         let provider = CloudDesktopProvider(workspaceId: workspace.id)
@@ -235,7 +235,7 @@ final class WorkspaceDesktopLiveTests: XCTestCase {
         XCTAssertTrue(status.supported, "Selected workspace must support desktop access.")
         print("DESKTOP_CHECK selected=\(workspace.id) supported=\(status.supported) enabled=\(status.enabled) available=\(status.available)")
         var fixture: [String: Any] = ["workspaceId": workspace.id, "token": try await provider.gatewayToken(),
-            "baseURL": OblienCloud.client.config.runtimeURL.absoluteString]
+            "baseURL": MindwireCloud.client.config.runtimeURL.absoluteString]
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         if env["MINDWIRE_DESKTOP_CONNECT"] == "1" {
             if !status.enabled { try await provider.enable() }

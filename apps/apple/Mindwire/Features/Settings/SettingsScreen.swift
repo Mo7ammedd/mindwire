@@ -5,7 +5,7 @@ struct SettingsScreen: View {
     @Environment(\.stores) private var stores
     @AppStorage("mindwire.appearance") private var appearance = "system"
     @AppStorage(StorageKey.chatTextSize) private var chatTextSize = ChatTextSize.medium.rawValue
-    private var auth = OblienAuth.shared
+    private var auth = MindwireAuth.shared
 
     var body: some View {
         List {

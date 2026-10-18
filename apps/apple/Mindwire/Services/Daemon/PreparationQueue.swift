@@ -34,7 +34,7 @@ final class PreparationQueue {
         self.prepareWorkspace = prepareWorkspace ?? { [weak stores] workspaceId in
             guard let stores else { throw CancellationError() }
             if let workspace = WorkspaceRepository.shared.get(workspaceId), workspace.isCloud {
-                let api = OblienCloud.client.workspaces
+                let api = MindwireCloud.client.workspaces
                 let value = try await api.get(workspaceId)
                 if let preparation = value.provisioning, preparation.state != "ready" {
                     // Only explicitly queued creation/setup requests enter this path.

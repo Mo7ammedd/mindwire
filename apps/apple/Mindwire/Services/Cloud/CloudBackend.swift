@@ -22,12 +22,12 @@ final class CloudBackend: Backend {
         guard let id = runtime.workspaceId else {
             return BackendHealth(ok: false, latencyMs: nil, detail: "No workspace")
         }
-        guard await OblienAuth.shared.ensure() else {
-            return BackendHealth(ok: false, latencyMs: nil, detail: "Sign in to Oblien to access this cloud workspace.")
+        guard await MindwireAuth.shared.ensure() else {
+            return BackendHealth(ok: false, latencyMs: nil, detail: "Sign in to Mindwire to access this cloud workspace.")
         }
         let started = Date()
         do {
-            let workspace = try await OblienCloud.client.workspaces.get(id)
+            let workspace = try await MindwireCloud.client.workspaces.get(id)
             let latency = Int(Date().timeIntervalSince(started) * 1000)
             return BackendHealth(ok: true, latencyMs: latency,
                                  detail: workspace.isRunning ? nil : (workspace.info?.status ?? workspace.status ?? "stopped"))

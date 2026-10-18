@@ -3,12 +3,12 @@ import XCTest
 
 @MainActor
 final class GitHubAccessTests: XCTestCase {
-    func testRepositoryPickerKeepsPublicAndTokenLinksIndependentOfOblienLogin() async throws {
+    func testRepositoryPickerKeepsPublicAndTokenLinksIndependentOfMindwireLogin() async throws {
         let stores = try fixtureStores()
         let cloud = GitHubAccount(id: "cloud", login: "personal", mode: .oblienApp, createdAt: isoNow())
         let token = GitHubAccount(id: "token", login: "work", mode: .token, createdAt: isoNow())
         let service = RepositoryPickerFixture()
-        let model = GitHubRepoPickerModel(auth: OblienAuth { AuthStatus(authenticated: false) }, makeService: { _, _ in service })
+        let model = GitHubRepoPickerModel(auth: MindwireAuth { AuthStatus(authenticated: false) }, makeService: { _, _ in service })
         model.reloadAccounts([cloud, token], workspaceId: "workspace")
         model.mode = .link
         model.repositoryInput = "https://github.com/octocat/app.git"
