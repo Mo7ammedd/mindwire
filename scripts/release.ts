@@ -17,12 +17,6 @@
  *                                  # there is one code path. Non-TTY (CI/pipes) releases the current
  *                                  # version as-is.
  *
- *   bun run release docker [tag]   # publish runtime + console images (GHCR) via the docker-images
- *                                  # workflow. A test/prerelease image build: NO version bump, NO git
- *                                  # tag, NO GitHub release, NO npm, and it never moves :latest. Omit
- *                                  # [tag] → the image is tagged with the short SHA. `--ref=<branch>`
- *                                  # builds that branch.
- *
  * What it does:
  *   1. Refuse if the working tree is dirty
  *   2. Refuse if not on main (override with --force-branch)
@@ -85,18 +79,14 @@ if (args.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
   log("");
   log(`▶ bun run release ${chosen.join(" ")}`);
   log("");
-  const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...chosen], {
-    stdio: "inherit",
-  });
+  const child = spawnSync(
+    process.execPath,
+    [fileURLToPath(import.meta.url), ...chosen],
+    {
+      stdio: "inherit",
+    },
+  );
   process.exit(child.status ?? 1);
-}
-
-// `docker` is a SEPARATE path: publish the console image ONLY (via the docker-images workflow) — no
-// version bump, no git tag, no GitHub release. Branch out here, before any semver handling treats
-// "docker" as a bump.
-if (cmd === "docker") {
-  releaseDocker();
-  process.exit(0);
 }
 
 type BumpKind = "patch" | "minor" | "major" | "rc" | "current" | "literal";
@@ -108,8 +98,13 @@ const bump: { kind: BumpKind; literal?: string } =
       ? { kind: cmd }
       : { kind: "literal", literal: cmd };
 
-if (bump.kind === "literal" && !/^\d+\.\d+\.\d+(-[a-z0-9]+(\.\d+)?)?$/i.test(bump.literal!)) {
-  console.error(`Refusing literal version "${bump.literal}" — not a semver string.`);
+if (
+  bump.kind === "literal" &&
+  !/^\d+\.\d+\.\d+(-[a-z0-9]+(\.\d+)?)?$/i.test(bump.literal!)
+) {
+  console.error(
+    `Refusing literal version "${bump.literal}" — not a semver string.`,
+  );
   process.exit(1);
 }
 
@@ -129,10 +124,14 @@ const daemonVersion = readDaemonVersion();
 log(`Current version (SDK):  ${current}`);
 log(`Next version:           ${next}`);
 log(`Tag:                    ${tag}`);
-log(`Prerelease:             ${tag.includes("-") ? "yes (npm dist-tag: next)" : "no"}`);
+log(
+  `Prerelease:             ${tag.includes("-") ? "yes (npm dist-tag: next)" : "no"}`,
+);
 // Informational, not a warning: the daemon binary version is decoupled from the SDK BY DESIGN, so they
 // routinely differ. Surfaced only so a daemon change doesn't ship with a stale binary version.
-log(`Daemon binary version:  ${daemonVersion}${daemonVersion === next ? "" : dim(` → ${next} (will sync)`)}`);
+log(
+  `Daemon binary version:  ${daemonVersion}${daemonVersion === next ? "" : dim(` → ${next} (will sync)`)}`,
+);
 log(``);
 
 if (dryRun) {
@@ -140,11 +139,15 @@ if (dryRun) {
     log(`[dry-run] would tag the current version (no bump) and push ${tag}`);
   } else {
     log(`[dry-run] would update packages/sdk/package.json → ${next}`);
-    log(`[dry-run] would update packages/daemon/internal/agent/agent.go → ${next}`);
+    log(
+      `[dry-run] would update packages/daemon/internal/agent/agent.go → ${next}`,
+    );
     log(`[dry-run] would commit + push, then tag + push ${tag}`);
   }
   if (force && tagExists(tag)) {
-    log(`[dry-run] --force: tag ${tag} exists → would DELETE it (local + origin) and re-push`);
+    log(
+      `[dry-run] --force: tag ${tag} exists → would DELETE it (local + origin) and re-push`,
+    );
   }
   log(`[dry-run] no files written, no git ops executed.`);
   process.exit(0);
@@ -163,7 +166,9 @@ if (tagExists(tag)) {
   // --force: salvage an existing tag. Delete it locally AND on origin so the `git tag` + push below
   // create a FRESH ref — a same-SHA re-push reports "up-to-date" and fires no workflow, which is exactly
   // why a plain re-run of an existing tag does nothing.
-  log(`⚠ --force: tag ${tag} exists — deleting it (local + origin) to re-release`);
+  log(
+    `⚠ --force: tag ${tag} exists — deleting it (local + origin) to re-release`,
+  );
   retireExistingTag(tag);
 }
 
@@ -178,7 +183,8 @@ if (bump.kind !== "current" || daemonVersion !== next) {
   // Only commit if something actually changed. Re-releasing the version you're already on writes no diff,
   // and `git commit` would abort with "nothing to commit" and kill the release — ship as-is instead.
   const nothingStaged =
-    spawnSync("git", ["diff", "--cached", "--quiet"], { cwd: ROOT }).status === 0;
+    spawnSync("git", ["diff", "--cached", "--quiet"], { cwd: ROOT }).status ===
+    0;
   if (nothingStaged) {
     log(`No changes to commit — releasing as-is.`);
   } else {
@@ -188,19 +194,25 @@ if (bump.kind !== "current" || daemonVersion !== next) {
 }
 
 git("push", "origin", `refs/heads/${currentBranch()}`);
-log(`✓ pushed ${currentBranch()}${bump.kind === "current" ? " (releasing current version, no bump)" : ""}`);
+log(
+  `✓ pushed ${currentBranch()}${bump.kind === "current" ? " (releasing current version, no bump)" : ""}`,
+);
 
 git("tag", tag);
 // Fully-qualified refspec: a BRANCH sharing the tag's name would otherwise make `git push origin vX`
 // ambiguous ("src refspec … matches more than one").
 git("push", "origin", `refs/tags/${tag}`);
-log(`✓ pushed tag ${tag} — CI is running the gate, building the daemon binaries, and publishing to npm`);
+log(
+  `✓ pushed tag ${tag} — CI is running the gate, building the daemon binaries, and publishing to npm`,
+);
 
 /* ─── Final report ─────────────────────────────────────────────────── */
 
 const remoteUrl = git("remote", "get-url", "origin", { capture: true }).trim();
 const ghMatch = remoteUrl.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
-const actionsUrl = ghMatch ? `https://github.com/${ghMatch[1]}/${ghMatch[2]}/actions` : "";
+const actionsUrl = ghMatch
+  ? `https://github.com/${ghMatch[1]}/${ghMatch[2]}/actions`
+  : "";
 if (ghMatch) {
   const [, owner, repo] = ghMatch;
   log(``);
@@ -231,11 +243,6 @@ function usageAndExit(code = 1): never {
       "                 0.4.1-rc.2 → 0.4.1   (rc → stable promotion)",
       "  <literal>      explicit semver string",
       "",
-      "  docker [tag]   publish runtime + console images (GHCR) via the docker-images workflow — no",
-      "                 version bump / git tag / GitHub release / npm, and never moves :latest. Omit",
-      "                 [tag] → the image is tagged with the short SHA. `--ref=<branch>` builds that",
-      "                 branch (default: current). e.g.  bun run release docker 0.4.1-rc.1",
-      "",
       "  --dry-run      print the plan, don't touch anything",
       "  --force-branch run from a non-main branch (default refuses)",
       "  --force        re-release an EXISTING tag: delete it (local + origin) and re-push, firing a",
@@ -254,7 +261,9 @@ function usageAndExit(code = 1): never {
 function tagExists(t: string): boolean {
   const local = git("tag", "--list", t, { capture: true }).trim();
   if (local) return true;
-  const remote = git("ls-remote", "--tags", "origin", t, { capture: true }).trim();
+  const remote = git("ls-remote", "--tags", "origin", t, {
+    capture: true,
+  }).trim();
   return remote.length > 0;
 }
 
@@ -290,7 +299,16 @@ function watchCi(t: string, fallbackUrl: string): void {
     Bun.sleepSync(4000);
     const out = spawnSync(
       "gh",
-      ["run", "list", "--workflow", "release.yml", "--limit", "15", "--json", "databaseId,headBranch,event,createdAt"],
+      [
+        "run",
+        "list",
+        "--workflow",
+        "release.yml",
+        "--limit",
+        "15",
+        "--json",
+        "databaseId,headBranch,event,createdAt",
+      ],
       { cwd: ROOT, encoding: "utf8" },
     );
     if (out.status !== 0) continue;
@@ -301,7 +319,9 @@ function watchCi(t: string, fallbackUrl: string): void {
         event: string;
       }>;
       // Tag-triggered runs show headBranch === the tag name.
-      const match = runs.find((r) => r.headBranch === t || r.headBranch === `refs/tags/${t}`);
+      const match = runs.find(
+        (r) => r.headBranch === t || r.headBranch === `refs/tags/${t}`,
+      );
       if (match) runId = String(match.databaseId);
     } catch {
       // keep polling
@@ -315,116 +335,26 @@ function watchCi(t: string, fallbackUrl: string): void {
   }
 
   log(``);
-  log(`▼ live build status (Ctrl-C to stop watching — the build keeps running):`);
+  log(
+    `▼ live build status (Ctrl-C to stop watching — the build keeps running):`,
+  );
   log(``);
   // Streams job-by-job status and exits when the run completes.
-  spawnSync("gh", ["run", "watch", runId, "--interval", "6"], { cwd: ROOT, stdio: "inherit" });
+  spawnSync("gh", ["run", "watch", runId, "--interval", "6"], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
   log(``);
   spawnSync("gh", ["run", "view", runId], { cwd: ROOT, stdio: "inherit" });
-}
-
-/* ─── Docker image release (GHCR-only, via workflow_dispatch) ────────── */
-
-/** owner/repo parsed from origin, or null when origin isn't a GitHub remote. */
-function ghOwnerRepo(): { owner: string; repo: string } | null {
-  const url = git("remote", "get-url", "origin", { capture: true }).trim();
-  const m = url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
-  return m ? { owner: m[1], repo: m[2] } : null;
-}
-
-/**
- * `bun run release docker [tag]` — trigger the docker-images workflow to publish runtime + console images
- * to GHCR. This is the DOCKER-ONLY path: it dispatches the workflow (no version bump, no git tag, no GitHub
- * release, no npm) and the dispatch run never moves `:latest`. An untracked/dirty tree is fine — it
- * builds whatever is on the pushed `--ref` branch, not your working copy. Requires the `gh` CLI (or use
- * the Actions UI → "Docker images").
- */
-function releaseDocker(): void {
-  const positionals = args.filter((a) => !a.startsWith("--"));
-  const dockerTag = positionals[1]; // `release docker [tag]`
-  const ref = args.find((a) => a.startsWith("--ref="))?.slice("--ref=".length) || currentBranch();
-
-  const runArgs = ["workflow", "run", "docker-images.yml", "--ref", ref];
-  if (dockerTag) runArgs.push("-f", `tag=${dockerTag}`);
-
-  log(`Runtime + console image publish (GHCR-only)`);
-  log(`  workflow: docker-images.yml`);
-  log(`  ref:      ${ref}`);
-  log(`  tag:      ${dockerTag ?? "(short SHA)"}`);
-  log(`  scope:    image ONLY — no git tag / GitHub release / npm; :latest untouched`);
-  log(``);
-
-  if (dryRun) {
-    log(`[dry-run] gh ${runArgs.join(" ")}`);
-    log(`[dry-run] nothing dispatched.`);
-    return;
-  }
-
-  if (spawnSync("gh", ["--version"], { encoding: "utf8" }).status !== 0) {
-    console.error(
-      `Refusing: the \`gh\` CLI is required for \`release docker\`. Install it + \`gh auth login\`,\n` +
-        `or trigger it in the UI: Actions → "Docker images" → Run workflow.`,
-    );
-    process.exit(1);
-  }
-
-  const res = spawnSync("gh", runArgs, { cwd: ROOT, stdio: "inherit" });
-  if (res.status !== 0) {
-    console.error(
-      `\ngh workflow run failed. Most common cause: docker-images.yml isn't on the repo's\n` +
-        `DEFAULT branch yet — workflow_dispatch only works once the workflow file is on it.\n` +
-        `Push the workflow to the default branch, then retry.`,
-    );
-    process.exit(res.status ?? 1);
-  }
-  log(`✓ dispatched docker-images.yml (${ref})`);
-
-  watchDispatch();
-
-  const or = ghOwnerRepo();
-  const shown = dockerTag ?? "<short-sha>";
-  log(``);
-  log(`Verify when green:`);
-  if (or) {
-    log(`  docker manifest inspect ghcr.io/${or.owner}/mindwire-runtime:${shown}   # amd64 + arm64`);
-    log(`  docker manifest inspect ghcr.io/${or.owner}/mindwire-console:${shown}   # amd64 + arm64`);
-    log(`  Packages: https://github.com/orgs/${or.owner}/packages?repo_name=${or.repo}`);
-  }
-}
-
-/** Poll for + stream the just-dispatched docker-images run (newest dispatch run). */
-function watchDispatch(): void {
-  if (spawnSync("gh", ["--version"], { encoding: "utf8" }).status !== 0) return;
-  log(`Waiting for the run to register on GitHub…`);
-  let runId = "";
-  for (let i = 0; i < 15 && !runId; i++) {
-    Bun.sleepSync(4000);
-    const out = spawnSync(
-      "gh",
-      ["run", "list", "--workflow", "docker-images.yml", "--event", "workflow_dispatch",
-        "--limit", "1", "--json", "databaseId", "--jq", ".[0].databaseId"],
-      { cwd: ROOT, encoding: "utf8" },
-    );
-    if (out.status === 0) {
-      const id = (out.stdout ?? "").trim();
-      if (id && id !== "null") runId = id;
-    }
-  }
-  if (!runId) {
-    log(`Couldn't locate the run automatically — check: gh run list --workflow docker-images.yml`);
-    return;
-  }
-  log(``);
-  log(`▼ live build status (Ctrl-C to stop watching — the build keeps running):`);
-  log(``);
-  spawnSync("gh", ["run", "watch", runId, "--interval", "6"], { cwd: ROOT, stdio: "inherit" });
 }
 
 function preflight(): void {
   // 1. Clean working tree
   const status = git("status", "--porcelain", { capture: true }).trim();
   if (status) {
-    console.error(`Refusing: working tree is dirty. Commit or stash first.\n${status}`);
+    console.error(
+      `Refusing: working tree is dirty. Commit or stash first.\n${status}`,
+    );
     process.exit(1);
   }
 
@@ -440,9 +370,13 @@ function preflight(): void {
 
   // 3. Up-to-date with origin (refuse if behind — would push a stale tag)
   git("fetch", "origin", branch);
-  const behind = git("rev-list", "--count", `HEAD..origin/${branch}`, { capture: true }).trim();
+  const behind = git("rev-list", "--count", `HEAD..origin/${branch}`, {
+    capture: true,
+  }).trim();
   if (behind !== "0") {
-    console.error(`Refusing: local "${branch}" is ${behind} commit(s) behind origin. Pull first.`);
+    console.error(
+      `Refusing: local "${branch}" is ${behind} commit(s) behind origin. Pull first.`,
+    );
     process.exit(1);
   }
 }
@@ -522,7 +456,10 @@ function formatSemver(p: SemverParts): string {
   return p.prerelease ? `${base}-${p.prerelease}` : base;
 }
 
-function computeNext(currentVersion: string, b: { kind: BumpKind; literal?: string }): string {
+function computeNext(
+  currentVersion: string,
+  b: { kind: BumpKind; literal?: string },
+): string {
   if (b.kind === "current") return currentVersion;
   if (b.kind === "literal") return b.literal!;
   const parsed = parseSemver(currentVersion);
@@ -534,7 +471,11 @@ function computeNext(currentVersion: string, b: { kind: BumpKind; literal?: stri
         patch: parsed.patch + (parsed.prerelease ? 0 : 1),
       });
     case "minor":
-      return formatSemver({ major: parsed.major, minor: parsed.minor + 1, patch: 0 });
+      return formatSemver({
+        major: parsed.major,
+        minor: parsed.minor + 1,
+        patch: 0,
+      });
     case "major":
       return formatSemver({ major: parsed.major + 1, minor: 0, patch: 0 });
     case "rc": {
@@ -543,7 +484,10 @@ function computeNext(currentVersion: string, b: { kind: BumpKind; literal?: stri
         const rcMatch = parsed.prerelease.match(/^rc\.(\d+)$/);
         if (rcMatch) {
           // currently rc.N — bump to rc.(N+1)
-          return formatSemver({ ...parsed, prerelease: `rc.${Number(rcMatch[1]) + 1}` });
+          return formatSemver({
+            ...parsed,
+            prerelease: `rc.${Number(rcMatch[1]) + 1}`,
+          });
         }
         // some other prerelease (beta.N etc.) — bump patch + start rc.1
         return formatSemver({
@@ -569,7 +513,9 @@ function computeNext(currentVersion: string, b: { kind: BumpKind; literal?: stri
 function git(...gitArgs: (string | { capture: true })[]): string {
   const last = gitArgs[gitArgs.length - 1];
   const capture =
-    typeof last === "object" && last !== null && (last as { capture?: boolean }).capture === true;
+    typeof last === "object" &&
+    last !== null &&
+    (last as { capture?: boolean }).capture === true;
   const realArgs = (capture ? gitArgs.slice(0, -1) : gitArgs) as string[];
   const result = spawnSync("git", realArgs, {
     cwd: ROOT,
@@ -612,14 +558,19 @@ async function runWizard(): Promise<string[] | null> {
     console.log(`\n${title}`);
     opts.forEach((o, i) => {
       const mark = i === defaultIndex ? "›" : " ";
-      console.log(`  ${mark} ${i + 1}. ${o.label}${o.hint ? `  ${dim(o.hint)}` : ""}`);
+      console.log(
+        `  ${mark} ${i + 1}. ${o.label}${o.hint ? `  ${dim(o.hint)}` : ""}`,
+      );
     });
     for (;;) {
-      const raw = (await rl.question(`  choice [${defaultIndex + 1}] `)).trim().toLowerCase();
+      const raw = (await rl.question(`  choice [${defaultIndex + 1}] `))
+        .trim()
+        .toLowerCase();
       if (raw === "q") return CANCEL;
       if (!raw) return opts[defaultIndex]!.value;
       const n = Number(raw);
-      if (Number.isInteger(n) && n >= 1 && n <= opts.length) return opts[n - 1]!.value;
+      if (Number.isInteger(n) && n >= 1 && n <= opts.length)
+        return opts[n - 1]!.value;
       console.log(`  ${dim(`enter 1-${opts.length}, or q to cancel`)}`);
     }
   };
@@ -630,7 +581,9 @@ async function runWizard(): Promise<string[] | null> {
   };
 
   const confirm = async (q: string, def = false): Promise<boolean> => {
-    const raw = (await rl.question(`  ${q} [${def ? "Y/n" : "y/N"}] `)).trim().toLowerCase();
+    const raw = (await rl.question(`  ${q} [${def ? "Y/n" : "y/N"}] `))
+      .trim()
+      .toLowerCase();
     if (!raw) return def;
     return raw === "y" || raw === "yes";
   };
@@ -641,69 +594,93 @@ async function runWizard(): Promise<string[] | null> {
     console.log("");
     console.log(`  MindWire release`);
     console.log(`  current version  ${cur}`);
-    console.log(`  daemon binary    ${readDaemonVersion()}${dim("  (synced to the SDK release)")}`);
-    console.log(`  branch           ${branch}${branch === "main" ? "" : dim("  (not main)")}`);
+    console.log(
+      `  daemon binary    ${readDaemonVersion()}${dim("  (synced to the SDK release)")}`,
+    );
+    console.log(
+      `  branch           ${branch}${branch === "main" ? "" : dim("  (not main)")}`,
+    );
     console.log(dim(`  Enter accepts the ›default; q cancels.`));
 
-    const mode = await pick("What do you want to release?", [
-      { value: "version" as const, label: "A version", hint: "bump + tag + GitHub release + npm" },
-      { value: "docker" as const, label: "Runtime + console images", hint: "GHCR; no tag, no release, :latest untouched" },
-    ]);
-    if (mode === CANCEL) return null;
+    const answers: WizardAnswers = { dryRun: false, forceBranch: false };
+    // Preview each bump's real target so the choice is concrete.
+    const preview = (k: BumpKind) => computeNext(cur, { kind: k });
+    const chosenBump = await pick(
+      "Which version?",
+      [
+        {
+          value: "patch" as const,
+          label: "patch",
+          hint: `→ ${preview("patch")}`,
+        },
+        {
+          value: "minor" as const,
+          label: "minor",
+          hint: `→ ${preview("minor")}`,
+        },
+        {
+          value: "major" as const,
+          label: "major",
+          hint: `→ ${preview("major")}`,
+        },
+        { value: "rc" as const, label: "rc", hint: `→ ${preview("rc")}` },
+        {
+          value: "current" as const,
+          label: "current, as-is",
+          hint: `→ ${cur} (no bump)`,
+        },
+        {
+          value: "custom" as const,
+          label: "custom semver…",
+          hint: "e.g. 0.5.0-beta.2",
+        },
+      ],
+      0,
+    );
+    if (chosenBump === CANCEL) return null;
+    answers.bump = chosenBump;
 
-    const answers: WizardAnswers = { mode, dryRun: false, forceBranch: false };
-
-    if (mode === "docker") {
-      answers.dockerTag = await ask("image tag (empty = short SHA):");
-      answers.dockerRef = await ask("branch to build:", branch);
-    } else {
-      // Preview each bump's real target so the choice is concrete.
-      const preview = (k: BumpKind) => computeNext(cur, { kind: k });
-      const chosenBump = await pick(
-        "Which version?",
-        [
-          { value: "patch" as const, label: "patch", hint: `→ ${preview("patch")}` },
-          { value: "minor" as const, label: "minor", hint: `→ ${preview("minor")}` },
-          { value: "major" as const, label: "major", hint: `→ ${preview("major")}` },
-          { value: "rc" as const, label: "rc", hint: `→ ${preview("rc")}` },
-          { value: "current" as const, label: "current, as-is", hint: `→ ${cur} (no bump)` },
-          { value: "custom" as const, label: "custom semver…", hint: "e.g. 0.5.0-beta.2" },
-        ],
-        0,
-      );
-      if (chosenBump === CANCEL) return null;
-      answers.bump = chosenBump;
-
-      if (chosenBump === "custom") {
-        for (;;) {
-          const v = await ask("version:");
-          if (!v) return null;
-          if (/^\d+\.\d+\.\d+(-[a-z0-9]+(\.\d+)?)?$/i.test(v)) {
-            answers.literal = v;
-            break;
-          }
-          console.log(`  ${dim("not a semver string — e.g. 0.5.0 or 0.5.0-rc.1")}`);
+    if (chosenBump === "custom") {
+      for (;;) {
+        const v = await ask("version:");
+        if (!v) return null;
+        if (/^\d+\.\d+\.\d+(-[a-z0-9]+(\.\d+)?)?$/i.test(v)) {
+          answers.literal = v;
+          break;
         }
-      }
-
-      const target = chosenBump === "custom" ? answers.literal! : computeNext(cur, { kind: chosenBump });
-
-      // Re-releasing a tag that already exists needs --force downstream (it deletes + re-pushes). Surface
-      // it here so the wizard can salvage a failed release instead of dead-ending on "tag already exists".
-      if (tagExists(`v${target}`)) {
-        console.log(`\n  ${dim(`tag v${target} already exists — a prior release used it.`)}`);
-        const doForce = await confirm(
-          `Re-release v${target}? Deletes the old tag + re-pushes to fire a fresh build`,
-          true,
+        console.log(
+          `  ${dim("not a semver string — e.g. 0.5.0 or 0.5.0-rc.1")}`,
         );
-        if (!doForce) return null;
-        answers.force = true;
       }
     }
 
+    const target =
+      chosenBump === "custom"
+        ? answers.literal!
+        : computeNext(cur, { kind: chosenBump });
+
+    // Re-releasing a tag that already exists needs --force downstream (it deletes + re-pushes). Surface
+    // it here so the wizard can salvage a failed release instead of dead-ending on "tag already exists".
+    if (tagExists(`v${target}`)) {
+      console.log(
+        `\n  ${dim(`tag v${target} already exists — a prior release used it.`)}`,
+      );
+      const doForce = await confirm(
+        `Re-release v${target}? Deletes the old tag + re-pushes to fire a fresh build`,
+        true,
+      );
+      if (!doForce) return null;
+      answers.force = true;
+    }
+
     if (branch !== "main") {
-      console.log(`\n  ${dim(`You are on "${branch}", not main. A real release from here needs --force-branch.`)}`);
-      answers.forceBranch = await confirm(`Release from "${branch}" anyway?`, false);
+      console.log(
+        `\n  ${dim(`You are on "${branch}", not main. A real release from here needs --force-branch.`)}`,
+      );
+      answers.forceBranch = await confirm(
+        `Release from "${branch}" anyway?`,
+        false,
+      );
       if (!answers.forceBranch) return null;
     }
 

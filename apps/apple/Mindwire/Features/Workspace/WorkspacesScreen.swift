@@ -113,7 +113,7 @@ struct WorkspacesScreen: View {
             NewProjectScreen(presetWorkspaceId: workspace.id, repository: repository)
         }
         .workspaceActionPresentation(actions, repository: repository)
-        .oblienLoginSheet(isPresented: $showLogin) {
+        .mindwireLoginSheet(isPresented: $showLogin) {
             Task { await repository.refresh() }
         }
     }
@@ -122,7 +122,7 @@ struct WorkspacesScreen: View {
         List {
             if isCloud, !isEmpty, repository.requiresSignIn {
                 Section {
-                    OblienSignInRow(bodyKey: "workspaces.signIn.body") { showLogin = true }
+                    MindwireSignInRow(bodyKey: "workspaces.signIn.body") { showLogin = true }
                 }
             }
             if isCloud, !isEmpty, repository.refreshError != nil {

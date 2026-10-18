@@ -3,8 +3,7 @@ import Foundation
 /// App-wide constants ported from the RN client + shared core.
 enum AppConstants {
     static let daemonPort = 8790
-    static let oblienAPIBase = "https://api.oblien.com"
-    static let oblienRuntimeBase = "https://workspace.oblien.com"
+    static let mindwireServicesBase = "https://console.mindwire.sh"
     // Mindwire is versioned and distributed through GitHub Releases. The app resolves the latest
     // stable tag, compares it with /healthz, and downloads the matching Linux asset when needed.
     static let mindwireRepository = "oblien/mindwire"

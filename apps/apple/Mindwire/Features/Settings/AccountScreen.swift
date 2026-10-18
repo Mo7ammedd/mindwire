@@ -1,16 +1,16 @@
-// Account screen — reflects the shared, observable Oblien session (OblienAuth): signed-in user or
+// Account screen — reflects the shared, observable Oblien session (MindwireAuth): signed-in user or
 // a sign-in CTA. Reactive, so signing in/out anywhere updates it (and Settings) immediately.
 import SwiftUI
 
 struct AccountScreen: View {
-    private let creditsURL = URL(string: "https://oblien.com/dashboard/credits")!
-    private let purchaseURL = URL(string: "https://oblien.com/dashboard/credits/purchase")!
-    private let planURL = URL(string: "https://oblien.com/dashboard/plan")!
-    private var auth = OblienAuth.shared
+    private var auth = MindwireAuth.shared
     @State private var loaded = false
     @State private var showLogin = false
     @State private var confirmingSignOut = false
-    @State private var overview: CloudAccountOverview?
+    @State private var computers: [CloudComputer] = []
+    @State private var pendingPurchase: CloudComputer?
+    @State private var portal: IdentifiedURL?
+    @State private var errorMessage: String?
 
     var body: some View {
         Form {
@@ -27,8 +27,15 @@ struct AccountScreen: View {
         .task { await reload() }
         .refreshable { await reload() }
         .sheet(isPresented: $showLogin) {
-            OblienLoginSheet { Task { await reload() } }
+            MindwireLoginSheet { Task { await reload() } }
         }
+        .sheet(item: $pendingPurchase) { computer in
+            CloudPurchaseSheet(computer: computer) { _ in
+                pendingPurchase = nil
+                Task { await WorkspaceRepository.shared.refresh(); await reload() }
+            }
+        }
+        .sheet(item: $portal) { item in SafariView(url: item.url) }
         .alert(t("account.signOut.title"), isPresented: $confirmingSignOut) {
             Button(t("account.signOut"), role: .destructive) { signOut() }
             Button(t("common.cancel"), role: .cancel) {}
@@ -66,46 +73,42 @@ struct AccountScreen: View {
             }
         }
         Section {
-            if overview?.creationDenial != nil {
+            if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.secondary) }
+            if computers.isEmpty { Text("Each Cloud Computer has its own monthly subscription. Your own computers remain free.").foregroundStyle(.secondary) }
+            ForEach(computers) { computer in
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Label(t("account.noCredits.title"), icon: .warning)
-                        .font(.headline)
-                        .foregroundStyle(Palette.danger)
-                    Text(t("account.noCredits.body"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Link(t("account.addCredits"), destination: purchaseURL)
-                        .buttonStyle(.glassProminent)
-                        .tint(Palette.accent)
+                    LabeledContent(computer.name, value: computer.state.replacingOccurrences(of: "_", with: " ").capitalized)
+                    Text("\(computer.plan.name) · \(computer.plan.monthlyPrice)").font(.footnote).foregroundStyle(.secondary)
+                    if let subscription = computer.subscription {
+                        Text(subscription.cancelAtPeriodEnd ? "Renewal is stopped. Your paid period is preserved." : "Monthly subscription")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button("Manage billing") {
+                            Task {
+                                do { portal = IdentifiedURL(url: try await CloudComputers.billingPortal(computer.id)) }
+                                catch { errorMessage = error.localizedDescription }
+                            }
+                        }
+                    } else {
+                        Button("Continue checkout") {
+                            Task {
+                                do { pendingPurchase = try await CloudComputers.checkout(computer.id) }
+                                catch { errorMessage = error.localizedDescription }
+                            }
+                        }
+                    }
                 }
-                .padding(.vertical, Spacing.xs)
             }
-            if let quota = overview?.quota {
-                LabeledContent(t("account.plan"), value: quota.planLabel)
-                LabeledContent(t("account.workspaces"), value: workspaceUsage(quota))
-                LabeledContent(t("account.running"), value: String(quota.runningPoolUsage.count))
-            }
-            if let balance = overview?.balance {
-                LabeledContent(t("account.credits"), value: String(format: "%.2f", balance))
-            }
-            if let overview {
-                LabeledContent(t("account.usage30Days"),
-                               value: String(format: "%.2f credits", overview.creditsUsedLast30Days))
-            }
-        } header: {
-            Text(t("account.billing.title"))
-        }
-        Section {
-            if let overview, overview.canUpgradePlan {
-                Link(overview.nextPlanName.map { "Upgrade to \($0)" } ?? t("account.upgrade"),
-                     destination: planURL)
-                    .buttonStyle(.glassProminent)
-                    .tint(Palette.accent)
-            } else if overview?.quota != nil {
-                LabeledContent(t("account.planStatus"), value: t("account.highestPlan"))
-            }
-            Link(t("account.addCredits"), destination: purchaseURL)
-            Link(t("account.viewUsage"), destination: creditsURL)
+            Link("Open Mindwire Console", destination: URL(string: AppConstants.mindwireServicesBase + "/computers")!)
+        } header: { Text("Cloud Computers") }
+        if SessionToken.get() != nil {
+            Section {
+                Button("Connect previous cloud account") {
+                    Task {
+                        do { try await MindwireAPI.shared.linkPreviousAccount(); await BackendFactory.pushService().refreshRegistration(); await WorkspaceRepository.shared.refresh(); errorMessage = nil }
+                        catch { errorMessage = error.localizedDescription }
+                    }
+                }
+            } footer: { Text("Connect your previous account to keep its computers, files and paid terms. Nothing is moved or deleted.") }
         }
         Section {
             Button(t("account.signOut"), role: .destructive) { confirmingSignOut = true }
@@ -160,26 +163,23 @@ struct AccountScreen: View {
         (user?.name?.first.map(String.init) ?? "Y").uppercased()
     }
 
-    private func workspaceUsage(_ quota: CloudWorkspaceQuota) -> String {
-        guard let maximum = quota.maxWorkspaces else { return "\(quota.currentWorkspaces)" }
-        return "\(quota.currentWorkspaces) / \(maximum)"
-    }
-
     private func signOut() {
         Task {
             await BackendFactory.pushService().unregister()
-            await OblienAPI.shared.clearToken()
+            do { try await MindwireAPI.shared.signOut() }
+            catch { errorMessage = "Could not sign out. Check your connection and retry."; return }
             auth.markSignedOut()
-            overview = nil
+            computers = []
         }
     }
 
     private func reload() async {
         await auth.refresh()
         if auth.authenticated {
-            overview = await OblienBilling.overview()
+            do { computers = try await CloudComputers.list(); errorMessage = nil }
+            catch { errorMessage = error.localizedDescription }
         } else {
-            overview = nil
+            computers = []
         }
         loaded = true
     }

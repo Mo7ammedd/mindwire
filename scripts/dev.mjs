@@ -1,24 +1,8 @@
 #!/usr/bin/env node
-// One-command dev. `bun dev` brings up the mindwired daemon AND the console app (apps/console)
-// together — so you go straight to a browser at http://127.0.0.1:5174, sign in with Oblien, point the
-// session at the local daemon (the default runtime), and chat, with full HMR over the console and SDK.
-// No manual `go run` / separate-terminal steps.
-//
-// The console runs its own dev.mjs: Vite owns the browser at :5174 and proxies /api + /events to the
-// console's Hono backend at :8787. That Hono process is the only thing that imports the mindwire SDK,
-// and it talks to the daemon (:8790) over the SDK's browser-safe remote() transport. The daemon is
-// launched with DEV_CORS=1 so any cross-origin dev tooling can still reach it directly.
-//
-// Targets are passed as args:
-//   node scripts/dev.mjs            → daemon + console   (this is `bun dev`)
-//   node scripts/dev.mjs web        → the Next.js docs site
-//   node scripts/dev.mjs daemon web → both together      (this is `bun dev:all`)
-//
-// Env overrides: ADDR=host:port (default 127.0.0.1:8790), AGENT_TYPE=<id> (default opencode — the
-// daemon's fallback agent when a request omits ?agent=; the console's picker overrides it per call).
-import { execFileSync, spawn } from "node:child_process";
+// Run the account portal by default. Agent runtime and website are explicit independent targets.
+import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,7 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const daemonDir = resolve(root, "packages/daemon");
 
 const targets = process.argv.slice(2).filter(Boolean);
-if (targets.length === 0) targets.push("daemon", "console");
+if (targets.length === 0) targets.push("console");
 const available = new Set(["daemon", "console", "web"]);
 if (targets.some((target) => !available.has(target))) {
   console.error("Usage: bun dev [daemon] [console] [web]");
@@ -35,9 +19,7 @@ if (targets.some((target) => !available.has(target))) {
 
 const addr = process.env.ADDR || "127.0.0.1:8790";
 const daemonUrl = `http://${addr.replace(/^0\.0\.0\.0/, "127.0.0.1")}`;
-// One development checkout owns both processes. Persist a private token locally so restarting either
-// process cannot leave the Console's encrypted seeded-runtime record holding yesterday's random value.
-// Production/self-host always supplies MINDWIRE_RUNTIME_TOKEN explicitly.
+// Reuse the private local daemon token between development restarts.
 function devRuntimeToken(repoRoot) {
   const configured = process.env.MINDWIRE_RUNTIME_TOKEN || process.env.DAEMON_TOKEN;
   if (configured) return configured;
@@ -47,27 +29,7 @@ function devRuntimeToken(repoRoot) {
   writeFileSync(tokenFile, `${token}\n`, { mode: 0o600 });
   return token;
 }
-const runtimeToken = devRuntimeToken(root);
-
-// A released SDK must fetch the matching, checksum-verified daemon from GitHub. Local development is
-// intentionally different: the source tree may have daemon changes without a version bump, so build
-// both Linux variants from this checkout and force-upload the matching one when an Oblien runtime is
-// provisioned. The `{arch}` placeholder is resolved only after the workspace reports its CPU.
-function buildDevDaemons() {
-  const out = join(daemonDir, ".dev");
-  mkdirSync(out, { recursive: true });
-  for (const arch of ["amd64", "arm64"]) {
-    const bin = join(out, `mindwired-linux-${arch}`);
-    console.log(`[dev] building Oblien daemon → ${bin}`);
-    execFileSync("go", ["build", "-trimpath", "-o", bin, "./cmd/daemon"], {
-      cwd: daemonDir,
-      stdio: "inherit",
-      env: { ...process.env, GOOS: "linux", GOARCH: arch, CGO_ENABLED: "0" },
-    });
-  }
-  return join(out, "mindwired-linux-{arch}");
-}
-const devDaemonBin = targets.includes("console") ? buildDevDaemons() : undefined;
+const runtimeToken = targets.includes("daemon") ? devRuntimeToken(root) : undefined;
 
 const procs = [];
 let shuttingDown = false;
@@ -108,16 +70,8 @@ if (targets.includes("daemon")) {
   });
 }
 if (targets.includes("console")) {
-	console.log(`[dev] console → http://127.0.0.1:5174   ← open this   (default runtime: the daemon at ${daemonUrl})`);
-	run("console", "bun", ["--filter=@mindwire/console", "run", "dev"], {
-    cwd: root,
-    env: {
-      ...process.env,
-      DAEMON_URL: daemonUrl,
-      MINDWIRE_RUNTIME_TOKEN: runtimeToken,
-      ...(devDaemonBin ? { MINDWIRE_DEV_DAEMON_BIN: devDaemonBin } : {}),
-    },
-  });
+  console.log("[dev] account portal → http://127.0.0.1:5174");
+  run("console", "bun", ["--filter=@mindwire/console", "run", "dev"], { cwd: root, env: process.env });
 }
 if (targets.includes("web")) {
   console.log(`[dev] docs site → http://localhost:3000`);

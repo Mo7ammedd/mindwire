@@ -1,6 +1,6 @@
 import Foundation
 
-/// DEBUG request/response logging for the app's HTTP layers (OblienAPI + direct GitHub REST), so
+/// DEBUG request/response logging for the app's HTTP layers (MindwireAPI + direct GitHub REST), so
 /// the live Oblien flow is visible in the Xcode console. Filter the console by `🌐`. Token-shaped
 /// values are redacted so logs are safe to paste. Compiled out of release builds.
 enum APILog {
@@ -35,7 +35,7 @@ enum APILog {
             (#"(?i)("(?:token|fcm_token|access_token|refresh_token|privateKey|private_key|password)"\s*:\s*")[^"]+(")"#, "$1…$2"),
             (#"(https?://)[^\s/@]+:[^\s/@]+@"#, "$1[REDACTED]@"),
             (#"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"#, "[JWT REDACTED]"),
-            (#"(ghs_|ghp_|gho_|github_pat_|onp_)[A-Za-z0-9_-]+"#, "$1…")
+            (#"(ghs_|ghp_|gho_|github_pat_|onp_|mwp_)[A-Za-z0-9_-]+"#, "$1…")
         ]
         return patterns.reduce(s) { value, item in
             guard let re = try? NSRegularExpression(pattern: item.0) else { return value }

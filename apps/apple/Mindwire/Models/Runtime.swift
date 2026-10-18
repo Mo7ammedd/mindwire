@@ -61,17 +61,19 @@ enum AgentRuntime: Codable, Hashable {
 }
 
 /// Stable, portable identity for one Docker environment on a saved SSH host.
-/// The initial image is pinned; later service updates use the shared release installer.
+/// A standard base container uses the shared release installer for the service binary.
 struct ServerSandbox: Codable, Hashable {
     let id: String
     let version: String
     var name: String { "mindwire-" + id }
     var volume: String { "mindwire-home-" + id }
-    var image: String { "ghcr.io/oblien/mindwire-runtime:" + version }
+    var image: String { Self.baseImage }
+    static let baseImage = "node:24-bookworm"
     static let home = "/home/node"
     static let minimumServiceVersion = "0.1.17"
     static let ownerLabel = "io.mindwire.workspace"
     static let nameLabel = "io.mindwire.name"
+    static let versionLabel = "io.mindwire.runtime-version"
 
     var isValid: Bool {
         id.count == 32 && id.allSatisfy { "0123456789abcdef".contains($0) }

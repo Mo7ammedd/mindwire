@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -166,10 +165,6 @@ jobs:
           bun-version: 1.4.3
       - name: Install
         uses: ./.github/actions/bun-install
-      # The console typechecks and bundles against the SDK's built type declarations (mindwire
-      # resolves to dist/index.d.ts), and the Hono server imports the SDK at runtime — so build it first.
-      - name: Build SDK
-        run: bun --filter='mindwire' run build
       - name: Typecheck
         run: bun --filter='@mindwire/console' run check
       - name: Build
@@ -180,3 +175,11 @@ jobs:
         env:
           MINDWIRE_DIRECTORY_TEST_DATABASE_URL: postgresql://mindwire_test:local_test_only@127.0.0.1:5432/postgres
         run: bun test apps/console/test/computer-directory.test.ts packages/sdk/test/computer-directory.test.ts
+      - name: Test notification delivery and legacy import with PostgreSQL
+        env:
+          PUSH_TEST_POSTGRES_URL: postgresql://mindwire_test:local_test_only@127.0.0.1:5432/postgres
+        run: bun --cwd apps/console test test/push-notifications.test.ts
+      - name: Test monthly computers and account migration with PostgreSQL
+        env:
+          CLOUD_TEST_POSTGRES_URL: postgresql://mindwire_test:local_test_only@127.0.0.1:5432/postgres
+        run: bun --cwd apps/console test test/cloud-computers.test.ts

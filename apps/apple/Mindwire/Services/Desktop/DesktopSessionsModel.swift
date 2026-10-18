@@ -28,7 +28,7 @@ final class CloudDesktopSessionsClient: DesktopSessionsRemote {
     let workspace: Workspace
     let projectId: String?
     private let stores: Stores
-    private var api: DesktopSessionsAPI { OblienCloud.client.workspace(workspace.id).desktop.sessions }
+    private var api: DesktopSessionsAPI { MindwireCloud.workspace(workspace.id).desktop.sessions }
 
     init(workspace: Workspace, projectId: String?, stores: Stores) {
         self.workspace = workspace; self.projectId = projectId; self.stores = stores

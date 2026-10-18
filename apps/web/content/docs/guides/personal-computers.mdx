@@ -209,12 +209,11 @@ updates. Your phone learns the directory URL and its decryption key through the
 paired SSH connection. No browser login, matching account or account token is
 needed on either device.
 
-You can use your [self-hosted Mindwire Console](https://github.com/oblien/mindwire/tree/main/apps/console)
-as the directory. It uses the same server and persistent database; its normal
-website login remains separate. Set its stable HTTPS URL on the computer:
+The default directory is hosted by Mindwire. A compatible private directory endpoint can also be
+selected on the computer; this does not require a browser account or a self-hosted Console:
 
 ```sh
-mindwire discovery enable --directory-url https://console.example.com/api/computer-directory/v1
+mindwire discovery enable --directory-url https://directory.example.com/api/computer-directory/v1
 ```
 
 The CLI also accepts `MINDWIRE_DIRECTORY_URL`. It uses the explicit flag first,

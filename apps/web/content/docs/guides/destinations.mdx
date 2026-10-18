@@ -357,9 +357,10 @@ runtime files API; Docker streams an in-memory tar to `putArchive`; SSH `mkdir -
 streams over SFTP. The launch and health-gate are identical.
 
 For SSH and sandbox targets, the destination downloads and verifies the matching Linux release binary
-itself. For Docker, omit `image` to pull `ghcr.io/oblien/mindwire-runtime:<SDK_VERSION>`; it already
-contains `mindwired` and the supported agent CLIs, so no daemon upload or first-run CLI installation is
-needed. Pass `daemonBin` only for air-gapped destinations.
+itself. For Docker, omit `image` to use the standard `node:24-bookworm` base container. The shared
+installer resolves the SDK-matched released binary, verifies its checksum and uploads it to the
+container. Supported agent CLIs install through their normal setup flow. Custom images keep their
+entrypoint and command. Pass `daemonBin` for air-gapped destinations or local development.
 
 ### Auto-update
 

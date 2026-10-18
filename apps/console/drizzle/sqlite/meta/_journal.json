@@ -22,6 +22,20 @@
       "when": 1790840545119,
       "tag": "0002_directory_key_ownership",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792321329886,
+      "tag": "0003_push_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792335605139,
+      "tag": "0004_cloud_computers",
+      "breakpoints": true
     }
   ]
 }

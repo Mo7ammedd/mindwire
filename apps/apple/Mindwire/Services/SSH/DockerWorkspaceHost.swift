@@ -37,6 +37,7 @@ actor DockerWorkspaceHost {
         let id: String
         let owner: String?
         let displayName: String?
+        let runtimeVersion: String?
         let image: String
         let status: String
         let created: String
@@ -55,14 +56,18 @@ actor DockerWorkspaceHost {
         }
         var sandbox: ServerSandbox? {
             let prefix = "ghcr.io/oblien/mindwire-runtime:"
-            guard let owner, image.hasPrefix(prefix) else { return nil }
-            let sandbox = ServerSandbox(id: owner, version: String(image.dropFirst(prefix.count)))
+            guard let owner else { return nil }
+            let version: String
+            if image == ServerSandbox.baseImage, let runtimeVersion { version = runtimeVersion }
+            else if image.hasPrefix(prefix) { version = String(image.dropFirst(prefix.count)) }
+            else { return nil }
+            let sandbox = ServerSandbox(id: owner, version: version)
             return sandbox.isValid ? sandbox : nil
         }
     }
 
     // Deliberately select public metadata; docker inspect's full JSON contains environment secrets.
-    private static let format = #"{"id":{{json .Id}},"owner":{{json (index .Config.Labels "io.mindwire.workspace")}},"displayName":{{json (index .Config.Labels "io.mindwire.name")}},"image":{{json .Config.Image}},"status":{{json .State.Status}},"created":{{json .Created}},"ports":{{json (index .NetworkSettings.Ports "8790/tcp")}},"memory":{{.HostConfig.Memory}},"nanoCPUs":{{.HostConfig.NanoCpus}}}"#
+    private static let format = #"{"id":{{json .Id}},"owner":{{json (index .Config.Labels "io.mindwire.workspace")}},"displayName":{{json (index .Config.Labels "io.mindwire.name")}},"runtimeVersion":{{json (index .Config.Labels "io.mindwire.runtime-version")}},"image":{{json .Config.Image}},"status":{{json .State.Status}},"created":{{json .Created}},"ports":{{json (index .NetworkSettings.Ports "8790/tcp")}},"memory":{{.HostConfig.Memory}},"nanoCPUs":{{.HostConfig.NanoCpus}}}"#
 
     func list() async throws -> [Snapshot] {
         let output = try await checked(["docker", "ps", "-a", "--filter", "label=\(ServerSandbox.ownerLabel)", "--format", "{{.ID}}"])
@@ -206,6 +211,7 @@ actor DockerWorkspaceHost {
         ["docker", "run", "--detach", "--init", "--restart", "unless-stopped",
          "--name", sandbox.name, "--label", "\(ServerSandbox.ownerLabel)=\(sandbox.id)",
          "--label", "\(ServerSandbox.nameLabel)=\(displayName)",
+         "--label", "\(ServerSandbox.versionLabel)=\(sandbox.version)",
          "--publish", "127.0.0.1::8790", "--mount", "type=volume,source=\(sandbox.volume),target=\(ServerSandbox.home)",
          "--user", "node", "--workdir", ServerSandbox.home,
          "--cpus", String(max(1, spec.cpus)), "--memory", "\(max(128, spec.memoryMb))m", "--pids-limit", "1024",
@@ -226,7 +232,7 @@ actor DockerWorkspaceHost {
       node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))' > "$mw_dir/daemon.token"
     fi
     export DAEMON_TOKEN="$(cat "$mw_dir/daemon.token")"
-    if [ ! -x "$mw_dir/mindwired" ]; then
+    if [ ! -x "$mw_dir/mindwired" ] && [ -x /usr/local/bin/mindwired ]; then
       cp /usr/local/bin/mindwired "$mw_dir/mindwired"
       chmod 700 "$mw_dir/mindwired"
     fi

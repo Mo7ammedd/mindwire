@@ -90,7 +90,7 @@ export default function Nav() {
           </a>
           <ThemeToggle />
           <a href={consoleUrl} className="btn btn-primary ml-2 px-4 py-2 text-[13px]">
-            Open console
+            Your account
           </a>
         </nav>
       </div>

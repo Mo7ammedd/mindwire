@@ -16,7 +16,7 @@ export interface SecretMetadata {
   updatedAt: number;
 }
 
-function encrypt(value: string): string {
+export function encrypt(value: string): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", env.secretsEncryptionKey, iv);
   const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
@@ -24,7 +24,7 @@ function encrypt(value: string): string {
   return `v1.${iv.toString("base64url")}.${tag.toString("base64url")}.${ciphertext.toString("base64url")}`;
 }
 
-function decrypt(payload: string): string {
+export function decrypt(payload: string): string {
   const [version, ivText, tagText, ciphertextText] = payload.split(".");
   if (version !== "v1" || !ivText || !tagText || !ciphertextText) throw new Error("Stored secret has an invalid format.");
   const decipher = createDecipheriv("aes-256-gcm", env.secretsEncryptionKey, Buffer.from(ivText, "base64url"));

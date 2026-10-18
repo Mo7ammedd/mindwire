@@ -48,7 +48,7 @@ mindwire/
 │   ├── src/                client.ts · http.ts · embedded.ts · run.ts · sse.ts · types.ts
 │   └── (downloads the SDK-matched runtime binary from GitHub Releases when embedding)
 │
-├── docker/                 production runtime + console images and self-host Compose
+├── docker/                 source-built website and hosted account portal deployment
 │
 └── apps/web/               `@mindwire/web` — this site + docs (output: "export")
 ```
@@ -84,8 +84,8 @@ the **`target`** option — with the same HTTP + SSE contract across every one. 
 - **`remote(url)`.** Connects to a self-hosted or shared daemon over HTTP. This is also the **only**
   option in the browser / edge, which can't spawn a process.
 - **`ssh()` / `docker()` / `oblien()`.** Provision the runtime on a bare box, in a container, or in a
-  sandbox. SSH and sandbox targets download a verified release binary on the destination; Docker pulls
-  the SDK-matched runtime image. Every path streams `EnsureEvent` logs and uses the same HTTP + SSE API.
+  sandbox. SSH and sandbox targets download a verified release binary on the destination; Docker
+  bootstraps the matching released binary into an ordinary base container. Every path streams `EnsureEvent` logs and uses the same HTTP + SSE API.
 
 Local-embedded is a deliberate choice, not FFI: an in-process cgo binding was prototyped and abandoned
 because it segfaults on Bun (Go runtime × JavaScriptCore). Auto-spawn gives the same "just works"
@@ -94,10 +94,11 @@ DX and is reliable across every server runtime.
 ### Binary distribution
 
 The npm SDK contains TypeScript only. It downloads the matching `mindwired` binary from the GitHub
-Release, verifies its published SHA-256, then caches it outside `node_modules`. The release also
-publishes matching multi-architecture `mindwire-runtime` and `mindwire-console` images to GHCR.
+Release, verifies its published SHA-256, then caches it outside `node_modules`. Console is Mindwire’s
+hosted account and Cloud management portal and builds from source. No runtime or Console images are
+published to GHCR.
 
-**Release order:** checked binaries → GitHub Release → runtime and console images → image smoke test → npm SDK.
+**Release order:** checked binaries → GitHub Release → downloaded binary smoke test → npm SDK.
 
 ## Extending: add an agent
 

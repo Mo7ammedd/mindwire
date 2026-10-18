@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Destinations describe presentation only. Both paths use WorkspaceRepository and the
-/// existing pairing, Oblien sign-in and cloud creation screens.
+/// existing pairing, Mindwire sign-in and cloud creation screens.
 enum AssistantComputerDestination {
     case computer, cloud
 
@@ -161,7 +161,7 @@ struct AssistantComputerPicker: View {
         .navigationTitle(destination.title).navigationBarTitleDisplayMode(.inline)
         .task { await refresh() }
         .refreshable { await refresh(force: true) }
-        .oblienLoginSheet(isPresented: $showingLogin) { Task { await refresh(force: true) } }
+        .mindwireLoginSheet(isPresented: $showingLogin) { Task { await refresh(force: true) } }
     }
 
     private func refresh(force: Bool = false) async {

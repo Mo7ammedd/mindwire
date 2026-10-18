@@ -15,7 +15,7 @@ final class AppLifecycleTests: XCTestCase {
             do { try await Task.sleep(for: .seconds(3_600)) } catch { }
             stops += 1
         })
-        let active = AppActivityContext(active: true, accountID: 1)
+        let active = AppActivityContext(active: true, accountID: "1")
         lifecycle.update(active)
         lifecycle.update(active)
         async let firstWindow: Void = lifecycle.prepare()
@@ -25,7 +25,7 @@ final class AppLifecycleTests: XCTestCase {
         XCTAssertEqual(preparations, 1)
         XCTAssertEqual(starts, 1)
 
-        lifecycle.update(.init(active: false, accountID: 1))
+        lifecycle.update(.init(active: false, accountID: "1"))
         try await Task.sleep(for: .milliseconds(30))
         XCTAssertEqual(stops, 1)
         lifecycle.update(active)
@@ -33,10 +33,10 @@ final class AppLifecycleTests: XCTestCase {
         XCTAssertEqual(preparations, 1)
         XCTAssertEqual(starts, 2)
 
-        lifecycle.update(.init(active: true, accountID: 2))
+        lifecycle.update(.init(active: true, accountID: "2"))
         try await Task.sleep(for: .milliseconds(30))
         XCTAssertEqual(starts, 3, "Switching accounts renews the shared subscription")
         XCTAssertEqual(stops, 2)
-        lifecycle.update(.init(active: false, accountID: 2))
+        lifecycle.update(.init(active: false, accountID: "2"))
     }
 }

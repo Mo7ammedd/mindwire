@@ -1,7 +1,14 @@
 export const githubUrl = "https://github.com/oblien/mindwire";
-export const cloudDashboardUrl = "https://oblien.com/dashboard";
-export const cloudPricingUrl = "https://oblien.com/pricing";
-export const cloudRatesUrl = "https://oblien.com/dashboard/credits/pricing";
+function consoleOrigin(): string {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_CONSOLE_URL ?? "https://console.mindwire.sh");
+    if (url.username || url.password || url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) throw new Error();
+    return url.origin;
+  } catch { return "https://console.mindwire.sh"; }
+}
+export const cloudDashboardUrl = consoleOrigin() + "/computers";
+export const cloudPricingUrl = "/pricing";
+export const cloudRatesUrl = "https://console.mindwire.sh/computers";
 
 // Add the public iOS URL at deployment time. Until then, download buttons lead
 // to the iPhone setup section, which clearly marks the download as coming soon.

@@ -1,6 +1,4 @@
-// The Hono backend. It owns the mindwire SDK and the session store; the browser only ever talks to
-// this origin (same-origin JSON + SSE). In prod it also serves the built SPA. In dev, Vite serves the
-// client and proxies `/api` + `/events` here.
+// Mindwire’s hosted account, device and Cloud management API and dashboard.
 import { readFile } from "node:fs/promises";
 import { join, normalize } from "node:path";
 import { serve } from "@hono/node-server";
@@ -9,24 +7,27 @@ import { Hono } from "hono";
 import { env } from "./env";
 import { initAuth, publicConfig } from "./auth";
 import { registerAuth } from "./guard";
-import { registerRoutes } from "./routes";
-import { registerTurnRoutes } from "./turn";
 import { registerComputerDirectory, startDirectoryMaintenance } from "./computer-directory/routes";
+import { registerNotifications } from "./notifications/routes";
+import { registerCloud, startComputerReconciliation } from "./cloud/routes";
+import { registerAccountPortal } from "./account/routes";
 
 const app = new Hono();
 
-// Mount the global auth boundary first. The directory has its own key-based
-// authentication; workspace APIs continue to require a website session.
+// Mount security headers and the default account boundary first. Cloud, push and
+// directory modules authenticate their own account or scoped credentials.
 registerAuth(app);
 registerComputerDirectory(app);
+registerNotifications(app);
+registerCloud(app);
+registerAccountPortal(app);
 
 app.get("/api/ping", (c) => c.json({ ok: true, service: "console" }));
 // The only pre-auth data route: branding + sign-in options for the login gate. Secret-free by
 // construction (see `publicConfig`), and explicitly waved through by the guard's public allowlist.
 app.get("/api/public-config", (c) => c.json(publicConfig()));
 
-registerRoutes(app);
-registerTurnRoutes(app);
+
 
 // ---- static SPA (prod only) ------------------------------------------------
 // A minimal, adapter-agnostic static server: serve built assets from `clientDist`, fall back to
@@ -66,6 +67,9 @@ async function serveClientAsset(
   }
 }
 
+app.all("/api/*", c => c.json({ error: "Not found", code: "not_found" }, 404));
+app.all("/events/*", c => c.json({ error: "Not found", code: "not_found" }, 404));
+
 if (env.isProd) {
   app.get("*", async (c) => {
     const url = new URL(c.req.url);
@@ -83,8 +87,9 @@ if (env.isProd) {
 initAuth()
   .then(() => {
     startDirectoryMaintenance();
+    startComputerReconciliation();
     serve({ fetch: app.fetch, port: env.port }, (info) => {
-      console.log(`[console] listening on http://127.0.0.1:${info.port} (daemon: ${env.daemonUrl})`);
+      console.log(`[console] listening on http://127.0.0.1:${info.port}`);
     });
   })
   .catch((err: unknown) => {

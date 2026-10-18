@@ -68,7 +68,7 @@ extension Stores {
         case .local:
             return "This Mac"
         case .cloud:
-            return "Oblien Cloud"
+            return "Mindwire Cloud"
         case .server(let serverId), .container(let serverId, _):
             return connections.get(serverId)?.name ?? "Workspace"
         }

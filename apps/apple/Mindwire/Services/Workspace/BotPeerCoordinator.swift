@@ -27,7 +27,7 @@ final class BotPeerCoordinator {
         let name: String
         let runtime: AgentRuntime
         let connection: Connection?
-        let accountID: Int?
+        let accountID: String?
         let master: Bool
     }
     private struct Binding: Codable {
@@ -74,7 +74,7 @@ final class BotPeerCoordinator {
         let input = workspaces.sorted { $0.id < $1.id }.map {
             Input(id: $0.id, name: $0.name, runtime: $0.runtime,
                   connection: $0.runtime.serverId.flatMap { connections[$0] },
-                  accountID: $0.isCloud ? OblienAuth.shared.user?.id : nil,
+                  accountID: $0.isCloud ? MindwireAuth.shared.user?.id : nil,
                   master: masters.contains($0.id))
         }
         guard force || lastInput != input else { return }

@@ -2,7 +2,7 @@ import Foundation
 
 /// `AgentService` backed by the Oblien platform REST API (`/v1/sessions`).
 final class CloudAgentService: AgentService {
-    private let api = OblienAPI.shared
+    private let api = MindwireAPI.shared
 
     func listSessions() async throws -> [AgentSession] {
         try await api.get("/v1/sessions")

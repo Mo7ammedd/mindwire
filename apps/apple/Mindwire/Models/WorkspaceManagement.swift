@@ -394,12 +394,12 @@ struct WorkspaceControlError: LocalizedError, Sendable {
                let message = body["message"] as? String, !message.isEmpty,
                !message.contains("dial tcp"), !message.contains("127.0.0.1") { return message }
             switch status {
-            case 401: return "Sign in to Oblien again to manage this workspace."
+            case 401: return "Sign in to Mindwire again to manage this workspace."
             case 403: return "Your account cannot change this workspace setting."
             case 404: return "This control is not available on this workspace."
             case 409: return "The workspace cannot make this change in its current state. Refresh its status and try again."
             case 429: return "Too many requests. Wait a moment and try again."
-            case 500...599: return "Oblien could not complete this request. Try again shortly."
+            case 500...599: return "Mindwire could not complete this request. Try again shortly."
             default: return "The change could not be completed. Refresh and try again."
             }
         }

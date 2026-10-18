@@ -49,7 +49,8 @@ Existing released tags retain their old source layout. New releases publish a ma
 
 The npm package remains `mindwire`; its CLI remains `mindwire`, and the executable remains
 `mindwired`. GitHub releases still use the existing repository and `vX.Y.Z` asset URLs. The
-`ghcr.io/oblien/mindwire-runtime` and `mindwire-console` image names are unchanged. Do not rename
+Runtime installation now uses GitHub Release binaries; Console builds from source for Mindwire SaaS.
+Historical GHCR images are no longer published. Do not rename
 these identifiers as part of a folder move: installed clients already use them.
 
 ## Apple platforms

@@ -5,7 +5,7 @@ struct SettingsScreen: View {
     @Environment(\.appExperienceMode) private var experienceMode
     @State private var showingAssistantSetup = false
     @State private var showingBotConnections = false
-    private var auth = OblienAuth.shared
+    private var auth = MindwireAuth.shared
 
     var body: some View {
         List {

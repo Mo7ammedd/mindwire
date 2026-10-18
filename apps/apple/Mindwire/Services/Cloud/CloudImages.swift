@@ -57,7 +57,7 @@ enum CloudImages {
         let task = Task { @MainActor in
             defer { pending = nil }
             do {
-                let imageList = try await OblienCloud.client.workspaces.images()
+                let imageList = try await MindwireCloud.client.workspaces.images()
                 let result = imageList.images.compactMap(WorkspaceImage.init(catalogImage:))
                 cache = result
                 hasLoaded = true

@@ -33,7 +33,7 @@ curl -s -H "Authorization: Bearer $DAEMON_TOKEN" http://127.0.0.1:8790/healthz
 | `MINDWIRE_ISOLATION` | `direct` | Trusted launch setting: `direct` uses the host account's normal access; `container` uses the enclosing container as its boundary. Codex adds no inner sandbox by default. Explicit sandbox settings and approvals are preserved. Reported by `/healthz` as `workspaceIsolation` with `workspaceIsolationVersion: 1`. |
 | `DEV_CORS` | off | `1` allows a cross-origin browser client (e.g. the preview app's dev server). |
 
-The runtime image and the SDK's Docker/SSH-container launchers set `MINDWIRE_ISOLATION=container`.
+The Apple app and SDK's Docker/SSH-container launchers set `MINDWIRE_ISOLATION=container`.
 Direct host launchers leave it unset. Commands run as the account that started Mindwire, with its
 normal filesystem, tools and network access (including root when started as root). Codex defaults
 to `danger-full-access` in both placements; Docker still supplies the container boundary. This

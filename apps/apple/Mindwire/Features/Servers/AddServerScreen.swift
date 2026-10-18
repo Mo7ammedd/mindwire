@@ -149,7 +149,7 @@ struct AddServerScreen: View {
         } header: {
             Text(isReconnecting ? "On your computer" : t("addServer.local.section.install"))
         } footer: {
-            Text("Encrypted end to end. Your phone can be signed out or use a different Oblien account.")
+            Text("Encrypted end to end. Your phone can be signed out or use a different Mindwire account.")
         }
 
         Section {

@@ -11,16 +11,12 @@ import { seedLegacyDirectory } from "./legacy-directory";
 await seedLegacyDirectory();
 await import("../../server/index");
 const { auth } = await import("../../server/auth");
-const { getSession } = await import("../../server/session");
 const { pruneDirectory } = await import("../../server/computer-directory/routes");
 
 process.on("message", async (message: { id: number; action: string; value?: any }) => {
   try {
     let value: unknown;
     switch (message.action) {
-      case "hasFleet":
-        value = !!getSession(message.value);
-        break;
       case "deleteUser":
         await (await auth.$context).internalAdapter.deleteUser(message.value);
         value = true;

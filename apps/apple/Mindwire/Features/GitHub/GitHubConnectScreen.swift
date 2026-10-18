@@ -30,7 +30,7 @@ struct GitHubConnectScreen: View {
                         .tint(.primary)
                     }
                 } header: { Text(t("github.credential.addConnection")) }
-                appSection
+                if ghStatus?.available != false { appSection }
                 if let connectError {
                     Section { Text(connectError).foregroundStyle(.red).font(.footnote) }
                 }
@@ -48,7 +48,7 @@ struct GitHubConnectScreen: View {
                 SafariView(url: item.url) { appSafari = nil }.ignoresSafeArea()
             }
             .sheet(isPresented: $showLogin) {
-                OblienLoginSheet {
+                MindwireLoginSheet {
                     if let step = pendingStep { pendingStep = nil; openStep(step) }
                     else { Task { await loadGitHubStatus() } }
                 }
@@ -96,7 +96,7 @@ struct GitHubConnectScreen: View {
         Task { @MainActor in
             defer { connecting = false }
             do {
-                guard await OblienAuth.shared.ensure() else {
+                guard await MindwireAuth.shared.ensure() else {
                     pendingStep = step
                     showLogin = true
                     return
@@ -124,7 +124,7 @@ struct GitHubConnectScreen: View {
     }
 
     private func loadGitHubStatus() async {
-        guard OblienAuth.shared.authenticated else { return }
+        guard MindwireAuth.shared.authenticated else { return }
         loadingStatus = true
         defer { loadingStatus = false }
         do { ghStatus = try await GitHubConnectAPI().status() }

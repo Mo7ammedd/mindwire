@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Self-hostable Mindwire console \u2014 a Vite SPA and Hono server for managing runtimes and driving coding agents.",
+  "description": "Mindwire account, device, billing and Cloud Computer management",
   "scripts": {
     "dev": "node dev.mjs",
     "dev:client": "vite",
@@ -31,9 +31,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "0.45.4",
+    "firebase-admin": "^13.10.0",
     "hono": "^4.13.13",
     "lucide-react": "^1.57.0",
-    "mindwire": "workspace:*",
     "oblien": "^2.10.0",
     "pg": "^8.23.1",
     "react": "^19.3.1",
@@ -41,10 +41,6 @@
     "react-router-dom": "^7.18.4",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0"
-  },
-  "optionalDependencies": {
-    "dockerode": "^5.0.1",
-    "ssh2": "^1.17.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -33,15 +33,15 @@ final class DaemonBootstrapTests: XCTestCase {
         let oldIdle = UIApplication.shared.isIdleTimerDisabled
         UIApplication.shared.isIdleTimerDisabled = true
         defer { UIApplication.shared.isIdleTimerDisabled = oldIdle }
-        await OblienAuth.shared.refresh()
-        XCTAssertTrue(OblienAuth.shared.authenticated)
-        let live = try await OblienCloud.client.workspaces.get(workspaceID)
+        await MindwireAuth.shared.refresh()
+        XCTAssertTrue(MindwireAuth.shared.authenticated)
+        let live = try await MindwireCloud.client.workspaces.get(workspaceID)
         XCTAssertTrue(live.isRunning)
         let fixture = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MindwireInstallFixture.json")
         let token = try await CloudDesktopProvider(workspaceId: workspaceID).gatewayToken()
         try JSONSerialization.data(withJSONObject: ["workspaceId": workspaceID, "token": token,
-            "baseURL": OblienCloud.client.config.runtimeURL.absoluteString])
+            "baseURL": MindwireCloud.client.config.runtimeURL.absoluteString])
             .write(to: fixture, options: [.atomic, .completeFileProtection])
         print("INSTALL_CHECK scoped diagnostic fixture saved privately")
         if env["MINDWIRE_INSTALL_VERIFY"] == "1" {

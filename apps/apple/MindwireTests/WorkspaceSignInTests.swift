@@ -1,10 +1,59 @@
 import XCTest
+import Network
 import OblienKit
 @testable import Mindwire
 
 @MainActor
 final class WorkspaceSignInTests: XCTestCase {
-    private let signedIn = AuthStatus(authenticated: true, user: AuthUser(id: 42, name: "Test owner"))
+    func testCloudManagementAndRuntimeUseSeparateMindwireOrigins() {
+        XCTAssertEqual(MindwireCloud.client.config.baseURL.absoluteString, AppConstants.mindwireServicesBase + "/api/cloud/provider")
+        XCTAssertEqual(MindwireCloud.client.config.runtimeURL.absoluteString, "https://computers.mindwire.sh")
+        XCTAssertNotEqual(MindwireCloud.client.config.baseURL.host, MindwireCloud.client.config.runtimeURL.host)
+    }
+
+    func testCloudAccountAndComputerCredentialsDoNotFollowRedirects() async throws {
+        let server = try CloudAccountProbe()
+        let origin = try await server.start()
+        defer { server.close() }
+        var account = URLRequest(url: origin.appendingPathComponent("account"))
+        account.setValue("Bearer fixture-account-session", forHTTPHeaderField: "Authorization")
+        let (_, accountResponse) = try await MindwireAPI.httpSession.data(for: account)
+        XCTAssertEqual((accountResponse as? HTTPURLResponse)?.statusCode, 302)
+        let channel = URLSessionDaemonChannel(session: MindwireAPI.httpSession) { _, _, _, _ in
+            var request = URLRequest(url: origin.appendingPathComponent("daemon"))
+            request.setValue("Bearer fixture-computer-jwt", forHTTPHeaderField: "Authorization")
+            request.setValue("fixture-daemon-token", forHTTPHeaderField: "X-Mindwire-Token")
+            return request
+        }
+        let response = try await channel.perform(method: "GET", path: "/", jsonBody: nil)
+        XCTAssertEqual(response.status, 302)
+        let requests = server.requests
+        XCTAssertEqual(requests.count, 2, "No redirect destination should receive credentials")
+        XCTAssertTrue(requests[0].contains("Bearer fixture-account-session"))
+        XCTAssertTrue(requests[1].contains("Bearer fixture-computer-jwt"))
+        XCTAssertFalse(requests[1].contains("fixture-account-session"))
+        XCTAssertTrue(requests[1].contains("fixture-daemon-token"))
+    }
+
+    func testSDKRuntimeUsesOnlyTheOwnedComputerCredential() async throws {
+        let server = try CloudAccountProbe(redirects: false)
+        let origin = try await server.start()
+        defer { server.close() }
+        let client = OblienClient(.init(auth: .scopedToken("fixture-account-session"), baseURL: origin,
+            runtimeURL: origin, maxRetries: 0))
+        let runtime = try await client.workspace("owned").runtime()
+        let healthy = try await runtime.health()
+        XCTAssertTrue(healthy)
+        let requests = server.requests
+        XCTAssertEqual(requests.count, 3)
+        XCTAssertTrue(requests[0].contains("Bearer fixture-account-session"))
+        XCTAssertTrue(requests[1].contains("Bearer fixture-account-session"))
+        XCTAssertTrue(requests[2].hasPrefix("GET /health "))
+        XCTAssertTrue(requests[2].contains("Bearer fixture-computer-jwt"))
+        XCTAssertFalse(requests[2].contains("fixture-account-session"))
+    }
+
+    private let signedIn = AuthStatus(authenticated: true, user: AuthUser(id: "42", name: "Test owner"))
 
     private func stores() throws -> Stores {
         let suite = "workspace-sign-in-\(UUID().uuidString)"
@@ -26,7 +75,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let stores = try stores()
         var authRequests = 0
         var finishAuth: CheckedContinuation<AuthStatus, Error>?
-        let auth = OblienAuth {
+        let auth = MindwireAuth {
             authRequests += 1
             return try await withCheckedThrowingContinuation { finishAuth = $0 }
         }
@@ -60,7 +109,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let stores = try stores()
         var authRequests = 0
         let status = signedIn
-        let auth = OblienAuth {
+        let auth = MindwireAuth {
             authRequests += 1
             if authRequests == 1 { throw URLError(.notConnectedToInternet) }
             return status
@@ -86,7 +135,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let stores = try stores()
         var offline = false
         let status = signedIn
-        let auth = OblienAuth {
+        let auth = MindwireAuth {
             if offline { throw URLError(.networkConnectionLost) }
             return status
         }
@@ -96,7 +145,7 @@ final class WorkspaceSignInTests: XCTestCase {
         offline = true
         await auth.refresh()
         XCTAssertTrue(auth.authenticated)
-        XCTAssertEqual(auth.user?.id, 42)
+        XCTAssertEqual(auth.user?.id, "42")
         XCTAssertEqual(adapter.current().map(\.id), [workspace.id])
         let available = await auth.ensure()
         XCTAssertTrue(available)
@@ -105,7 +154,7 @@ final class WorkspaceSignInTests: XCTestCase {
     func testWorkspaceResponseFromPreviousAccountIsNotPublished() async throws {
         let stores = try stores()
         var status = signedIn
-        let auth = OblienAuth { status }
+        let auth = MindwireAuth { status }
         let workspace = try cloudWorkspace()
         var finishList: CheckedContinuation<[OblienKit.Workspace], Never>?
         let adapter = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
@@ -115,7 +164,7 @@ final class WorkspaceSignInTests: XCTestCase {
         for _ in 0..<100 where finishList == nil { await Task.yield() }
         XCTAssertNotNil(finishList)
         defer { finishList?.resume(returning: []) }
-        status = AuthStatus(authenticated: true, user: AuthUser(id: 84, name: "Another owner"))
+        status = AuthStatus(authenticated: true, user: AuthUser(id: "84", name: "Another owner"))
         await auth.refresh()
         finishList?.resume(returning: [workspace]); finishList = nil
         do { try await request.value; XCTFail("The old account's response must be discarded") }
@@ -131,7 +180,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let cloudProject = stores.createProject(.init(name: "Cloud project", workspaceId: "cloud-workspace", path: "/cloud"))
         let chat = stores.createChat(agentId: "cloud-agent", projectId: cloudProject.id)
         var authRequests = 0
-        let auth = OblienAuth { authRequests += 1; return AuthStatus(authenticated: false) }
+        let auth = MindwireAuth { authRequests += 1; return AuthStatus(authenticated: false) }
         var listRequests = 0
         let cloud = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
             listRequests += 1; return []
@@ -166,7 +215,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let local = stores.createWorkspace(name: "My server", runtime: .server(serverId: "local-server"))
         let project = stores.createProject(.init(name: "Cloud project", workspaceId: "cloud-workspace", path: "/cloud"))
         var status = signedIn
-        let auth = OblienAuth { status }
+        let auth = MindwireAuth { status }
         let workspace = try cloudWorkspace()
         var listRequests = 0
         let cloud = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
@@ -200,7 +249,7 @@ final class WorkspaceSignInTests: XCTestCase {
 
     func testRelaunchRestoresWorkspaceBeforeAuthAndKeepsItDuringOfflineRevalidation() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
-        let first = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults,
+        let first = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults,
             sessionToken: { "fixture-session" }) { [workspace] }
         try await first.refresh()
         let saved = try XCTUnwrap(stores.defaults.data(forKey: StorageKey.cloudWorkspaceCache))
@@ -209,7 +258,7 @@ final class WorkspaceSignInTests: XCTestCase {
         stores.createProject(.init(name: "Website", workspaceId: workspace.id, path: "/projects/site"))
 
         var finishAuth: CheckedContinuation<AuthStatus, Error>?
-        let auth = OblienAuth { try await withCheckedThrowingContinuation { finishAuth = $0 } }
+        let auth = MindwireAuth { try await withCheckedThrowingContinuation { finishAuth = $0 } }
         let restored = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
             throw URLError(.notConnectedToInternet)
         }
@@ -241,17 +290,17 @@ final class WorkspaceSignInTests: XCTestCase {
 
     func testSavedInventoryDoesNotCrossSessionOrAccountBoundaries() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
-        let auth = OblienAuth { status }
+        let auth = MindwireAuth { status }
         let first = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [workspace] }
         try await first.refresh()
 
         for token: String? in [nil, "another-session"] {
-            let cold = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { token }) {
+            let cold = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { token }) {
                 XCTFail("Reading a cache must not make a network request"); return []
             }
             XCTAssertTrue(cold.current().isEmpty)
         }
-        let otherAccount = OblienAuth { AuthStatus(authenticated: true, user: AuthUser(id: 84, name: "Another owner")) }
+        let otherAccount = MindwireAuth { AuthStatus(authenticated: true, user: AuthUser(id: "84", name: "Another owner")) }
         let restored = CloudWorkspaceAdapter(auth: otherAccount, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
             throw URLError(.notConnectedToInternet)
         }
@@ -265,19 +314,19 @@ final class WorkspaceSignInTests: XCTestCase {
     func testExplicitRefreshPersistsNewMetadataAndAnEmptyInventory() async throws {
         let stores = try stores(), status = signedIn
         var remote = [try cloudWorkspace()]
-        let adapter = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults,
+        let adapter = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults,
             sessionToken: { "fixture-session" }) { remote }
         let repository = WorkspaceRepository(stores: stores, adapters: [adapter])
         await repository.refresh()
         remote = [try JSONDecoder().decode(OblienKit.Workspace.self,
             from: Data(#"{"id":"cloud-workspace","name":"Renamed Mac","image":"macos"}"#.utf8))]
         await repository.refresh()
-        let renamed = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
+        let renamed = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
         XCTAssertEqual(renamed.current().first?.name, "Renamed Mac")
         XCTAssertEqual(renamed.current().first?.image, "macos")
         remote = []
         await repository.refresh()
-        let empty = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
+        let empty = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
         XCTAssertTrue(empty.current().isEmpty, "Removed inventory must not return on the next launch")
         XCTAssertNotNil(stores.defaults.data(forKey: StorageKey.cloudWorkspaceCache))
     }
@@ -286,7 +335,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
         var holdList = false
         var finishList: CheckedContinuation<[OblienKit.Workspace], Never>?
-        let adapter = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults,
+        let adapter = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults,
             sessionToken: { "fixture-session" }, removeWorkspace: { _ in }) {
             if holdList { return await withCheckedContinuation { finishList = $0 } }
             return [workspace]
@@ -301,14 +350,14 @@ final class WorkspaceSignInTests: XCTestCase {
         finishList?.resume(returning: [workspace]); finishList = nil
         try await oldRequest.value
         XCTAssertTrue(adapter.current().isEmpty)
-        let reopened = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
+        let reopened = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
         XCTAssertTrue(reopened.current().isEmpty)
     }
 
     func testAuthoritativeLookupAndNewWorkspaceAdoptionPersistAcrossLaunches() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
         var deleted = false
-        let auth = OblienAuth { status }
+        let auth = MindwireAuth { status }
         let adapter = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" },
             lookupWorkspace: { _ in
                 if deleted { throw OblienError(kind: .server, status: 404, code: "not_found", message: "Not found", details: nil) }
@@ -322,7 +371,7 @@ final class WorkspaceSignInTests: XCTestCase {
         deleted = true
         let confirmed = await adapter.confirmsDeletion(workspace.id)
         XCTAssertTrue(confirmed)
-        let removed = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
+        let removed = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
         XCTAssertTrue(removed.current().isEmpty)
         let created = await removed.adopt(name: "Fresh workspace", runtime: .cloud(workspaceId: "new-workspace"), spec: nil)
         XCTAssertEqual(created?.id, "new-workspace")
@@ -332,12 +381,12 @@ final class WorkspaceSignInTests: XCTestCase {
 
     func testDeletingRestoredWorkspaceWaitsForSessionVerification() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
-        let first = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults,
+        let first = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults,
             sessionToken: { "fixture-session" }) { [workspace] }
         try await first.refresh()
         var finishAuth: CheckedContinuation<AuthStatus, Error>?
         var deleteCalls = 0
-        let auth = OblienAuth { try await withCheckedThrowingContinuation { finishAuth = $0 } }
+        let auth = MindwireAuth { try await withCheckedThrowingContinuation { finishAuth = $0 } }
         let restored = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults,
             sessionToken: { "fixture-session" }, removeWorkspace: { _ in deleteCalls += 1 }) { [] }
         XCTAssertEqual(restored.current().map(\.id), [workspace.id])
@@ -355,9 +404,75 @@ final class WorkspaceSignInTests: XCTestCase {
     func testCorruptInventoryCacheFallsBackToALiveCheck() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
         stores.defaults.set(Data("broken-cache".utf8), forKey: StorageKey.cloudWorkspaceCache)
-        let adapter = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [workspace] }
+        let adapter = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [workspace] }
         XCTAssertTrue(adapter.current().isEmpty)
         try await adapter.refresh()
         XCTAssertEqual(adapter.current().map(\.id), [workspace.id])
     }
+}
+
+/// Real HTTP redirects exercise URLSession's delegate behavior (URLProtocol
+/// fixtures do not reproduce the platform redirect callback).
+private final class CloudAccountProbe: @unchecked Sendable {
+    private let listener: NWListener
+    private let redirects: Bool
+    private let queue = DispatchQueue(label: "cloud-redirect-probe")
+    private let lock = NSLock()
+    private var recorded: [String] = []
+    private var clients: [NWConnection] = []
+    var requests: [String] { lock.withLock { recorded } }
+
+    init(redirects: Bool = true) throws {
+        self.redirects = redirects
+        let parameters = NWParameters.tcp
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .any)
+        listener = try NWListener(using: parameters)
+    }
+    func start() async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            var resumed = false
+            listener.stateUpdateHandler = { [weak self] state in
+                guard !resumed else { return }
+                switch state {
+                case .ready:
+                    if let port = self?.listener.port {
+                        resumed = true
+                        continuation.resume(returning: URL(string: "http://127.0.0.1:\(port.rawValue)")!)
+                    }
+                case .failed(let error): resumed = true; continuation.resume(throwing: error)
+                default: break
+                }
+            }
+            listener.newConnectionHandler = { [weak self] client in
+                guard let self else { client.cancel(); return }
+                self.lock.withLock { self.clients.append(client) }
+                client.start(queue: self.queue)
+                self.read(client, buffer: Data())
+            }
+            listener.start(queue: queue)
+        }
+    }
+    private func read(_ client: NWConnection, buffer: Data) {
+        client.receive(minimumIncompleteLength: 1, maximumLength: 16384) { [weak self] data, _, _, error in
+            guard let self, let data, !data.isEmpty, error == nil else { client.cancel(); return }
+            let buffer = buffer + data
+            guard buffer.range(of: Data("\r\n\r\n".utf8)) != nil else {
+                self.read(client, buffer: buffer); return
+            }
+            let request = String(decoding: buffer, as: UTF8.self)
+            self.lock.withLock { self.recorded.append(request) }
+            let response: String
+            if self.redirects && !request.hasPrefix("GET /unexpected ") {
+                response = "HTTP/1.1 302 Found\r\nLocation: /unexpected\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            } else {
+                let body: String
+                if request.hasPrefix("GET /health ") { body = #"{"status":"ok"}"# }
+                else if request.hasPrefix("GET /workspace/owned/runtime-api-access/token ") { body = #"{"token":"fixture-computer-jwt"}"# }
+                else { body = #"{"enabled":true}"# }
+                response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n" + body
+            }
+            client.send(content: Data(response.utf8), completion: .contentProcessed { _ in client.cancel() })
+        }
+    }
+    func close() { listener.cancel(); lock.withLock { clients.forEach { $0.cancel() } } }
 }

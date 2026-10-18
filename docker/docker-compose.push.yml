@@ -1,0 +1,8 @@
+# Optional overlay for docker-compose.yml.
+# The host file must be readable by container uid 1000; it is never copied into an image.
+services:
+  console:
+    environment:
+      FCM_SERVICE_ACCOUNT_PATH: /run/secrets/mindwire-firebase.json
+    volumes:
+      - ${MINDWIRE_FIREBASE_CREDENTIALS_FILE:?set the absolute Firebase service-account path}:/run/secrets/mindwire-firebase.json:ro

@@ -2,7 +2,7 @@ import Foundation
 
 struct AppActivityContext: Equatable {
     let active: Bool
-    let accountID: Int?
+    let accountID: String?
 }
 
 /// Windows have independent navigation, but share one foreground synchronization loop.
@@ -27,7 +27,7 @@ final class AppLifecycle {
     convenience init(stores: Stores) {
         self.init(prepare: {
             // A cold notification needs workspace metadata before resolving its chat.
-            await OblienAuth.shared.refresh()
+            await MindwireAuth.shared.refresh()
             // Register the phone independently of slow or unreachable workspaces.
             async let push: Void = BackendFactory.pushService().start()
             await WorkspaceRepository.shared.refreshIfNeeded()

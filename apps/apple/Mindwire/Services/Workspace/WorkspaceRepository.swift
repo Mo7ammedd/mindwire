@@ -8,12 +8,12 @@ import Observation
 struct WorkspaceConnectionContext: Equatable {
     let runtime: AgentRuntime
     let server: Connection?
-    let accountID: Int?
+    let accountID: String?
 
     @MainActor init(_ workspace: Workspace, stores: Stores) {
         runtime = workspace.runtime
         server = workspace.runtime.serverId.flatMap { stores.connections.get($0) }
-        accountID = workspace.runtime.isCloud ? OblienAuth.shared.user?.id : nil
+        accountID = workspace.runtime.isCloud ? MindwireAuth.shared.user?.id : nil
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
@@ -97,7 +97,7 @@ final class LocalWorkspaceAdapter: WorkspaceAdapter {
 @MainActor
 final class CloudWorkspaceAdapter: WorkspaceAdapter {
     private struct Context: Codable, Equatable {
-        let accountID: Int
+        let accountID: String
         let sessionFingerprint: String?
     }
     private struct Snapshot: Codable {
@@ -108,24 +108,24 @@ final class CloudWorkspaceAdapter: WorkspaceAdapter {
     private var cache: [Workspace] = []
     private var cacheContext: Context?
     private var cacheGeneration = 0
-    private let auth: OblienAuth
+    private let auth: MindwireAuth
     private let defaults: UserDefaults
     private let sessionToken: () -> String?
     private let loadWorkspaces: () async throws -> [OblienKit.Workspace]
     private let lookupWorkspace: (String) async throws -> OblienKit.Workspace
     private let removeWorkspace: (String) async throws -> Void
 
-    init(auth: OblienAuth = .shared,
+    init(auth: MindwireAuth = .shared,
          defaults: UserDefaults = .standard,
-         sessionToken: @escaping () -> String? = SessionToken.get,
+         sessionToken: @escaping () -> String? = MindwireSessionToken.get,
          lookupWorkspace: @escaping (String) async throws -> OblienKit.Workspace = {
-             try await OblienCloud.client.workspaces.get($0)
+             try await MindwireCloud.client.workspaces.get($0)
          },
          removeWorkspace: @escaping (String) async throws -> Void = {
-             try await OblienCloud.client.workspaces.delete($0)
+             try await MindwireCloud.client.workspaces.delete($0)
          },
          loadWorkspaces: @escaping () async throws -> [OblienKit.Workspace] = {
-             try await OblienCloud.client.workspaces.list().workspaces
+             try await MindwireCloud.client.workspaces.list().workspaces
          }) {
         self.auth = auth
         self.defaults = defaults
@@ -204,7 +204,7 @@ final class CloudWorkspaceAdapter: WorkspaceAdapter {
         guard context == self.context() else { return nil }
         if let found = current().first(where: { $0.id == wid }) { return found }
         // The list can lag a beat right after create — synthesize from what we already know.
-        let workspace = Workspace(id: wid, name: name.isEmpty ? "Oblien Cloud" : name,
+        let workspace = Workspace(id: wid, name: name.isEmpty ? "Mindwire Cloud" : name,
                        runtime: runtime, spec: spec, createdAt: isoNow(), lastUsedAt: nil)
         cache.append(workspace)
         cacheContext = context
@@ -214,7 +214,7 @@ final class CloudWorkspaceAdapter: WorkspaceAdapter {
     }
 
     func rename(_ id: String, to name: String) async {
-        try? await OblienCloud.client.workspaces.update(id, WorkspaceUpdateParams(name: name))
+        try? await MindwireCloud.client.workspaces.update(id, WorkspaceUpdateParams(name: name))
         try? await refresh()
     }
     func delete(_ id: String) async throws {
@@ -259,7 +259,7 @@ final class CloudWorkspaceAdapter: WorkspaceAdapter {
             WorkspaceSpec(cpus: $0.cpus ?? 0, memoryMb: $0.memoryMb ?? 0,
                         diskMb: $0.diskSizeMb ?? 0, persistent: w.mode == .permanent)
         }
-        let name = (w.name?.isEmpty == false) ? w.name! : "Oblien Cloud"
+        let name = (w.name?.isEmpty == false) ? w.name! : "Mindwire Cloud"
         return Workspace(id: w.id, name: name, runtime: .cloud(workspaceId: w.id),
                        spec: spec, createdAt: w.createdAt ?? isoNow(), lastUsedAt: w.updatedAt,
                        image: w.image)

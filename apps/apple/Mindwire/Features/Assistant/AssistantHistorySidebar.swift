@@ -15,7 +15,7 @@ struct AssistantHistorySidebar<Content: View>: View {
     var newComputer: (() -> Void)?
     @ViewBuilder let content: () -> Content
     @FocusState private var searching: Bool
-    @State private var auth = OblienAuth.shared
+    @State private var auth = MindwireAuth.shared
     @Environment(\.desktopSidebarCompact) private var compact
 
     var body: some View {

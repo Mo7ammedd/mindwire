@@ -20,7 +20,7 @@ final class NewWorkspaceModel {
     var useSandbox = false
     @ObservationIgnored private var sandbox: ServerSandbox?
     @ObservationIgnored private var serviceVersion: String?
-    /// Cloud resources are explicitly selected; Oblien quota decides whether they fit.
+    /// Cloud resources come from the Mindwire monthly computer catalog.
     var customCPUs = 2
     var customMemoryGb = 4
     var customDiskGb = 20
@@ -35,7 +35,10 @@ final class NewWorkspaceModel {
     var loadingImages = false
     var imagesError: String?
     var cloudAuthRequired = false
-    var accountOverview: CloudAccountOverview?
+    var cloudPlans: [CloudComputerPlan] = []
+    var selectedPlanId = "essential"
+    var pendingPurchase: CloudComputer?
+    var cloudCatalogError: String?
     var loadingAccount = false
 
     // Provisioning state
@@ -53,22 +56,31 @@ final class NewWorkspaceModel {
     var minimumMemoryGb: Int { max(1, Int(ceil(Double(selectedImage?.minimumMemoryMb ?? 1024) / 1024))) }
     var minimumDiskGb: Int { max(1, Int(ceil(Double(selectedImage?.minimumDiskMb ?? 1024) / 1024))) }
 
+    var selectedPlan: CloudComputerPlan? { cloudPlans.first { $0.id == selectedPlanId } }
     var creationDenial: String? {
-        storage.validation(image: selectedImage) ?? accountOverview?.creationDenial ?? accountOverview?.quota?.denial(for: spec)
+        guard isCloud else { return nil }
+        if let cloudCatalogError { return cloudCatalogError }
+        guard let plan = selectedPlan else { return "Choose a monthly Cloud Computer plan." }
+        guard plan.vcpus >= minimumCPUs, plan.memoryMb >= minimumMemoryGb * 1024, plan.diskGb >= minimumDiskGb else {
+            return "Choose a larger computer for this image."
+        }
+        return nil
     }
 
     func loadAccountOverview() async {
-        guard isCloud else { accountOverview = nil; return }
-        let requested = spec
+        guard isCloud else { return }
         loadingAccount = true
-        let result = await OblienBilling.overview(for: requested)
-        guard !Task.isCancelled, requested == spec else { return }
-        accountOverview = result
-        loadingAccount = false
+        defer { loadingAccount = false }
+        do {
+            let catalog = try await CloudComputers.catalog()
+            cloudPlans = catalog.plans
+            cloudCatalogError = catalog.available ? nil : "Cloud Computer purchases are not enabled yet. Your own computers are still available."
+        } catch { cloudCatalogError = error.localizedDescription }
     }
 
     /// The spec to persist with the workspace: cloud → selected preset; server → default.
     var spec: WorkspaceSpec {
+        if isCloud, let plan = selectedPlan { return WorkspaceSpec(cpus: plan.vcpus, memoryMb: plan.memoryMb, diskMb: plan.diskGb * 1024, persistent: true) }
         guard isCloud || useSandbox else { return WorkspaceSpecs.selfHostedDefault }
         return WorkspaceSpec(cpus: customCPUs, memoryMb: customMemoryGb * 1024,
                              diskMb: isCloud ? (storage.root?.sizeMb ?? customDiskGb * 1024) : 0, persistent: true)
@@ -79,14 +91,14 @@ final class NewWorkspaceModel {
         guard (force || images.isEmpty), !loadingImages else { return }
         loadingImages = true
         imagesError = nil
-        guard await OblienAuth.shared.ensure() else {
+        guard await MindwireAuth.shared.ensure() else {
             cloudAuthRequired = true
             loadingImages = false
             return
         }
         cloudAuthRequired = false
         do {
-            images = try await CloudImages.list(force: force)
+            images = try await MindwireAPI.shared.get("/workspace/images?monthly=true", as: OblienKit.ImageList.self).images.compactMap(WorkspaceImage.init(catalogImage:))
             if selectedImageID == nil {
                 selectedImageID = storage.root?.rootImage.flatMap { CloudImages.match($0, in: images) }?.id
                     ?? images.first { $0.id.localizedCaseInsensitiveContains("node") }?.id
@@ -117,7 +129,7 @@ final class NewWorkspaceModel {
     func cloudOptions() throws -> CloudProvisioningOptions {
         guard let image = selectedImage else { throw WorkspaceControlError(message: "Choose a workspace image.") }
         if let message = storage.validation(image: image) { throw WorkspaceControlError(message: message) }
-        var options = CloudProvisioningOptions(image: image.image, preset: image.preset, namespace: storage.namespace.nonBlank,
+        var options = CloudProvisioningOptions(planId: selectedPlanId, catalogImageId: image.id, image: image.image, preset: image.preset, namespace: storage.namespace.nonBlank,
             defaults: image.vmDefaults, rootDiskId: storage.root?.id, disks: storage.attachments.map(\.sdkValue), idempotencyKey: "")
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         let signature = try encoder.encode(options.request(name: name.trimmingCharacters(in: .whitespacesAndNewlines), spec: spec))
@@ -151,9 +163,8 @@ final class NewWorkspaceModel {
                 guard DaemonRelease.satisfies(version, target: ServerSandbox.minimumServiceVersion) else {
                     throw BackendError.message("Docker workspaces need Mindwire service \(ServerSandbox.minimumServiceVersion) or later. Try again when that release is available.")
                 }
-                let imageVersion = try await RuntimeImageRelease.version(for: version)
                 serviceVersion = version
-                sandbox = ServerSandbox(id: UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(), version: imageVersion)
+                sandbox = ServerSandbox(id: UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(), version: version)
             }
             let provisioner = BackendFactory.provisioner(
                 for: choice,
@@ -165,8 +176,12 @@ final class NewWorkspaceModel {
                 self?.stage = stage
             }
             return runtime
+        } catch let checkout as CloudCheckoutRequired {
+            pendingPurchase = checkout.computer
+            isProvisioning = false
+            return nil
         } catch {
-            errorMessage = OblienBilling.creationMessage(for: error)
+            errorMessage = error.localizedDescription
             isProvisioning = false
             return nil
         }
