@@ -9,7 +9,7 @@ struct ProxyDaemonChannel: StreamingDaemonChannel {
 
     init(workspaceId: String, port: Int = AppConstants.daemonPort, daemonToken: String) {
         let credentials = ProxyDaemonCredentials(workspaceId: workspaceId, port: port, daemonToken: daemonToken)
-        channel = URLSessionDaemonChannel(label: "proxy") { method, path, body, force in
+        channel = URLSessionDaemonChannel(label: "proxy", session: MindwireAPI.httpSession) { method, path, body, force in
             try await credentials.request(method: method, path: path, jsonBody: body, force: force)
         }
     }

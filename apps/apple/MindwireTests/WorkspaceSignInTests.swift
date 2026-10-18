@@ -1,4 +1,5 @@
 import XCTest
+import Network
 import OblienKit
 @testable import Mindwire
 
@@ -8,6 +9,48 @@ final class WorkspaceSignInTests: XCTestCase {
         XCTAssertEqual(MindwireCloud.client.config.baseURL.absoluteString, AppConstants.mindwireServicesBase + "/api/cloud/provider")
         XCTAssertEqual(MindwireCloud.client.config.runtimeURL.absoluteString, "https://computers.mindwire.sh")
         XCTAssertNotEqual(MindwireCloud.client.config.baseURL.host, MindwireCloud.client.config.runtimeURL.host)
+    }
+
+    func testCloudAccountAndComputerCredentialsDoNotFollowRedirects() async throws {
+        let server = try CloudAccountProbe()
+        let origin = try await server.start()
+        defer { server.close() }
+        var account = URLRequest(url: origin.appendingPathComponent("account"))
+        account.setValue("Bearer fixture-account-session", forHTTPHeaderField: "Authorization")
+        let (_, accountResponse) = try await MindwireAPI.httpSession.data(for: account)
+        XCTAssertEqual((accountResponse as? HTTPURLResponse)?.statusCode, 302)
+        let channel = URLSessionDaemonChannel(session: MindwireAPI.httpSession) { _, _, _, _ in
+            var request = URLRequest(url: origin.appendingPathComponent("daemon"))
+            request.setValue("Bearer fixture-computer-jwt", forHTTPHeaderField: "Authorization")
+            request.setValue("fixture-daemon-token", forHTTPHeaderField: "X-Mindwire-Token")
+            return request
+        }
+        let response = try await channel.perform(method: "GET", path: "/", jsonBody: nil)
+        XCTAssertEqual(response.status, 302)
+        let requests = server.requests
+        XCTAssertEqual(requests.count, 2, "No redirect destination should receive credentials")
+        XCTAssertTrue(requests[0].contains("Bearer fixture-account-session"))
+        XCTAssertTrue(requests[1].contains("Bearer fixture-computer-jwt"))
+        XCTAssertFalse(requests[1].contains("fixture-account-session"))
+        XCTAssertTrue(requests[1].contains("fixture-daemon-token"))
+    }
+
+    func testSDKRuntimeUsesOnlyTheOwnedComputerCredential() async throws {
+        let server = try CloudAccountProbe(redirects: false)
+        let origin = try await server.start()
+        defer { server.close() }
+        let client = OblienClient(.init(auth: .scopedToken("fixture-account-session"), baseURL: origin,
+            runtimeURL: origin, maxRetries: 0))
+        let runtime = try await client.workspace("owned").runtime()
+        let healthy = try await runtime.health()
+        XCTAssertTrue(healthy)
+        let requests = server.requests
+        XCTAssertEqual(requests.count, 3)
+        XCTAssertTrue(requests[0].contains("Bearer fixture-account-session"))
+        XCTAssertTrue(requests[1].contains("Bearer fixture-account-session"))
+        XCTAssertTrue(requests[2].hasPrefix("GET /health "))
+        XCTAssertTrue(requests[2].contains("Bearer fixture-computer-jwt"))
+        XCTAssertFalse(requests[2].contains("fixture-account-session"))
     }
 
     private let signedIn = AuthStatus(authenticated: true, user: AuthUser(id: "42", name: "Test owner"))
@@ -366,4 +409,70 @@ final class WorkspaceSignInTests: XCTestCase {
         try await adapter.refresh()
         XCTAssertEqual(adapter.current().map(\.id), [workspace.id])
     }
+}
+
+/// Real HTTP redirects exercise URLSession's delegate behavior (URLProtocol
+/// fixtures do not reproduce the platform redirect callback).
+private final class CloudAccountProbe: @unchecked Sendable {
+    private let listener: NWListener
+    private let redirects: Bool
+    private let queue = DispatchQueue(label: "cloud-redirect-probe")
+    private let lock = NSLock()
+    private var recorded: [String] = []
+    private var clients: [NWConnection] = []
+    var requests: [String] { lock.withLock { recorded } }
+
+    init(redirects: Bool = true) throws {
+        self.redirects = redirects
+        let parameters = NWParameters.tcp
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .any)
+        listener = try NWListener(using: parameters)
+    }
+    func start() async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            var resumed = false
+            listener.stateUpdateHandler = { [weak self] state in
+                guard !resumed else { return }
+                switch state {
+                case .ready:
+                    if let port = self?.listener.port {
+                        resumed = true
+                        continuation.resume(returning: URL(string: "http://127.0.0.1:\(port.rawValue)")!)
+                    }
+                case .failed(let error): resumed = true; continuation.resume(throwing: error)
+                default: break
+                }
+            }
+            listener.newConnectionHandler = { [weak self] client in
+                guard let self else { client.cancel(); return }
+                self.lock.withLock { self.clients.append(client) }
+                client.start(queue: self.queue)
+                self.read(client, buffer: Data())
+            }
+            listener.start(queue: queue)
+        }
+    }
+    private func read(_ client: NWConnection, buffer: Data) {
+        client.receive(minimumIncompleteLength: 1, maximumLength: 16384) { [weak self] data, _, _, error in
+            guard let self, let data, !data.isEmpty, error == nil else { client.cancel(); return }
+            let buffer = buffer + data
+            guard buffer.range(of: Data("\r\n\r\n".utf8)) != nil else {
+                self.read(client, buffer: buffer); return
+            }
+            let request = String(decoding: buffer, as: UTF8.self)
+            self.lock.withLock { self.recorded.append(request) }
+            let response: String
+            if self.redirects && !request.hasPrefix("GET /unexpected ") {
+                response = "HTTP/1.1 302 Found\r\nLocation: /unexpected\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            } else {
+                let body: String
+                if request.hasPrefix("GET /health ") { body = #"{"status":"ok"}"# }
+                else if request.hasPrefix("GET /workspace/owned/runtime-api-access/token ") { body = #"{"token":"fixture-computer-jwt"}"# }
+                else { body = #"{"enabled":true}"# }
+                response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n" + body
+            }
+            client.send(content: Data(response.utf8), completion: .contentProcessed { _ in client.cancel() })
+        }
+    }
+    func close() { listener.cancel(); lock.withLock { clients.forEach { $0.cancel() } } }
 }

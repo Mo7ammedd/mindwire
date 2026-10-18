@@ -9,7 +9,7 @@ import { forwardComputer } from "./proxy";
 /** Collection operations still go through owner-bound namespace credentials.
  * No customer-chosen path is ever retried with the reseller's admin key. */
 export async function computerCollection(c: Context, owner: string, path: string, service: ComputerService): Promise<Response | null> {
-  const rows = (await service.store.list(owner)).filter(row => !["deleting", "deleted"].includes(row.state));
+  const rows = (await service.store.list(owner)).filter(row => row.workspace_id && !["deleting", "deleted"].includes(row.state));
   const legacy = await legacyClient(owner);
   if (path === "/namespaces" && c.req.method === "GET") {
     const data = rows.map(row => ({ id: row.namespace, slug: row.namespace, name: row.name, status: "active" }));

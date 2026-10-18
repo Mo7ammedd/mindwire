@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ExternalLink, Loader2, Monitor, RefreshCw } from "lucide-react";
 import type { CloudComputer, ComputerPlan } from "@shared/cloud";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandMark } from "@/components/BrandMark";
 
 async function request<T>(path: string, method = "GET", body?: object): Promise<T> {
-  const response = await fetch(`/api/cloud${path}`, { method, credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const response = await fetch(`/api/cloud${path}`, { method, credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000) });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error ?? "Could not load Cloud Computers. Try again.");
   return data as T;
@@ -19,6 +19,8 @@ export function CloudComputers({ email, onSignOut }: { email: string; onSignOut:
   const [images, setImages] = useState<Array<{ id: string; image: string; label: string; base_os?: { family: string }; minimum_resources?: { cpus?: number; memory_mb?: number; disk_size_mb?: number } }>>([]);
   const [name, setName] = useState("My computer"), [planId, setPlan] = useState(() => { const plan = new URLSearchParams(window.location.search).get("plan"); return ["essential", "pro", "max"].includes(plan ?? "") ? plan! : "essential"; }), [image, setImage] = useState("");
   const [error, setError] = useState(""), [busy, setBusy] = useState<string | null>(null), [loaded, setLoaded] = useState(false);
+  const [catalogRefresh, setCatalogRefresh] = useState(0);
+  const reconciling = useRef(false);
   const [purchaseKey, setPurchaseKey] = useState(() => crypto.randomUUID());
   const reload = useCallback(async () => {
     const result = await request<{ computers: CloudComputer[] }>("/computers"); setComputers(result.computers);
@@ -32,26 +34,29 @@ export function CloudComputers({ email, onSignOut }: { email: string; onSignOut:
         setCatalog(pricing); await reload();
         if (pricing.available) {
           const result = await request<{ images: typeof images }>("/provider/workspace/images?monthly=true");
-          if (!disposed) { setImages(result.images); setImage(result.images[0]?.id ?? ""); }
+          if (!disposed) { setImages(result.images); setImage(current => result.images.some(image => image.id === current) ? current : result.images[0]?.id ?? ""); }
         }
       } catch (error) { if (!disposed) setError((error as Error).message); }
       finally { if (!disposed) setLoaded(true); }
     })();
     return () => { disposed = true; };
-  }, [reload]);
+  }, [reload, catalogRefresh]);
   const pending = computers.some(c => ["checkout_pending", "payment_pending", "paid", "provisioning"].includes(c.state));
   useEffect(() => {
     if (!pending) return;
-    let running = false;
     const timer = setInterval(async () => {
-      if (running || document.hidden) return;
-      running = true;
+      if (reconciling.current || document.hidden) return;
+      reconciling.current = true;
       try {
-        for (const computer of computers.filter(c => ["checkout_pending", "payment_pending", "paid", "provisioning"].includes(c.state)))
-          await request(`/computers/${computer.id}/reconcile`, "POST");
+        let failure: string | undefined;
+        for (const computer of computers.filter(c => ["checkout_pending", "payment_pending", "paid", "provisioning"].includes(c.state))) {
+          try { await request(`/computers/${computer.id}/reconcile`, "POST"); }
+          catch (error) { failure ??= (error as Error).message; }
+        }
         await reload();
+        if (failure) setError(failure);
       } catch (error) { setError((error as Error).message); }
-      finally { running = false; }
+      finally { reconciling.current = false; }
     }, 5000);
     return () => clearInterval(timer);
   }, [pending, computers, reload]);
@@ -79,7 +84,7 @@ export function CloudComputers({ email, onSignOut }: { email: string; onSignOut:
   return <main className="mx-auto min-h-dvh max-w-6xl space-y-8 p-5 md:p-10">
     <header className="flex flex-wrap items-center justify-between gap-4"><a href="/" className="flex items-center gap-3 text-sm"><BrandMark size={24} /><ArrowLeft className="size-4" /> Console</a><div className="flex items-center gap-3 text-sm text-muted-foreground"><span>{email}</span><Button variant="ghost" size="sm" onClick={onSignOut}>Sign out</Button></div></header>
     <div><h1 className="text-2xl font-semibold">Cloud Computers</h1><p className="mt-2 text-sm text-muted-foreground">A computer for your projects, agents and development tools. One monthly subscription per computer.</p></div>
-    {error && <div role="alert" className="flex items-center justify-between gap-4 border border-destructive/30 p-4 text-sm"><p>{error}</p><Button size="sm" variant="outline" onClick={() => void reload().then(() => setError("")).catch(e => setError(e.message))}>Retry</Button></div>}
+    {error && <div role="alert" className="flex items-center justify-between gap-4 border border-destructive/30 p-4 text-sm"><p>{error}</p><Button size="sm" variant="outline" onClick={() => { setError(""); setLoaded(false); setCatalogRefresh(value => value + 1); }}>Retry</Button></div>}
     {!loaded ? <Loader2 className="size-5 animate-spin" /> : <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
       <section className="space-y-4"><div className="flex items-center justify-between"><h2 className="font-medium">Your computers</h2><Button size="sm" variant="ghost" onClick={() => void reload().catch(e => setError(e.message))}><RefreshCw className="size-4" />Refresh</Button></div>
         {!computers.length && <Card><CardContent className="space-y-3 py-10 text-center"><Monitor className="mx-auto size-8 text-muted-foreground" /><p>No Cloud Computers yet</p><p className="text-sm text-muted-foreground">Choose a plan to get started. Your own computers and SSH connections stay free.</p></CardContent></Card>}

@@ -17,6 +17,11 @@ export async function forwardComputer(c: Context, origin: string, path: string, 
       ...(["GET", "HEAD"].includes(c.req.method) ? {} : { body: body ?? c.req.raw.body, duplex: "half" } as RequestInit) });
   } catch { c.req.raw.signal.removeEventListener("abort", abort); throw new CloudError(503, "computer_unreachable", "This computer could not be reached. Check its status and retry."); }
   finally { clearTimeout(timer); }
+  if (response.status >= 300 && response.status < 400 && response.status !== 304) {
+    c.req.raw.signal.removeEventListener("abort", abort);
+    await response.body?.cancel();
+    throw new CloudError(502, "unexpected_cloud_redirect", "Cloud returned an unexpected redirect. Please retry this operation.");
+  }
   // Never follow provider redirects server-side or leak provider cookies
   // and hop-by-hop headers to the account client.
   const output = new Headers({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });

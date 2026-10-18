@@ -32,7 +32,8 @@ private final class MindwireAccountHTTPDelegate: NSObject, URLSessionTaskDelegat
 actor MindwireAPI {
     static let shared = MindwireAPI()
     private let base = AppConstants.mindwireServicesBase
-    private let session = URLSession(configuration: .default, delegate: MindwireAccountHTTPDelegate(), delegateQueue: nil)
+    static let httpSession = URLSession(configuration: .default, delegate: MindwireAccountHTTPDelegate(), delegateQueue: nil)
+    private let session = MindwireAPI.httpSession
 
     struct DeviceLogin: Decodable, Sendable {
         let deviceCode: String

@@ -15,7 +15,7 @@ let owner: { token: string; user: { id: string } }, stranger: typeof owner;
 const namespaces = new Set<string>(), payments = new Map<string, any>(), computers = new Map<string, any>();
 const canceled = new Set<string>();
 const previousTokens = new Set(["fixture-previous-account-session"]);
-let loseDeleteReply = false;
+let loseDeleteReply = false, redirectWorkspaceRead = false;
 let paid = false, loseCheckoutReply = false, loseCreateReply = false, checkoutWrites = 0, creates = 0;
 const issuedRuntimeTokens = new Map<string, string>();
 const providerRequests: Array<{ path: string; namespace: string | null }> = [];
@@ -33,6 +33,11 @@ const fake = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(request) {
   providerRequests.push({ path, namespace });
   const ok = (value: object) => Response.json({ success: true, ...value });
   if (!master && !namespaces.has(namespace ?? "")) return Response.json({}, { status: 401 });
+  if (path === "/disks" && request.method === "GET") {
+    const computer = [...computers.values()].find(c => c.namespace === namespace);
+    if (!computer) return Response.json({}, { status: 404 });
+    return ok({ disks: [{ id: `disk_${computer.id}`, namespace }] });
+  }
   if (path === "/workspace/images") return ok({ images: [{ id: "linux", image: "ubuntu:24.04", base_os: { family: "linux" } }, { id: "mac", image: "macos:15", base_os: { family: "macos" }, minimum_resources: { memory_mb: 11264 } }, { id: "mac-xcode", image: "macos:15", preset: "macos-xcode", vm_defaults: { enable_kvm: true }, base_os: { family: "macos" }, minimum_resources: { cpus: 8, memory_mb: 24576 } }] });
   if (path === "/billing/capacity/catalog") return ok({ tariffId: "test-tariff", tariff: { monthly: { minimumCents: 500, vcpuCents: 600, memoryGiBCents: 100, diskGiBCents: 5 } }, paymentSources: { monthly: ["stripe"] } });
   if (path === "/namespaces/ensure" && master) { namespaces.add(body.slug); return ok({ data: { slug: body.slug } }); }
@@ -80,6 +85,10 @@ const fake = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(request) {
   }
   if (/^\/workspace\/vm_\d+\/(?:stop|start|restart)$/.test(path) && request.method === "POST") return ok({});
   if (/^\/workspace\/vm_\d+$/.test(path)) {
+    if (request.method === "GET" && redirectWorkspaceRead) {
+      redirectWorkspaceRead = false;
+      return new Response(null, { status: 302, headers: { Location: new URL("/unexpected", fake.url).href } });
+    }
     const computer = [...computers.values()].find(c => c.id === path.split("/").pop());
     if (computer?.namespace === namespace) {
       if (request.method === "DELETE") {
@@ -173,6 +182,30 @@ test("payment redirects cannot provision; authoritative paid capacity creates on
   expect((await api(`/api/cloud/provider/workspace/${vm}`, "GET", undefined, stranger.token)).status).toBe(404);
   expect(providerRequests.length).toBe(calls);
   expect((await api("/api/cloud/provider/workspace", "POST", { image: "ubuntu:24.04" })).status).toBe(409);
+});
+
+test("management redirects cannot forward the Mindwire account session", async () => {
+  const vm = [...computers.values()][0].id;
+  redirectWorkspaceRead = true;
+  const result = await api(`/api/cloud/provider/workspace/${vm}`);
+  expect(result.status).toBe(502);
+  expect(result.data.code).toBe("unexpected_cloud_redirect");
+  expect(result.headers.get("Location")).toBeNull();
+  expect(providerRequests.filter(r => r.path === "/unexpected")).toHaveLength(0);
+  expect((await api(`/api/cloud/provider/workspace/${vm}`)).status).toBe(200);
+});
+
+test("unfinished purchases cannot break storage listings or request another owner's disks", async () => {
+  const id = (await api("/api/cloud/computers", "POST", purchase())).data.computer.id;
+  const draft = (await control("stored", id))[0];
+  const before = providerRequests.length;
+  const result = await api("/api/cloud/provider/disks");
+  expect(result.status).toBe(200);
+  expect(result.data.disks).toHaveLength(computers.size);
+  expect(providerRequests.slice(before).filter(r => r.path === "/disks").map(r => r.namespace)).not.toContain(draft.namespace);
+  const other = await api("/api/cloud/provider/disks", "GET", undefined, stranger.token);
+  expect(other.status).toBe(200); expect(other.data.disks).toEqual([]);
+  await api(`/api/cloud/computers/${id}/checkout/cancel`, "POST");
 });
 
 test("webhook accepts authentic scheduling only and cookie mutations reject foreign origins", async () => {
