@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, Cpu, Loader2, Monitor, Plus } from "lucide-react";
 import type { CloudComputer, ComputerPlan } from "@shared/cloud";
 import { useCloud, computerState } from "@/lib/cloud";
@@ -41,6 +41,21 @@ export function ComputerRow({ computer }: { computer: CloudComputer }) {
 }
 export function CloudComputers() {
   const cloud = useCloud();
+  const [search] = useSearchParams();
+  // Keep saved checkout returns and public pricing links working across the portal refactor.
+  const computer = search.get("computer"),
+    plan = search.get("plan");
+  if (computer)
+    return (
+      <Navigate replace to={`/computers/${encodeURIComponent(computer)}`} />
+    );
+  if (plan)
+    return (
+      <Navigate
+        replace
+        to={`/computers/new?plan=${encodeURIComponent(plan)}`}
+      />
+    );
   return (
     <div className="space-y-7">
       <PageTitle
