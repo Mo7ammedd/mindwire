@@ -132,7 +132,7 @@ struct ProjectListRows: View {
                 Text(t("auth.required.title")).font(.caption)
             } else if let status = entry.statusLabel {
                 Text(lastKnown ? t("project.operation.cached", ["status": status]) : status).font(.caption)
-                    .foregroundStyle(entry.operation?.canRetry == true ? Color.orange : .secondary)
+                    .foregroundStyle(entry.operation?.canRetry == true ? Palette.warning : .secondary)
             }
             if !requiresSignIn && workspace == nil && !checkingWorkspace {
                 Text(t("workspace.missing.title")).font(.caption)
@@ -149,7 +149,7 @@ struct ProjectListRows: View {
                 if connected { ProgressView().controlSize(.small) }
                 else { AppIcon(.clock).foregroundStyle(.secondary) }
             } else if entry.operation?.canRetry == true {
-                AppIcon(.alertCircle).foregroundStyle(.orange)
+                AppIcon(.alertCircle).foregroundStyle(Palette.warning)
             } else if checkingWorkspace {
                 ProgressView().controlSize(.small)
                     .accessibilityLabel(t("workspace.checking"))

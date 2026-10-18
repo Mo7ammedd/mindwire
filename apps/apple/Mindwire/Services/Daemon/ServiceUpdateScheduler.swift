@@ -171,7 +171,8 @@ final class ServiceUpdateScheduler {
     /// stay queued until reachable; online services restart under one exclusive lease.
     @discardableResult
     func updateAll(_ workspaces: [Workspace]) async -> Bool {
-        for workspace in workspaces { updateRequests[workspace.id] = workspace }
+        // Local service ownership stays with this app / the existing computer CLI.
+        for workspace in workspaces where !workspace.runtime.isLocal { updateRequests[workspace.id] = workspace }
         if let updateBatch { return await updateBatch.value }
         updatingAll = true
         let task = Task {
@@ -243,7 +244,7 @@ final class ServiceUpdateScheduler {
             }
             return
         }
-        for workspace in workspaces {
+        for workspace in workspaces where !workspace.runtime.isLocal {
             let id = workspace.id, key = DaemonWorkKey(workspaceId: workspace.id)
             guard !requested.contains(id), !active.contains(id), due(id),
                   !needsObservation(id),

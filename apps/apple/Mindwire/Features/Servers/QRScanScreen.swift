@@ -1,5 +1,10 @@
 import SwiftUI
+#if targetEnvironment(macCatalyst)
+import Vision
+import UniformTypeIdentifiers
+#else
 import VisionKit
+#endif
 
 /// Keeps a scan until the camera sheet has finished dismissing. Starting a connection
 /// earlier can dismiss the parent form or lose a fast validation alert in the transition.
@@ -51,6 +56,60 @@ struct QRScanScreen: View {
     let onScan: (String) -> Void
     @Environment(\.dismiss) private var dismiss
 
+    #if targetEnvironment(macCatalyst)
+    @State private var importing = false
+    @State private var reading = false
+    @State private var error: String?
+    @State private var code = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Connect your computer") {
+                    Text("Paste the pairing link, or open an image of its QR code.")
+                        .foregroundStyle(.secondary)
+                    TextField("Pairing link", text: $code)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Button("Use pairing link") { onScan(code) }
+                        .disabled(code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reading)
+                    Button("Open QR code image…", icon: .scan) { importing = true }
+                        .disabled(reading)
+                    if reading { ProgressView("Reading QR code…") }
+                    if let error { Text(error).foregroundStyle(.red) }
+                }
+            }
+            .navigationTitle("Pair a computer")
+            .toolbar {
+                AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            }
+            .fileImporter(isPresented: $importing, allowedContentTypes: [.image]) { result in
+                switch result {
+                case .failure(let error): self.error = error.localizedDescription
+                case .success(let url):
+                    reading = true
+                    error = nil
+                    Task {
+                        do {
+                            let payload = try await Task.detached(priority: .userInitiated) {
+                                let access = url.startAccessingSecurityScopedResource()
+                                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                                let request = VNDetectBarcodesRequest()
+                                request.symbologies = [.qr]
+                                try VNImageRequestHandler(url: url).perform([request])
+                                guard let payload = request.results?.first?.payloadStringValue else {
+                                    throw BackendError.message("No QR code was found in this image.")
+                                }
+                                return payload
+                            }.value
+                            onScan(payload)
+                        } catch { self.error = error.localizedDescription }
+                        reading = false
+                    }
+                }
+            }
+        }
+    }
+    #else
     private var canScan: Bool {
         DataScannerViewController.isSupported && DataScannerViewController.isAvailable
     }
@@ -78,8 +137,10 @@ struct QRScanScreen: View {
             }
         }
     }
+    #endif
 }
 
+#if !targetEnvironment(macCatalyst)
 private struct Scanner: UIViewControllerRepresentable {
     let onScan: (String) -> Void
 
@@ -120,3 +181,4 @@ private struct Scanner: UIViewControllerRepresentable {
         }
     }
 }
+#endif

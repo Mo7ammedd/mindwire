@@ -6,7 +6,7 @@ enum AppIconContext {
 
 enum AppIconMetrics {
     // Native menus own a fixed slot; source PNG margins never contribute to its size.
-    static let menuSize: CGFloat = 22
+    static let menuSize: CGFloat = ApplePlatform.isDesktop ? 14 : 22
     static let toolbarReduction: CGFloat = 2
 }
 
@@ -66,14 +66,14 @@ struct AppIcon: View {
 }
 
 /// Header controls keep their native hit targets and toolbar behavior. Only their
-/// custom glyphs shrink; menu actions override this with their own icon context.
+/// custom glyphs shrink; navigation actions use neutral tint independently of the brand accent.
 struct AppToolbarItem<Content: View>: ToolbarContent {
     var placement: ToolbarItemPlacement = .automatic
     @ViewBuilder let content: () -> Content
 
     var body: some ToolbarContent {
         ToolbarItem(placement: placement) {
-            content().environment(\.appIconContext, .toolbar)
+            content().environment(\.appIconContext, .toolbar).tint(.primary)
         }
     }
 }
@@ -84,7 +84,7 @@ struct AppToolbarItemGroup<Content: View>: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: placement) {
-            content().environment(\.appIconContext, .toolbar)
+            content().environment(\.appIconContext, .toolbar).tint(.primary)
         }
     }
 }

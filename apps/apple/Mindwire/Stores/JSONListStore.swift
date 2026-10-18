@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// Persistence port for a list of identifiable records.
 protocol ListStore<Item> {
@@ -21,10 +22,12 @@ private struct Failable<T: Decodable>: Decodable {
 }
 
 /// A JSON list persisted in `UserDefaults`. Every op degrades gracefully — never throws.
+@Observable
 final class JSONListStore<Item: Codable & Identifiable>: ListStore where Item.ID == String {
     private let key: String
     private let defaults: UserDefaults
     var didChange: (() -> Void)?
+    private(set) var revision: UInt64 = 0
 
     init(key: String, defaults: UserDefaults = .standard) {
         self.key = key
@@ -58,6 +61,7 @@ final class JSONListStore<Item: Codable & Identifiable>: ListStore where Item.ID
         encoder.outputFormatting = .sortedKeys
         guard let data = try? encoder.encode(items), defaults.data(forKey: key) != data else { return }
         defaults.set(data, forKey: key)
+        revision &+= 1
         didChange?()
     }
 }

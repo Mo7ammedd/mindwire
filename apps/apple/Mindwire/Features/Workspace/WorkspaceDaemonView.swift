@@ -50,7 +50,7 @@ struct WorkspaceDaemonStatusLabel: View {
                     }
                 }
                 .font(.caption)
-                .foregroundStyle(state?.reachable == true && state?.supportsProjects == false ? Color.orange : .secondary)
+                .foregroundStyle(state?.reachable == true && state?.supportsProjects == false ? Palette.warning : .secondary)
             }
         }
         .accessibilityElement(children: compact ? .ignore : .combine)

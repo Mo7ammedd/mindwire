@@ -88,6 +88,7 @@ type Capabilities struct {
 	// MCPServers covers TurnOptions.MCPServers. Declared per adapter so clients can also read them as
 	// hints before sending.
 	SystemPrompt       bool `json:"systemPrompt"`       // CORE switch (api.turn): honors a full system-prompt override
+	BotProfiles        bool `json:"botProfiles"`        // CORE switch: refreshes saved bot instructions/tools on every new or resumed turn
 	AppendSystemPrompt bool `json:"appendSystemPrompt"` // CORE switch (api.turn): honors appending to the default system prompt
 	MCPServers         bool `json:"mcpServers"`         // CORE switch (api.turn): honors per-turn MCP server config
 	// Subagents / ClaudeSettings gate the two per-turn agent-native passthroughs (TurnOptions.Subagents,

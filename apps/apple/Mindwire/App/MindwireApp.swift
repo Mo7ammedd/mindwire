@@ -16,17 +16,46 @@ struct MindwireApp: App {
     var body: some Scene {
         WindowGroup {
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--app-store-preview") {
+            if NSClassFromString("XCTestCase") != nil {
+                // Unit tests supply their own stores and adapters. Starting the real
+                // app lifecycle here would access accounts and CloudKit before tests run.
+                Color.clear
+            } else if ProcessInfo.processInfo.arguments.contains("--app-store-preview") {
                 AppStorePreviewScene()
             } else { appWindow }
             #else
             appWindow
             #endif
         }
+        #if targetEnvironment(macCatalyst)
+        .defaultSize(width: 1280, height: 820)
+        .commands { DesktopSettingsCommands() }
+        #endif
+
+        #if targetEnvironment(macCatalyst)
+        WindowGroup("Settings", id: DesktopSettingsNavigation.windowID, for: String.self) { _ in
+            DesktopSettingsWindow(stores: stores)
+        } defaultValue: {
+            DesktopSettingsNavigation.windowID
+        }
+        .defaultSize(width: 800, height: 520)
+        .windowResizability(.contentMinSize)
+        .commands { DesktopSettingsCommands() }
+
+        WindowGroup("Connect your phone", id: DesktopPhoneConnectionScreen.windowID, for: String.self) { _ in
+            DesktopPhoneConnectionScreen()
+        } defaultValue: {
+            DesktopPhoneConnectionScreen.windowID
+        }
+        .defaultSize(width: 520, height: 700)
+        .windowResizability(.contentMinSize)
+        .commands { DesktopSettingsCommands() }
+        #endif
     }
 
     private var appWindow: some View {
         MindwireWindow(stores: stores, lifecycle: lifecycle)
+            .tint(Palette.accent)
             // Brief system overlays are still foreground work. Only backgrounding every
             // window stops the shared synchronization loop.
             .onChange(of: AppActivityContext(active: appPhase != .background,
@@ -86,8 +115,11 @@ private struct MindwireWindow: View {
             .sheet(item: $sheet, onDismiss: rootSheetDismissed) { item in
                 switch item {
                 case .computerPairing(let code):
-                    AddServerScreen(presetType: .local, pairingCode: code) { connection in
-                        if let workspace = stores.workspaces(forServerId: connection.id).first { app.openWorkspace(workspace.id) }
+                    AddServerScreen(presetType: .local, pairingCode: code, assistantSetup: app.usesAssistant) { connection in
+                        if let workspace = stores.workspaces(forServerId: connection.id).first {
+                            if app.usesAssistant { stores.experience.pendingWorkspaceID = workspace.id }
+                            else { app.openWorkspace(workspace.id) }
+                        }
                     }
                     .environment(\.stores, stores)
                 case .notificationIntro:
@@ -136,6 +168,11 @@ private struct MindwireWindow: View {
     }
 
     private func offerNotificationSignIn() {
+        #if targetEnvironment(macCatalyst)
+        // Notification setup remains available in Settings on Mac.
+        return
+        #else
+        guard stores.experience.mode == .developer else { return }
         // Never interrupt a chat, a pairing scan, or a sheet the user already opened.
         let atRoot = app.projectsPath.isEmpty && app.agentsPath.isEmpty
             && app.workspacesPath.isEmpty && app.settingsPath.isEmpty
@@ -144,6 +181,7 @@ private struct MindwireWindow: View {
         guard stores.notificationSignInReminder.claim(owner: notificationReminderOwner, signedOut: MindwireAuth.shared.isSignedOut,
             active: scenePhase == .active, canPresent: atRoot && sheet == nil && nextSheet == nil && !modalIsOpen) else { return }
         sheet = .notificationIntro
+        #endif
     }
 
     private var preferredScheme: ColorScheme? {

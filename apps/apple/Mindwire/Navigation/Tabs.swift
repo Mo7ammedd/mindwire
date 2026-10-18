@@ -14,14 +14,19 @@ extension View {
         navigationDestination(for: AppRoute.self) { route in
             Group {
                 switch route {
+                case .botDetail(let id): BotDetailScreen(botId: id, repository: repository)
                 case .agentDetail(let id): AgentDetailScreen(agentId: id)
                 case .agentAuthentication(let id): AgentAuthenticationScreen(agentId: id).readablePane()
                 case .chat(let id): AppChatDestination(chatId: id)
-                case .workspaceDetail(let id): WorkspaceDetailScreen(workspaceId: id, repository: repository)
+                case .workspaceDetail(let id):
+                    if ApplePlatform.isDesktop { DesktopWorkspaceRoute(route: route) }
+                    else { WorkspaceDetailScreen(workspaceId: id, repository: repository) }
                 case .workspaceProjects(let id): ProjectsScreen(repository: repository, workspaceId: id)
                 case .projectFolder(let id, let workspaceId):
                     ProjectsScreen(repository: repository, workspaceId: workspaceId, folderId: id)
-                case .projectDetail(let id): ProjectDetailScreen(projectId: id, repository: repository)
+                case .projectDetail(let id):
+                    if ApplePlatform.isDesktop { DesktopWorkspaceRoute(route: route) }
+                    else { ProjectDetailScreen(projectId: id, repository: repository) }
                 }
             }
             .navigationBarBackButtonHidden(hideBackButton)
@@ -34,13 +39,29 @@ extension View {
                 case .account: AccountScreen().readablePane()
                 case .backupSync: BackupSyncScreen().readablePane()
                 case .notifications: NotificationSettingsScreen().readablePane()
-                case .servers: ServersScreen().readablePane()
-                case .serverDetail(let id): ServerDetailScreen(serverId: id).readablePane()
+                case .servers: ServersScreen(repository: repository).readablePane()
+                case .serverDetail(let id): ServerDetailScreen(serverId: id, repository: repository).readablePane()
                 case .github: GitHubAccountsScreen().readablePane()
                 }
             }
             .navigationBarBackButtonHidden(hideBackButton)
             .sidebarToolbar(sidebarControls)
+        }
+    }
+}
+
+/// Desktop workspaces are selections, not nested navigation stacks. This also upgrades saved
+/// mobile-style routes without mounting another explorer inside an existing tool's navigation.
+private struct DesktopWorkspaceRoute: View {
+    let route: AppRoute
+    @Environment(AppModel.self) private var app
+    var body: some View {
+        Color.clear.onAppear {
+            switch route {
+            case .projectDetail(let id): app.openProject(id)
+            case .workspaceDetail(let id): app.openWorkspace(id)
+            default: break
+            }
         }
     }
 }
@@ -62,7 +83,7 @@ struct AgentsTab: View {
     @Environment(AppModel.self) private var app
     var body: some View {
         @Bindable var app = app
-        AdaptiveTabNavigation(path: $app.agentsPath, tab: .agents, title: t("tabs.agents"), selectionPrompt: "Choose an agent", repository: repository) {
+        AdaptiveTabNavigation(path: $app.agentsPath, tab: .agents, title: t("assistant.bots.title"), selectionPrompt: t("bots.choose"), repository: repository) {
             AgentsListScreen(repository: repository)
         }
     }
@@ -84,7 +105,7 @@ struct WorkspacesTab: View {
     @Environment(AppModel.self) private var app
     var body: some View {
         @Bindable var app = app
-        AdaptiveTabNavigation(path: $app.workspacesPath, tab: .workspaces, title: t("tabs.workspaces"), selectionPrompt: "Choose a workspace", repository: repository) {
+        AdaptiveTabNavigation(path: $app.workspacesPath, tab: .workspaces, title: t("tabs.workspaces"), selectionPrompt: "Choose a computer", repository: repository) {
             WorkspacesScreen(repository: repository)
         }
     }
@@ -93,6 +114,9 @@ struct WorkspacesTab: View {
 struct SettingsTab: View {
     @Environment(AppModel.self) private var app
     var body: some View {
+        #if targetEnvironment(macCatalyst)
+        DesktopSettingsScreen()
+        #else
         @Bindable var app = app
         NavigationStack(path: $app.settingsPath) {
             SettingsScreen()
@@ -101,5 +125,6 @@ struct SettingsTab: View {
                 .background(Color(.systemGroupedBackground))
                 .withAppRoutes()
         }
+        #endif
     }
 }

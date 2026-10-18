@@ -32,6 +32,10 @@ struct ProjectDetailScreen: View {
     @State private var loaded = false
     @State private var isVisible = false
     @State private var actions = WorkspaceActions()
+    @State private var desktopTool: ProjectTool? = .files
+    @State private var visitedDesktopTools: Set<ProjectTool> = [.files]
+    @State private var desktopChatID: String?
+
 
     /// One sheet driver — multiple `.sheet(isPresented:)` on one view don't reliably coexist.
     private enum ProjectSheet: Int, Identifiable { case newAgent, chats, files, sourceControl, icon, transfer, desktop; var id: Int { rawValue } }
@@ -44,6 +48,9 @@ struct ProjectDetailScreen: View {
     var body: some View {
         ZStack {
             if let project, let workspace, !repository.requiresSignIn(for: project.workspaceId) {
+                if ApplePlatform.isDesktop {
+                    desktopProject(project, workspace)
+                } else {
                 GeometryReader { geometry in
                     if geometry.size.width >= 900 && !typeSize.isAccessibilitySize {
                         HStack(spacing: 0) {
@@ -65,6 +72,7 @@ struct ProjectDetailScreen: View {
                         }
                     }
                 }
+                }
             } else if let project {
                 WorkspaceUnavailableView(workspaceId: project.workspaceId, repository: repository, projectPath: project.path,
                                          removeProject: confirmForget)
@@ -74,16 +82,28 @@ struct ProjectDetailScreen: View {
                 } description: {
                     Text(t("project.missing.body"))
                 } actions: {
-                    Button(t("common.back")) { dismiss() }.buttonStyle(.borderedProminent)
+                    Button(t("common.back")) {
+                        if ApplePlatform.isDesktop { app.showProjects() } else { dismiss() }
+                    }.buttonStyle(.borderedProminent)
                 }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .overlay(alignment: .topLeading) {
+            if ApplePlatform.isDesktop,
+               project == nil || workspace == nil || repository.requiresSignIn(for: project?.workspaceId ?? "") {
+                Button { app.showProjects() } label: { Label("Projects", systemImage: "chevron.left") }
+                    .buttonStyle(AssistantDesktopButtonStyle()).font(.system(size: 13))
+                    .padding(.leading, 100).frame(height: AssistantDesktopStyle.headerHeight)
+                    .accessibilityLabel("Back to Projects").accessibilityIdentifier("desktop.project.back")
+            }
+        }
         .navigationTitle(project?.name ?? t("tabs.projects"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(ApplePlatform.isDesktop ? .hidden : .visible, for: .navigationBar)
         .toolbar {
-            if let project, !repository.requiresSignIn(for: project.workspaceId) {
+            if !ApplePlatform.isDesktop, let project, !repository.requiresSignIn(for: project.workspaceId) {
                 AppToolbarItem(placement: .topBarTrailing) { manageMenu }
             }
         }
@@ -92,7 +112,9 @@ struct ProjectDetailScreen: View {
         .workspaceActionAlerts(actions)
         .projectRemovalAlerts(removal, repository: repository)
         .onChange(of: removal.removedProjectId) { _, id in
-            if id == projectId, isVisible { dismiss() }
+            if id == projectId, isVisible {
+                if ApplePlatform.isDesktop { app.showProjects() } else { dismiss() }
+            }
         }
         .task {
             await repository.refreshIfNeeded(); reload()
@@ -107,7 +129,10 @@ struct ProjectDetailScreen: View {
             if phase == .active, isVisible { Task { await repository.refreshIfNeeded(); reload() } }
         }
         .observeChatActivity(agentIds: agents.map(\.id))
-        .onDisappear { isVisible = false; clearBackend() }
+        .onDisappear {
+            isVisible = false; clearBackend()
+            if ApplePlatform.isDesktop { app.desktopHasUnsavedFileEdits = false }
+        }
         .disabled(removal.running)
         .inputDialog(
             titleKey: "projectDetail.rename.title",
@@ -150,6 +175,123 @@ struct ProjectDetailScreen: View {
             if let project {
                 ProjectToolDestination(tool: .terminal, project: project, repository: repository)
             }
+        }
+    }
+
+    private func desktopProject(_ project: Project, _ workspace: Workspace) -> some View {
+        let context = DesktopProjectContext(project: project,
+            projects: stores.projects.list().sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending },
+            tool: desktopTool, tools: ProjectTool.available(workspaceId: workspace.id, repository: repository),
+            changedFiles: gitChangeCount, selectTool: selectDesktopTool,
+            newChat: AnyView(newChatAction), actions: AnyView(manageMenu))
+        return ZStack {
+            DesktopToolSplitView(browser: { desktopChats }, detail: {
+                desktopConversation(project, workspace)
+            }, showsDetailHeader: desktopChatID == nil)
+            .opacity(desktopTool == nil ? 1 : 0)
+            .disabled(desktopTool != nil)
+            .allowsHitTesting(desktopTool == nil).accessibilityHidden(desktopTool != nil)
+
+            // Tool identity is independent of the selected tab: edits, file selection, and PTYs
+            // survive switching between the project's chats, explorer, and changes.
+            ForEach(ProjectTool.allCases.filter { visitedDesktopTools.contains($0) }) { tool in
+                ProjectToolDestination(tool: tool, project: project, files: backend?.workspace,
+                                       repository: repository, embedded: true,
+                                       onDirtyChange: { app.desktopHasUnsavedFileEdits = $0 })
+                    .opacity(desktopTool == tool ? 1 : 0)
+                    .disabled(desktopTool != tool)
+                    .allowsHitTesting(desktopTool == tool).accessibilityHidden(desktopTool != tool)
+            }
+        }
+        .environment(\.desktopProjectContext, context)
+        .background(AssistantDesktopStyle.canvas)
+        .ignoresSafeArea(.container, edges: .top)
+        .font(.system(size: 13))
+        .onAppear {
+            // Adopt older saved pushed routes into the desktop selection model once.
+            if app.desktopProjectID != project.id { app.openProject(project.id) }
+        }
+    }
+
+    private func desktopConversation(_ project: Project, _ workspace: Workspace) -> some View {
+        @Bindable var app = app
+        return NavigationStack(path: $app.projectsPath) {
+            Group {
+                if let desktopChatID {
+                    ChatScreen(chatId: desktopChatID).id(desktopChatID).environment(\.desktopMessenger, true)
+                } else { desktopOverview(project, workspace) }
+            }
+            .withAppRoutes(repository: repository)
+            .toolbar(app.projectsPath.isEmpty ? .hidden : .visible, for: .navigationBar)
+        }
+    }
+
+    private func selectDesktopTool(_ tool: ProjectTool?) {
+        DesktopWorkspaceFocus.leaveTool()
+        if let tool { visitedDesktopTools.insert(tool) }
+        desktopTool = tool
+        app.showDesktopTool(tool)
+    }
+
+    private var desktopChats: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Conversations").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                Spacer()
+                Text("\(chats.count)").font(.system(size: 11)).foregroundStyle(.tertiary)
+            }.padding(.horizontal, 16).frame(height: 40)
+            List {
+                ForEach(activity.ordered(chats)) { chat in
+                    ChatListRow(chat: chat, subtitle: agentName(chat.agentId), compact: true,
+                                onOpen: { app.projectsPath = NavigationPath(); desktopChatID = chat.id }, onChanged: reload)
+                        .buttonStyle(.plain).font(.system(size: 13))
+                        .listRowInsets(.init(top: 10, leading: 14, bottom: 10, trailing: 14))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(desktopChatID == chat.id ? AssistantDesktopStyle.selection : .clear)
+                }
+            }
+            .listStyle(.plain).scrollContentBackground(.hidden)
+            .overlay {
+                if chats.isEmpty { Text("No conversations yet").font(.system(size: 12)).foregroundStyle(.secondary) }
+            }
+        }
+    }
+
+    private func desktopOverview(_ project: Project, _ workspace: Workspace) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Workspace").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                    DesktopWorkspaceCard {
+                        Button { app.openWorkspace(workspace.id) } label: {
+                            HStack(spacing: 12) {
+                                AppIcon(workspace.runtime.isLocal ? .laptop : workspace.isCloud ? .cloud : .server, size: 22)
+                                    .foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(workspace.runtime.isLocal ? "This Mac" : workspace.name).fontWeight(.medium)
+                                    Text(project.path).font(.system(size: 12)).foregroundStyle(.secondary)
+                                        .lineLimit(1).truncationMode(.middle)
+                                }
+                                Spacer()
+                                AppIcon(.chevronRight, size: 13).foregroundStyle(.tertiary)
+                            }.contentShape(.rect)
+                        }.buttonStyle(.plain)
+                        if let repo = project.repoUrl, !repo.isEmpty {
+                            Divider()
+                            Button { if let url = repoWebURL(repo) { openURL(url) } } label: {
+                                Label(repoDisplay(repo), icon: Icon.repo).font(.system(size: 12))
+                            }.buttonStyle(.plain)
+                        }
+                        NavigationLink { GitAccessSettingsScreen(workspaceId: workspace.id, projectId: project.id) } label: {
+                            Label(t("github.access.title"), icon: .key).font(.system(size: 12))
+                        }.buttonStyle(.plain).foregroundStyle(.secondary)
+                    }
+                }
+                Text("Choose a conversation in the sidebar, or start a new chat.")
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
+
+            }
+            .frame(maxWidth: 860, alignment: .leading).padding(28).frame(maxWidth: .infinity)
         }
     }
 
@@ -327,7 +469,10 @@ struct ProjectDetailScreen: View {
         actions.run {
             let chat = try await stores.workspaceData.createChat(agentId: agentId, projectId: projectId)
             reload()
-            app.push(.chat(chatId: chat.id))
+            if ApplePlatform.isDesktop {
+                desktopChatID = chat.id
+                selectDesktopTool(nil)
+            } else { app.push(.chat(chatId: chat.id)) }
         }
     }
 

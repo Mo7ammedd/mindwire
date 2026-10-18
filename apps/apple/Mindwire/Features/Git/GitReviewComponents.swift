@@ -51,7 +51,9 @@ struct GitFileRow: View {
         }
         .listRowInsets(EdgeInsets(top: Spacing.xs, leading: Spacing.lg,
                                  bottom: Spacing.xs, trailing: Spacing.lg))
-        .listRowBackground(isSelected ? Palette.accent.opacity(0.10) : Color(.secondarySystemGroupedBackground))
+        .listRowBackground(isSelected ? Palette.accent.opacity(0.10)
+                           : ApplePlatform.isDesktop ? Color.clear : Color(.secondarySystemGroupedBackground))
+        .listRowSeparator(ApplePlatform.isDesktop ? .hidden : .automatic)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .modifier(GitFileActions(model: model, change: change, staged: staged, commit: commit,
                                  readOnly: comparison != nil, onDiscard: onDiscard))
@@ -121,6 +123,7 @@ struct GitChangeRow: View {
     var pendingAction: GitAction? = nil
     @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .subheadline) private var iconSize: CGFloat = 22
+    private var glyphSize: CGFloat { ApplePlatform.isDesktop ? 17 : iconSize }
 
     var body: some View {
         HStack(alignment: .center, spacing: Spacing.sm) {
@@ -135,8 +138,8 @@ struct GitChangeRow: View {
     }
 
     private var glyph: some View {
-        FileIcon(name: change.name, size: iconSize)
-            .frame(width: iconSize + 2, height: iconSize + 2)
+        FileIcon(name: change.name, size: glyphSize)
+            .frame(width: glyphSize + 2, height: glyphSize + 2)
             .opacity(pendingAction == nil ? 1 : 0)
             .overlay {
                 if let pendingAction {
@@ -151,11 +154,11 @@ struct GitChangeRow: View {
     private var title: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(change.name)
-                .font(.subheadline.weight(.medium))
+                .font(ApplePlatform.isDesktop ? .system(size: 12, weight: .medium) : .subheadline.weight(.medium))
                 .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                 .truncationMode(.middle)
             if let location = change.reviewLocation {
-                Text(location).font(.caption).foregroundStyle(.secondary)
+                Text(location).font(ApplePlatform.isDesktop ? .system(size: 10) : .caption).foregroundStyle(.secondary)
                     .lineLimit(typeSize.isAccessibilitySize ? nil : 1).truncationMode(.middle)
             }
             if typeSize.isAccessibilitySize { details }
@@ -168,7 +171,8 @@ struct GitChangeRow: View {
                 GitDiffStats(additions: stat.additions, deletions: stat.deletions)
             }
             Text(change.reviewStatus(staged: staged))
-                .font(.caption).foregroundStyle(change.isConflicted ? .red : .secondary)
+                .font(ApplePlatform.isDesktop ? .system(size: 10) : .caption)
+                .foregroundStyle(change.isConflicted ? .red : .secondary)
         }
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -185,7 +189,7 @@ struct GitDiffStats: View {
             if additions > 0 { Text("+\(additions)").foregroundStyle(Color(uiColor: palette.addedText)) }
             if deletions > 0 { Text("−\(deletions)").foregroundStyle(Color(uiColor: palette.removedText)) }
         }
-        .font(.caption.weight(.medium)).monospacedDigit()
+        .font(ApplePlatform.isDesktop ? .system(size: 11, weight: .medium) : .caption.weight(.medium)).monospacedDigit()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(t("git.lineCounts", ["added": "\(additions)", "removed": "\(deletions)"]))
     }
@@ -200,11 +204,12 @@ struct GitRepositorySummary: View {
         HStack(spacing: Spacing.sm) {
             Button(action: chooseBranch) {
                 HStack(spacing: Spacing.sm) {
-                    AppIcon(Icon.repo, size: 17).foregroundStyle(.secondary)
+                    AppIcon(Icon.repo, size: ApplePlatform.isDesktop ? 14 : 17).foregroundStyle(.secondary)
                         .frame(width: 20, height: 20).accessibilityHidden(true)
                     Text(model.status?.branch ?? t("git.detached"))
-                        .font(.subheadline.weight(.medium)).foregroundStyle(.primary).lineLimit(1).truncationMode(.middle)
-                    AppIcon(.chevronDown)
+                        .font(ApplePlatform.isDesktop ? .system(size: 12, weight: .medium) : .subheadline.weight(.medium))
+                        .foregroundStyle(.primary).lineLimit(1).truncationMode(.middle)
+                    AppIcon(.chevronDown, size: ApplePlatform.isDesktop ? 10 : 14)
                         .font(.caption2.weight(.medium)).foregroundStyle(.secondary)
                     if let status = model.status {
                         HStack(spacing: Spacing.sm) {
@@ -218,7 +223,7 @@ struct GitRepositorySummary: View {
                         .font(.caption).monospacedDigit().foregroundStyle(.secondary)
                     }
                 }
-                .frame(minHeight: 36)
+                .frame(minHeight: ApplePlatform.isDesktop ? 28 : 36)
             }
             .buttonStyle(.plain)
             .accessibilityHint(t("git.branches.switch"))
@@ -226,12 +231,14 @@ struct GitRepositorySummary: View {
             Spacer(minLength: Spacing.md)
             if let showHistory {
                 Button(action: showHistory) {
-                    Text(t("git.history.shortTitle"))
-                        .font(.subheadline)
-                        .fixedSize()
-                        .frame(minHeight: 44)
+                    if ApplePlatform.isDesktop {
+                        AppIcon(.history, size: 14).frame(width: 28, height: 28)
+                    } else {
+                        Text(t("git.history.shortTitle")).font(.subheadline).fixedSize().frame(minHeight: 44)
+                    }
                 }
-                .buttonStyle(.borderless).tint(.primary)
+                .buttonStyle(.plain).tint(.primary)
+                .help(t("git.history.title"))
                 .accessibilityLabel(t("git.history.title"))
                 .accessibilityIdentifier("git.openHistory")
             }
@@ -254,7 +261,7 @@ struct GitRepositoryChangeSummary: View {
             Spacer(minLength: Spacing.sm)
             GitDiffStats(additions: stats.additions, deletions: stats.deletions)
         }
-        .font(.caption)
+        .font(ApplePlatform.isDesktop ? .system(size: 11) : .caption)
     }
 }
 

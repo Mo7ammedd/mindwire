@@ -122,6 +122,7 @@ type Server struct {
 	desktopPort      int
 	desktopAuthorize func(string) error
 	desktopViewer    func(context.Context, string, io.ReadWriteCloser) error
+	botPeerBridge    PeerBridge
 }
 
 // Desktop uses a virtual direct-tcpip destination on the existing SSH server.
@@ -681,8 +682,8 @@ func (s *Server) routes(register func(string, http.HandlerFunc)) {
 			AddressRecovery bool `json:"addressRecovery"`
 		}
 		connected := map[string]bool{}
-		for _, id := range s.connections {
-			if id != "" {
+		for conn, id := range s.connections {
+			if id != "" && conn.Permissions.Extensions["mode"] == "device" {
 				connected[id] = true
 			}
 		}

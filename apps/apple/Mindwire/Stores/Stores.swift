@@ -3,6 +3,9 @@ import SwiftUI
 /// Container for the four persisted list stores. Injected via `@Environment(\.stores)`.
 final class Stores {
     let defaults: UserDefaults
+    @MainActor lazy var experience = AppExperience(defaults: defaults,
+        hasExistingData: !connections.list().isEmpty || !workspaces.list().isEmpty
+            || !agents.list().isEmpty || !projects.list().isEmpty || !chats.list().isEmpty)
     @MainActor lazy var workspaceData = WorkspaceDataRepository(stores: self)
     @MainActor lazy var projectSync = ProjectSyncCoordinator(stores: self)
     @MainActor lazy var preparation = PreparationQueue(stores: self)
@@ -26,6 +29,7 @@ final class Stores {
     let workspaces: JSONListStore<Workspace>
     let projects: JSONListStore<Project>
     let chats: JSONListStore<Chat>
+    let bots: JSONListStore<AssistantBot>
     let github: JSONListStore<GitHubAccount>
 
     init(defaults: UserDefaults = .standard) {
@@ -39,6 +43,7 @@ final class Stores {
         workspaces = JSONListStore(key: StorageKey.workspaces, defaults: defaults)
         projects = JSONListStore(key: StorageKey.projects, defaults: defaults)
         chats = JSONListStore(key: StorageKey.chats, defaults: defaults)
+        bots = JSONListStore(key: StorageKey.bots, defaults: defaults)
         github = JSONListStore(key: StorageKey.github, defaults: defaults)
     }
 }

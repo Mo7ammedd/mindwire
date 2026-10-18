@@ -1,9 +1,17 @@
 import SwiftUI
 
+/// A list can resolve saved metadata once, rather than decoding it separately for every row.
+struct ChatListRowSnapshot {
+    let notificationsMuted: Bool
+}
+
 /// The same navigation, native preview and confirmed actions in every chat list.
 struct ChatListRow: View {
     let chat: Chat
     var subtitle: String? = nil
+    var snapshot: ChatListRowSnapshot? = nil
+    var compact = false
+    var sidebar = false
     var onOpen: (() -> Void)? = nil
     var onChanged: () -> Void = {}
 
@@ -17,7 +25,12 @@ struct ChatListRow: View {
     @State private var renameText = ""
     @State private var error: String?
 
-    private var title: String { activity.title(stores.chats.get(chat.id) ?? chat) }
+    private var savedChat: Chat { snapshot == nil ? stores.chats.get(chat.id) ?? chat : chat }
+    private var title: String { activity.title(savedChat) }
+    private var notificationsMuted: Bool {
+        if let snapshot { return snapshot.notificationsMuted }
+        return NotificationScope.chat(chat.id).isMuted(in: stores)
+    }
     private var busy: Bool { actions.pending.contains(chat.id) }
 
     var body: some View {
@@ -64,18 +77,25 @@ struct ChatListRow: View {
         } message: { Text(error ?? "") }
     }
 
-    private var label: some View {
-        HStack {
-            ChatRowLabel(title: title, subtitle: subtitle, agentType: stores.agents.get(chat.agentId)?.agentType,
-                         status: activity.status(chat.id),
-                         date: activity.lastActivity(stores.chats.get(chat.id) ?? chat),
-                         runStartedAt: activity.runStartedAt(chat.id),
-                         loading: stores.chatSessions.cached(chat.id)?.isLoadingConversation == true)
-            if NotificationScope.chat(chat.id).isMuted(in: stores) {
-                AppIcon(.bellOff).font(.caption).foregroundStyle(.secondary)
-                    .accessibilityLabel(t("notifications.muted"))
+    @ViewBuilder private var label: some View {
+        if sidebar {
+            AssistantConversationLabel(title: title, selected: app.assistantChatID == chat.id,
+                                       status: activity.status(chat.id),
+                                       busy: busy || stores.chatSessions.cached(chat.id)?.isLoadingConversation == true,
+                                       muted: notificationsMuted)
+        } else {
+            HStack {
+                ChatRowLabel(title: title, subtitle: subtitle, compact: compact,
+                             status: activity.status(chat.id),
+                             date: compact ? nil : activity.lastActivity(savedChat),
+                             runStartedAt: activity.runStartedAt(chat.id),
+                             loading: stores.chatSessions.cached(chat.id)?.isLoadingConversation == true)
+                if notificationsMuted {
+                    AppIcon(.bellOff).font(.caption).foregroundStyle(.secondary)
+                        .accessibilityLabel(t("notifications.muted"))
+                }
+                if busy { ProgressView().controlSize(.mini) }
             }
-            if busy { ProgressView().controlSize(.mini) }
         }
     }
 
@@ -94,12 +114,12 @@ struct ChatListRow: View {
 
 /// One chat row, shared by every chat-list surface (agent detail, project detail, history sheet).
 /// `subtitle` carries the cross-scope label — the project name in an agent's list, the agent name
-/// in a project's list. The logo uses the owning agent's bundled harness artwork, and status
-/// comes from the shared daemon activity snapshot.
+/// in a project's list. Conversations share Mindwire's identity; status comes from the
+/// shared daemon activity snapshot.
 struct ChatRowLabel: View {
     let title: String
     var subtitle: String? = nil
-    var agentType: AgentID? = nil
+    var compact = false
     var status: RunStatus? = nil
     var date: Date? = nil
     var runStartedAt: Date? = nil
@@ -107,12 +127,9 @@ struct ChatRowLabel: View {
 
     var body: some View {
         HStack(spacing: Spacing.md) {
-            if let agentType {
-                AgentLogo(id: agentType, size: 24).accessibilityHidden(true)
-            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).lineLimit(1)
-                if let subtitle, !subtitle.isEmpty {
+                if !compact, let subtitle, !subtitle.isEmpty {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
@@ -121,7 +138,7 @@ struct ChatRowLabel: View {
                 if status == .running {
                     ChatRunStatusLabel(status: status, startedAt: runStartedAt)
                 } else {
-                    if let date { RelativeTimestamp(date: date) }
+                    if !compact, let date { RelativeTimestamp(date: date) }
                     if loading {
                         ProgressView().controlSize(.mini)
                             .accessibilityLabel(t("chat.history.loading"))

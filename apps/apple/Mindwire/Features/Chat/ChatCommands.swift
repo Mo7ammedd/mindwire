@@ -71,7 +71,7 @@ struct ChatCommandsSheet: View {
                 }
                 if model.loading && model.catalog.commands.isEmpty {
                     HStack(spacing: Spacing.md) {
-                        if let agentType { AgentLogo(id: agentType, size: 24) }
+                        AppLogo(size: 24)
                         Text(t("chat.commands.loading")).foregroundStyle(.secondary)
                         Spacer()
                         ProgressView().controlSize(.small)

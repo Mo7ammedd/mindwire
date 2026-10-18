@@ -163,8 +163,9 @@ private struct FileTreeNodeRow<Accessory: View, Decoration: ViewModifier>: View 
     let depth: Int
     let tree: FileTree<Accessory, Decoration>
     @AppStorage("mindwire.files.density") private var density: FilesDensity = .large
+    @Environment(\.embeddedWorkspaceTool) private var embedded
 
-    private var s: CGFloat { density.scale }
+    private var s: CGFloat { density.scale * (ApplePlatform.isDesktop ? 0.82 : 1) }
     private var isExpanded: Bool { entry.type == .dir && tree.expansionBinding(entry).wrappedValue }
 
     private func expansion(_ branch: FileTreeBranch) -> Binding<Bool> {
@@ -195,7 +196,10 @@ private struct FileTreeNodeRow<Accessory: View, Decoration: ViewModifier>: View 
                             .frame(width: 28)
                     }
                     FileTreeRow(depth: depth, preferences: tree.preferences, expanded: target.type == .dir ? isExpanded : nil) {
-                        if target.type != .dir {
+                        if target.type == .dir, ApplePlatform.isDesktop {
+                            AppIcon(isExpanded ? .folderFilled : .folder, size: 16 * density.scale)
+                                .foregroundStyle(FileIconTheme.folderColor)
+                        } else if target.type != .dir {
                             FileIcon(name: target.name, size: 18 * s)
                                 .opacity(appearance.progress == nil ? 1 : 0)
                                 .overlay {
@@ -231,7 +235,7 @@ private struct FileTreeNodeRow<Accessory: View, Decoration: ViewModifier>: View 
         .listRowInsets(EdgeInsets(top: tree.preferences.rowPadding * s, leading: 14,
                                  bottom: tree.preferences.rowPadding * s, trailing: 14))
         .listRowSeparator(.hidden)
-        .listRowBackground(appearance.selected && !tree.selecting ? Palette.accent.opacity(0.12) : Color(.systemBackground))
+        .listRowBackground(appearance.selected && !tree.selecting ? Palette.accent.opacity(0.12) : embedded && ApplePlatform.isDesktop ? AssistantDesktopStyle.sidebar : Color(.systemBackground))
     }
 }
 

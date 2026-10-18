@@ -54,11 +54,24 @@ func (s *Supervisor) checkNativeSession(a *Agent, req StartTurnInput, control bo
 	if control {
 		return true, agent.NativeActionUnsupported("this command")
 	}
+	if err := s.checkBotNativeOwner(req.ChatID); err != nil {
+		return true, err
+	}
 	return true, nativeOverrides(req.Options)
 }
 
+func (s *Supervisor) checkBotNativeOwner(chatID string) error {
+	s.mu.Lock()
+	service := s.bots
+	s.mu.Unlock()
+	if service != nil && service.IsBotChat(chatID) {
+		return agent.NativeError("native_settings_owned", "This bot uses its saved Mindwire instructions and tools. Close its active terminal session before continuing here.")
+	}
+	return nil
+}
+
 func nativeOverrides(o agent.TurnOptions) error {
-	if o.Command != nil || o.Voice != nil || len(o.Settings) > 0 || o.SystemPrompt != "" || len(o.MCPServers) > 0 || len(o.OutputSchema) > 0 || len(o.Subagents) > 0 || len(o.ClaudeSettings) > 0 {
+	if o.Command != nil || o.Voice != nil || len(o.Settings) > 0 || o.SystemPrompt != "" || o.ContextInstructions != "" || len(o.MCPServers) > 0 || len(o.OutputSchema) > 0 || len(o.Subagents) > 0 || len(o.ClaudeSettings) > 0 {
 		return agent.NativeError("native_settings_owned", "This live conversation uses its terminal's settings and tools. Send a message without startup overrides, or change those settings in its terminal.")
 	}
 	return nil
@@ -72,6 +85,9 @@ func (s *Supervisor) prepareTurn(ctx context.Context, a *Agent, turn runner.Turn
 			return turn, func() {}, err
 		}
 		if activity.Owner == "native" {
+			if err := s.checkBotNativeOwner(turn.ChatID); err != nil {
+				return turn, func() {}, err
+			}
 			if !activity.Capabilities.Input {
 				return turn, func() {}, agent.NativeActionUnsupported("sending")
 			}
@@ -86,5 +102,20 @@ func (s *Supervisor) prepareTurn(ctx context.Context, a *Agent, turn runner.Turn
 			return turn, func() {}, nil
 		}
 	}
-	return s.desktopTurn(ctx, a, turn)
+	turn, desktopCleanup, err := s.desktopTurn(ctx, a, turn)
+	if err != nil {
+		return turn, desktopCleanup, err
+	}
+	s.mu.Lock()
+	service := s.bots
+	s.mu.Unlock()
+	if service == nil {
+		return turn, desktopCleanup, nil
+	}
+	turn, botCleanup, err := service.Bind(ctx, a.Adapter, turn)
+	if err != nil {
+		desktopCleanup()
+		return turn, func() {}, err
+	}
+	return turn, func() { botCleanup(); desktopCleanup() }, nil
 }

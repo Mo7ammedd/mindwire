@@ -23,6 +23,9 @@ struct WorkspaceDetailScreen: View {
     @State private var showChats = false
     @State private var showNewAgent = false
     @State private var showBackups = false
+    @State private var showServiceDetails = false
+    @State private var desktopTool: ProjectTool?
+    @State private var visitedDesktopTools: Set<ProjectTool> = []
     @State private var actions = WorkspaceActionState()
     @State private var isVisible = false
     @State private var modelTask: Task<Void, Never>?
@@ -40,7 +43,109 @@ struct WorkspaceDetailScreen: View {
         let agents = repository.agents(workspaceId: workspaceId)
         ZStack {
             if workspace != nil {
-                List {
+                if ApplePlatform.isDesktop {
+                    desktopWorkspace(agents: agents)
+                } else {
+                    List { workspaceSections(agents: agents) }.readablePane()
+                }
+            } else {
+                WorkspaceUnavailableView(workspaceId: workspaceId, repository: repository)
+            }
+        }
+        .serviceUpdatePresentation(repository: repository)
+        .navigationTitle(workspace?.name ?? t("workspace.tab"))
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaBar(edge: .top) {
+            if !ApplePlatform.isDesktop, workspace != nil {
+                Picker("Workspace section", selection: $selectedTab) {
+                    ForEach(WorkspaceDetailTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: AdaptiveLayout.readableWidth)
+                .padding(.horizontal).padding(.bottom, Spacing.xs)
+            }
+        }
+        .toolbar(ApplePlatform.isDesktop ? .hidden : .visible, for: .navigationBar)
+        .toolbar {
+            if !ApplePlatform.isDesktop, let workspace {
+                AppToolbarItem(placement: .topBarTrailing) {
+                    AppMenu {
+                        WorkspaceMenuActions(workspace: workspace, actions: actions)
+                    } label: {
+                        AppIcon(Icon.ellipsis).foregroundStyle(.primary)
+                    }
+                    .disabled(actions.deleting)
+                }
+            }
+        }
+        .onAppear { isVisible = true; ensureModel() }
+        .onDisappear {
+            isVisible = false
+            if ApplePlatform.isDesktop { app.desktopHasUnsavedFileEdits = false }
+        }
+        .task { await repository.refreshIfNeeded(); ensureModel() }
+        .observeWorkspaceCache(ensureModel)
+        .refreshable {
+            async let release = stores.serviceUpdates.refreshRelease(force: true)
+            await repository.refresh()
+            ensureModel()
+            if let workspace { await stores.workspaceData.refresh(workspace) }
+            await model?.load(force: true)
+            if let controls = model?.management { await controls.refresh(.settings, force: true) }
+            _ = await release
+        }
+        .onChange(of: repository.revision) { ensureModel() }
+        .onChange(of: repository.requiresSignIn) { ensureModel() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, isVisible { Task { await repository.refreshIfNeeded(); ensureModel() } }
+        }
+        .observeChatActivity(agentIds: workspace == nil ? [] : stores.agents(forWorkspaceId: workspaceId).map(\.id))
+        .fullScreenCover(isPresented: $showDesktop) {
+            if workspace?.isCloud == true {
+                DesktopSessionsScreen(workspaceId: workspaceId, repository: repository)
+            } else {
+                DesktopScreen(workspaceId: workspaceId, repository: repository)
+            }
+        }
+        .fullScreenCover(isPresented: $showTerminal) {
+            TerminalScreen(title: workspace?.name ?? t("workspace.terminal.title")) {
+                TerminalSessionFactory.provider(for: repository.get(workspaceId), stores: stores)
+            }
+        }
+        .sheet(isPresented: $showServiceDetails) {
+            if let workspace { ServiceUpdateInfoSheet(workspace: workspace) }
+        }
+        .sheet(isPresented: $showFiles) {
+            if let model { FilesSheet(workspace: model.workspace, basePath: "/", startPath: "~") }
+        }
+        .sheet(isPresented: $showChats) {
+            ChatHistorySheet(workspaceId: workspaceId)
+        }
+        .onChange(of: DaemonWorkCoordinator.shared.states[.init(workspaceId: workspaceId)]?.reachable) { _, reachable in
+            // Background transport recovery must replace an old offline view.
+            if reachable == true, model?.available == false {
+                Task { await model?.load(force: true) }
+            }
+        }
+        .sheet(isPresented: $showNewAgent) {
+            NewAgentScreen(workspaceId: workspaceId, releaseCatalog: releaseCatalog)
+        }
+        .sheet(isPresented: $showBackups) {
+            if let controls = model?.management {
+                NavigationStack {
+                    WorkspaceArchivesScreen(model: controls)
+                        .toolbar { AppToolbarItem(placement: .cancellationAction) { Button("Done") { showBackups = false }.tint(.primary) } }
+                }
+            }
+        }
+        .workspaceActionPresentation(actions, repository: repository, onDeleted: {
+            if ApplePlatform.isDesktop { app.showComputers() } else { dismiss() }
+        },
+            onBackup: model?.management?.features.contains(.archives) == true ? { showBackups = true } : nil)
+    }
+
+    @ViewBuilder private func workspaceSections(agents: [Agent]) -> some View {
+
                     if selectedTab == .overview {
                     if let model, model.available { overviewSummary(model) }
                     if let model, let preparation = model.status?.provisioning, preparation.isPending || preparation.isFailed {
@@ -91,93 +196,163 @@ struct WorkspaceDetailScreen: View {
                                              openDesktop: { showDesktop = true }, openFiles: { showFiles = true },
                                              openTerminal: { showTerminal = true }, onDelete: { actions.remove(workspace) })
                     }
-                }
-                .readablePane()
-            } else {
-                WorkspaceUnavailableView(workspaceId: workspaceId, repository: repository)
-            }
-        }
-        .serviceUpdatePresentation(repository: repository)
-        .navigationTitle(workspace?.name ?? t("workspace.tab"))
-        .navigationBarTitleDisplayMode(.inline)
-        .safeAreaBar(edge: .top) {
-            if workspace != nil {
-                Picker("Workspace section", selection: $selectedTab) {
-                    ForEach(WorkspaceDetailTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: AdaptiveLayout.readableWidth)
-                .padding(.horizontal).padding(.bottom, Spacing.xs)
-            }
-        }
-        .toolbar {
-            if let workspace {
-                AppToolbarItem(placement: .topBarTrailing) {
-                    AppMenu {
-                        WorkspaceMenuActions(workspace: workspace, actions: actions)
-                    } label: {
-                        AppIcon(Icon.ellipsis).foregroundStyle(.primary)
                     }
-                    .disabled(actions.deleting)
+
+    private func desktopWorkspace(agents: [Agent]) -> some View {
+        VStack(spacing: 0) {
+            if let workspace {
+                DesktopWorkspaceHeader(title: workspace.runtime.isLocal ? "This Mac" : workspace.name,
+                                       subtitle: workspace.runtime.isLocal ? "Local workspace" : workspace.isCloud ? "Mindwire Cloud" : "Remote computer",
+                                       icon: workspace.runtime.isLocal ? .laptop : workspace.isCloud ? .cloud : .server) {
+                    if workspace.runtime.isLocal {
+                        DesktopConnectPhoneButton().buttonStyle(DesktopActionButtonStyle())
+                    }
+                    AppMenu { WorkspaceMenuActions(workspace: workspace, actions: actions) } label: {
+                        AppIcon(Icon.ellipsis, size: 18).frame(width: 32, height: 32)
+                    }.disabled(actions.deleting)
                 }
             }
-        }
-        .onAppear { isVisible = true; ensureModel() }
-        .onDisappear { isVisible = false }
-        .task { await repository.refreshIfNeeded(); ensureModel() }
-        .observeWorkspaceCache(ensureModel)
-        .refreshable {
-            async let release = stores.serviceUpdates.refreshRelease(force: true)
-            await repository.refresh()
-            ensureModel()
-            if let workspace { await stores.workspaceData.refresh(workspace) }
-            await model?.load(force: true)
-            if let controls = model?.management { await controls.refresh(.settings, force: true) }
-            _ = await release
-        }
-        .onChange(of: repository.revision) { ensureModel() }
-        .onChange(of: repository.requiresSignIn) { ensureModel() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active, isVisible { Task { await repository.refreshIfNeeded(); ensureModel() } }
-        }
-        .observeChatActivity(agentIds: workspace == nil ? [] : stores.agents(forWorkspaceId: workspaceId).map(\.id))
-        .fullScreenCover(isPresented: $showDesktop) {
-            if workspace?.isCloud == true {
-                DesktopSessionsScreen(workspaceId: workspaceId, repository: repository)
-            } else {
-                DesktopScreen(workspaceId: workspaceId, repository: repository)
-            }
-        }
-        .fullScreenCover(isPresented: $showTerminal) {
-            TerminalScreen(title: workspace?.name ?? t("workspace.terminal.title")) {
-                TerminalSessionFactory.provider(for: repository.get(workspaceId), stores: stores)
-            }
-        }
-        .sheet(isPresented: $showFiles) {
-            if let model { FilesSheet(workspace: model.workspace, basePath: "/", startPath: "~") }
-        }
-        .sheet(isPresented: $showChats) {
-            ChatHistorySheet(workspaceId: workspaceId)
-        }
-        .onChange(of: DaemonWorkCoordinator.shared.states[.init(workspaceId: workspaceId)]?.reachable) { _, reachable in
-            // Background transport recovery must replace an old offline view.
-            if reachable == true, model?.available == false {
-                Task { await model?.load(force: true) }
-            }
-        }
-        .sheet(isPresented: $showNewAgent) {
-            NewAgentScreen(workspaceId: workspaceId, releaseCatalog: releaseCatalog)
-        }
-        .sheet(isPresented: $showBackups) {
-            if let controls = model?.management {
-                NavigationStack {
-                    WorkspaceArchivesScreen(model: controls)
-                        .toolbar { AppToolbarItem(placement: .cancellationAction) { Button("Done") { showBackups = false }.tint(.primary) } }
+            HStack(spacing: 6) {
+                DesktopWorkspaceTab(title: "Overview", icon: .laptop, selected: desktopTool == nil && selectedTab == .overview) {
+                    DesktopWorkspaceFocus.leaveTool()
+                    desktopTool = nil; selectedTab = .overview; app.showDesktopTool(nil)
+                }
+                if let model, model.available {
+                    if model.caps.files { desktopToolTab(.files) }
+                    if model.caps.terminal { desktopToolTab(.terminal) }
+                }
+                Spacer()
+                DesktopWorkspaceTab(title: "Manage", icon: .sliders, selected: desktopTool == nil && selectedTab == .manage) {
+                    DesktopWorkspaceFocus.leaveTool()
+                    desktopTool = nil; selectedTab = .manage; app.showDesktopTool(nil)
                 }
             }
+            .padding(.horizontal, 20).padding(.vertical, 12)
+            .overlay(alignment: .bottom) { Rectangle().fill(AssistantDesktopStyle.separator).frame(height: 0.5) }
+            ZStack {
+                desktopOverviewNavigation(agents: agents)
+                    .opacity(desktopTool == nil ? 1 : 0)
+                    .disabled(desktopTool != nil)
+                    .allowsHitTesting(desktopTool == nil).accessibilityHidden(desktopTool != nil)
+                ForEach(ProjectTool.allCases.filter { visitedDesktopTools.contains($0) }) { tool in
+                    Group {
+                        if tool == .files, let model {
+                            FilesSheet(workspace: model.workspace, basePath: "/", startPath: "~", embedded: true,
+                                       onDirtyChange: { app.desktopHasUnsavedFileEdits = $0 })
+                        } else if tool == .terminal {
+                            TerminalScreen(title: workspace?.name ?? "Terminal", embedded: true) {
+                                TerminalSessionFactory.provider(for: repository.get(workspaceId), stores: stores)
+                            }
+                        }
+                    }
+                    .opacity(desktopTool == tool ? 1 : 0)
+                    .disabled(desktopTool != tool)
+                    .allowsHitTesting(desktopTool == tool).accessibilityHidden(desktopTool != tool)
+                }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .workspaceActionPresentation(actions, repository: repository, onDeleted: { dismiss() },
-            onBackup: model?.management?.features.contains(.archives) == true ? { showBackups = true } : nil)
+        .background(AssistantDesktopStyle.canvas)
+        .ignoresSafeArea(.container, edges: .top)
+        .font(.system(size: 13)).controlSize(.small)
+        .onAppear {
+            if app.desktopWorkspaceID != workspaceId { app.openWorkspace(workspaceId) }
+        }
+    }
+
+    private func desktopOverviewNavigation(agents: [Agent]) -> some View {
+        @Bindable var app = app
+        return NavigationStack(path: $app.workspacesPath) {
+            Group {
+                    if selectedTab == .overview, let model, model.available,
+                       model.status?.provisioning?.isPending != true, model.status?.provisioning?.isFailed != true {
+                        desktopOverview(model, agents: agents)
+                    } else {
+                        Form { workspaceSections(agents: agents) }
+                            .formStyle(.grouped).scrollContentBackground(.hidden)
+                            .environment(\.defaultMinListRowHeight, 32)
+                            .contentMargins(.top, 16, for: .scrollContent)
+                            .frame(maxWidth: 860).frame(maxWidth: .infinity)
+                    }
+
+            }
+            .withAppRoutes(repository: repository)
+            .toolbar(app.workspacesPath.isEmpty ? .hidden : .visible, for: .navigationBar)
+        }
+    }
+
+    private func desktopToolTab(_ tool: ProjectTool) -> some View {
+        DesktopWorkspaceTab(title: tool == .terminal ? "Terminal" : tool.title, icon: tool.icon, selected: desktopTool == tool) {
+            DesktopWorkspaceFocus.leaveTool()
+            visitedDesktopTools.insert(tool); desktopTool = tool; app.showDesktopTool(tool)
+        }
+        .accessibilityIdentifier("desktop.computer.tab.\(tool.rawValue)")
+    }
+
+    private func desktopOverview(_ model: WorkspaceModel, agents: [Agent]) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                DesktopWorkspaceCard {
+                    HStack {
+                        Label(WorkspaceControlFormat.status(model.status?.detail ?? model.status?.power.rawValue), systemImage: "circle.fill")
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                        Spacer()
+                        Button { showServiceDetails = true } label: {
+                            WorkspaceDaemonStatusLabel(workspaceId: workspaceId, showsLatestVersion: true)
+                        }.buttonStyle(.plain).help(t("workspace.daemon.title"))
+                    }
+                    if let resources = model.resources {
+                        Divider()
+                        HStack(spacing: 28) {
+                            desktopResource("CPU", value: "\(resources.cpus) cores")
+                            desktopResource("Memory", value: WorkspaceControlFormat.capacity(resources.memoryMb))
+                            desktopResource("Storage", value: WorkspaceControlFormat.capacity(resources.diskMb))
+                        }.padding(.vertical, 6)
+                    }
+                    if let error = stores.workspaceData.errors[workspaceId] {
+                        Text(error).font(.system(size: 12)).foregroundStyle(.secondary)
+                        Button(t("workspace.sync.retry")) {
+                            if let workspace { Task { await stores.workspaceData.refresh(workspace) } }
+                        }
+                    }
+                }
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Base connections").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Add connection") { showNewAgent = true }.buttonStyle(.plain)
+                            .font(.system(size: 12)).foregroundStyle(Palette.accent)
+                    }
+                    DesktopWorkspaceCard {
+                        ForEach(Array(agents.enumerated()), id: \.element.id) { index, agent in
+                            if index > 0 { Divider() }
+                            NavigationLink(value: AppRoute.agentDetail(agentId: agent.id)) {
+                                HStack(spacing: 12) {
+                                    AgentLogo(id: agent.agentType, size: 24)
+                                    Text(agent.displayName).font(.system(size: 13))
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .medium)).foregroundStyle(.tertiary)
+                                }.padding(.vertical, 4).contentShape(.rect)
+                            }.buttonStyle(.plain)
+                        }
+                        if agents.isEmpty { Text("Connect a subscription to start creating agents.").foregroundStyle(.secondary) }
+                    }
+                }
+                HStack(spacing: 12) {
+                    Button { app.selectDesktopSection(.projects) } label: {
+                        Label("\(stores.projects(forWorkspaceId: workspaceId).count) projects", icon: .folder)
+                    }
+                    Button { showChats = true } label: { Label(t("agentDetail.chats"), icon: Icon.history) }
+                }.buttonStyle(.bordered).controlSize(.regular)
+            }
+            .frame(maxWidth: 860, alignment: .leading).padding(28).frame(maxWidth: .infinity)
+        }
+    }
+
+    private func desktopResource(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(value).font(.system(size: 16, weight: .medium)).monospacedDigit()
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Overview only shows the cached count. Project rows are rendered after opening the list.
@@ -210,7 +385,7 @@ struct WorkspaceDetailScreen: View {
     /// Agents owned by this workspace (shared by all its projects) + a shortcut to create one.
     private var agentsSection: some View {
         let agents = repository.agents(workspaceId: workspaceId)
-        return Section(t("workspace.agents")) {
+        return Section("Base agents") {
             ForEach(agents) { agent in
                 NavigationLink(value: AppRoute.agentDetail(agentId: agent.id)) {
                     AgentCompactLabel(agent: agent)
@@ -218,7 +393,7 @@ struct WorkspaceDetailScreen: View {
                 .tint(.primary)
             }
             Button { showNewAgent = true } label: {
-                Label(t("project.createAgent"), icon: Icon.plus)
+                Label("Add base connection", icon: Icon.plus)
             }
             .tint(.primary)
         }
@@ -343,6 +518,7 @@ struct WorkspaceDetailScreen: View {
         // implemented"); fall back to a generic message.
         let text: String = {
             if let detail = model.health?.detail, !detail.isEmpty { return detail }
+            if model.runtime.isLocal { return "Mindwire on this Mac is unavailable. Try starting it again." }
             if model.runtime.isServer { return t("workspace.unavailable.server") }
             return t("workspace.unavailable.cloud")
         }()

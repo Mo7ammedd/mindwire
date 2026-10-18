@@ -35,12 +35,24 @@ extension EnvironmentValues {
 /// from the browser must not remove the view that owns an unfinished sign-in.
 struct AgentAuthPresenter<Content: View>: View {
     let model: DaemonSession?
+    var preferredMethodID: String? = nil
+    @State private var didPresentPreferredMethod = false
     @State var presentation = AgentAuthPresentation()
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         content()
             .environment(\.agentAuthPresentation, presentation)
+            .task(id: preferredMethod) {
+                guard !didPresentPreferredMethod, presentation.sheet == nil, let method = preferredMethod else { return }
+                didPresentPreferredMethod = true
+                presentation.sheet = .method(method)
+            }
+            .onChange(of: presentation.sheet?.id) { _, id in
+                // A manually chosen method also consumes the suggestion. Refreshing after
+                // Cancel must not unexpectedly reopen the original sign-in.
+                if id != nil { didPresentPreferredMethod = true }
+            }
             .sheet(item: $presentation.sheet, onDismiss: {
                 model?.cancelInteractive()
                 Task { await model?.refresh() }
@@ -53,6 +65,12 @@ struct AgentAuthPresenter<Content: View>: View {
                 }
             }
     }
+
+    private var preferredMethod: DaemonAuthMethod? {
+        guard model?.phase == .needsAuth, let preferredMethodID else { return nil }
+        return model?.methods.first { $0.id == preferredMethodID }
+    }
+
 }
 
 /// The agent's config file opened in the code editor — the SAME `FileEditorScreen` the Files
@@ -81,6 +99,7 @@ private func configFileEditor(_ model: DaemonSession) -> some View {
 struct AgentAuthSection: View {
     @Bindable var model: DaemonSession
     @Environment(\.agentAuthPresentation) private var presentation
+    @Environment(\.assistantAIService) private var service
     @State private var confirmingSignOut = false
     @State private var signOutError: String?
 
@@ -103,11 +122,13 @@ struct AgentAuthSection: View {
                 ForEach(model.methods) { method in
                     Button { presentation?.sheet = .method(method) } label: {
                         row(icon: method.interactive ? .userKey : .key,
-                            title: method.label)
+                            title: service.map { model.isConfigured && method.interactive
+                                ? "Change \($0.name) account" : $0.title(for: method) } ?? method.label,
+                            branded: method.interactive)
                     }
                     .tint(.primary)
                 }
-                if model.configPath != nil {
+                if model.configPath != nil, service == nil {
                     Button { presentation?.sheet = .config } label: {
                         row(icon: .fileText, title: t("agentAuth.configFile"))
                     }
@@ -170,11 +191,10 @@ struct AgentAuthSection: View {
         }
     }
 
-    private func row(icon: AppIconName, title: String) -> some View {
+    private func row(icon: AppIconName, title: String, branded: Bool = false) -> some View {
         HStack(spacing: Spacing.sm) {
-            AppIcon(icon)
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
+            if branded, let service { AssistantServiceMark(service: service, size: 22).frame(width: 22) }
+            else { AppIcon(icon).foregroundStyle(.secondary).frame(width: 22) }
             Text(title)
             Spacer(minLength: Spacing.sm)
             AppIcon(Icon.chevron).font(.footnote).foregroundStyle(.tertiary)
@@ -197,8 +217,14 @@ struct AgentConnectGate: View {
     @Bindable var model: DaemonSession
 
     @Environment(\.agentAuthPresentation) private var presentation
+    @Environment(\.assistantAIService) private var assistantService
 
     var body: some View {
+        if let assistantService { assistantGate(assistantService) }
+        else { developerGate }
+    }
+
+    private var developerGate: some View {
         ScrollView {
             VStack(spacing: Spacing.xl) {
                 header
@@ -245,6 +271,63 @@ struct AgentConnectGate: View {
         }
     }
 
+    @ViewBuilder private func assistantGate(_ service: AssistantAIService) -> some View {
+        if ApplePlatform.isDesktop {
+            AssistantDesktopSetupPanel {
+                AssistantServiceMark(service: service, size: 42)
+                Text(service.title).font(.system(size: 28, weight: .semibold))
+                assistantAuthActions(service)
+            }
+        } else {
+            AssistantPage {
+                AssistantSetupProgress(step: 1)
+                AssistantServiceMark(service: service, size: 40).padding(.top, 12)
+                AssistantHeading(eyebrow: service.name, title: t("assistant.ai.signIn"),
+                                 detail: t("assistant.ai.signIn.body"))
+                assistantAuthActions(service)
+            }
+        }
+    }
+
+    @ViewBuilder private func assistantAuthActions(_ service: AssistantAIService) -> some View {
+        if let preferred = model.methods.first(where: { $0.id == service.preferredMethodID }) {
+            AssistantPrimaryButton(title: service.title(for: preferred), icon: .login) {
+                presentation?.sheet = .method(preferred)
+            }
+        }
+        let alternatives = model.methods.filter { $0.id != service.preferredMethodID }
+        if !alternatives.isEmpty {
+            DisclosureGroup(t("assistant.ai.other")) {
+                VStack(spacing: 12) {
+                    ForEach(alternatives) { method in
+                        AssistantOption(title: service.title(for: method), detail: "",
+                                        icon: method.interactive ? .login : .key) {
+                            presentation?.sheet = .method(method)
+                        }
+                    }
+                }
+                .padding(.top, 12)
+            }
+            .font(.subheadline).tint(.primary)
+        }
+        if model.methods.isEmpty {
+            Text(t("agentAuth.none")).font(.subheadline).foregroundStyle(.secondary)
+        }
+        if let error = model.connectError, !error.isEmpty {
+            Text(error).font(.subheadline).foregroundStyle(Palette.danger)
+        }
+        Button {
+            Task { await model.refresh() }
+        } label: {
+            HStack(spacing: 8) {
+                if model.loading { ProgressView().controlSize(.small) }
+                Text(t("assistant.ai.recheck"))
+            }
+            .frame(minHeight: 44)
+        }
+        .font(.subheadline).tint(.secondary).disabled(model.loading)
+    }
+
     /// Real (colored) agent mark in a glass disc + title/subtitle.
     private var header: some View {
         VStack(spacing: Spacing.md) {
@@ -288,20 +371,21 @@ private func configFileHelp(_ model: DaemonSession) -> String {
     t("agentAuth.configFile.help", ["path": model.configPath ?? ""])
 }
 
-/// Form guidance is a header, so the grouped row's rounded mask cannot clip the text.
-@ViewBuilder
-private func authMethodDescription(_ method: DaemonAuthMethod) -> some View {
-    if let help = method.help, !help.isEmpty {
-        Section {
-        } header: {
-            Text(help)
-                .font(.subheadline)
-                .foregroundStyle(Color(.secondaryLabel))
-                .textCase(nil)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .listRowInsets(.horizontal, 0)
-                .accessibilityRemoveTraits(.isHeader)
+/// Keep provider schemas intact while General's explanatory copy uses familiar service names.
+private struct AuthMethodDescription: View {
+    let method: DaemonAuthMethod
+    @Environment(\.assistantAIService) private var assistantService
+
+    var body: some View {
+        if let help = assistantService?.signInHelp(for: method) ?? method.help, !help.isEmpty {
+            Section {} header: {
+                Text(help)
+                    .font(.subheadline).foregroundStyle(Color(.secondaryLabel)).textCase(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .listRowInsets(.horizontal, 0)
+                    .accessibilityRemoveTraits(.isHeader)
+            }
         }
     }
 }
@@ -315,6 +399,7 @@ struct AgentAuthMethodSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.assistantAIService) private var assistantService
 
     @State private var values: [String: String] = [:]
     @State private var attemptedSubmit = false
@@ -325,7 +410,17 @@ struct AgentAuthMethodSheet: View {
             Group {
                 if method.interactive {
                     Form {
-                        authMethodDescription(method)
+                        if let service = assistantService {
+                            Section {
+                                Text(service.signInHelp(for: method)).foregroundStyle(.secondary)
+                                if let help = method.help, !help.isEmpty {
+                                    DisclosureGroup(t("assistant.ai.signInHelp")) {
+                                        Text(help).font(.subheadline).foregroundStyle(.secondary)
+                                    }
+                                    .tint(.primary)
+                                }
+                            }
+                        } else { AuthMethodDescription(method: method) }
                         interactiveBody
                         if let error = model.connectError, !error.isEmpty {
                             Section {
@@ -352,7 +447,7 @@ struct AgentAuthMethodSheet: View {
                     }
                 }
             }
-            .navigationTitle(method.label)
+            .navigationTitle(assistantService?.title(for: method) ?? method.label)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 AppToolbarItem(placement: .cancellationAction) {
@@ -493,7 +588,7 @@ struct AgentAuthForm: View {
     var body: some View {
         ScrollViewReader { scroll in
             Form {
-                authMethodDescription(method)
+                AuthMethodDescription(method: method)
                 ForEach(sections) { section in
                     Section {
                         ForEach(section.fields) { field in

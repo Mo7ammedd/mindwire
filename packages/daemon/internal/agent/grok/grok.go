@@ -42,6 +42,7 @@ func (adapter) Capabilities() agent.Capabilities {
 		SystemPrompt: true, AppendSystemPrompt: true, MCPServers: true,
 		Subagents: false, ClaudeSettings: false,
 		MCPConfig: true, Memory: true, PromptTemplates: true,
+		BotProfiles: true,
 		// Resolve is daemon-managed and only requires native resume, which ACP
 		// supplies through session/load and session/resume.
 		Resolve: true,

@@ -8,6 +8,7 @@ final class WorkspaceActionState {
     var removing = false
     var renameText = ""
     var recoveringComputer: Connection?
+    var connectionSettings: Connection?
     var deleting = false
     var deletionError: String?
 
@@ -31,12 +32,17 @@ struct WorkspaceMenuActions: View {
     var body: some View {
         let computer = workspace.savedComputer(in: stores)
         Group {
+            if let connection = ComputerInventory(workspaces: [workspace], connections: stores.connections.list()).connection(for: workspace) {
+                Button("Connection settings", icon: .settings) { actions.connectionSettings = connection }
+            }
             if let computer {
                 Button("Reconnect Computer", icon: .refresh) { actions.recoveringComputer = computer }
             }
             Button(t("common.rename"), icon: .edit) { actions.rename(workspace) }
-            DestructiveButton(computer == nil ? t("common.delete") : "Remove Computer", icon: .trash) {
-                actions.remove(workspace)
+            if !workspace.runtime.isLocal {
+                DestructiveButton(computer == nil ? t("common.delete") : "Remove Computer", icon: .trash) {
+                    actions.remove(workspace)
+                }
             }
         }
         .disabled(actions.deleting)
@@ -62,6 +68,9 @@ private struct WorkspaceActionPresentation: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .sheet(item: $actions.connectionSettings) { connection in
+                ComputerConnectionSheet(connection: connection, repository: repository)
+            }
             .sheet(item: $actions.recoveringComputer) { connection in
                 ComputerRecoverySheet(serverId: connection.id, repository: repository)
             }

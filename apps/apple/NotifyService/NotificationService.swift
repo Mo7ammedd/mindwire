@@ -1,7 +1,7 @@
 import os
 import UserNotifications
 
-/// Converts an agent push into an incoming communication notification. iOS presents the harness
+/// Converts a bot push into an incoming communication notification. iOS presents the saved bot
 /// avatar with the small Mindwire app badge. The relay must set aps.mutable-content to 1.
 final class NotificationService: UNNotificationServiceExtension {
     private static let log = Logger(subsystem: "com.oblien.mindwire", category: "NotificationService")

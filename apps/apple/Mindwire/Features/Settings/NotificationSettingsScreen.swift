@@ -4,23 +4,26 @@ import UserNotifications
 
 struct NotificationSettingsScreen: View {
     @Environment(\.stores) private var stores
-    @State private var agents: [Agent] = []
+    @State private var bots: [AssistantBot] = []
 
     var body: some View {
         List {
             NotificationDeviceSection()
             Section {
-                ForEach(agents) { agent in
+                ForEach(bots) { bot in
                     NavigationLink {
-                        NotificationPreferencesScreen(scope: .agent(agent.id))
+                        NotificationPreferencesScreen(scope: .bot(bot.id))
                     } label: {
-                        Label {
-                            LabeledContent(agent.displayName,
-                                value: t(agent.notificationsMuted == true ? "notifications.muted" : "notifications.on"))
-                        } icon: {
-                            AgentLogo(id: agent.agentType, size: 22)
+                        HStack(spacing: 12) {
+                            AssistantBotAvatar(botId: bot.id, icon: bot.icon, size: ApplePlatform.isDesktop ? 28 : 34)
+                            LabeledContent(bot.name,
+                                value: t(bot.notificationsMuted == true ? "notifications.muted" : "notifications.on"))
                         }
                     }
+                    .accessibilityIdentifier("notifications.bot.\(bot.id)")
+                }
+                if bots.isEmpty {
+                    Text("Your agents will appear here.").foregroundStyle(.secondary)
                 }
             } header: {
                 Text(t("tabs.agents"))
@@ -32,10 +35,17 @@ struct NotificationSettingsScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: reload)
         .observeWorkspaceCache(reload)
+        .onChange(of: stores.bots.revision) { reload() }
     }
 
     private func reload() {
-        agents = stores.agents.list().sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+        let workspaceIDs = Set(WorkspaceRepository.shared.all.map(\.id))
+        let connected = stores.bots.list().filter { !$0.archived && workspaceIDs.contains($0.workspaceId) }
+        bots = BotPresentation.visibleBots(connected, preferredAgentId: stores.experience.assistantAgentID,
+                                          projectIDs: stores.experience.projectIDs).sorted {
+            if $0.isMaster != $1.isMaster { return $0.isMaster }
+            return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
     }
 }
 
@@ -134,7 +144,7 @@ struct NotificationDeviceSection: View {
         case .checking: "Checking…"
         case .signInRequired: "Sign in required"
         case .permissionRequired: "Permission required"
-        case .permissionDenied: "Off in iOS Settings"
+        case .permissionDenied: ApplePlatform.isDesktop ? "Off in System Settings" : "Off in iOS Settings"
         case .waitingForToken: "Waiting for this device"
         case .registering: "Connecting…"
         case .ready: "Ready"
@@ -160,13 +170,13 @@ struct NotificationPreferencesScreen: View {
     @Environment(\.stores) private var stores
     @State private var title = ""
     @State private var muted = false
-    @State private var parent: Agent?
+    @State private var parent: NotificationScope?
     @State private var exists = false
     @State private var pending: Bool?
     @State private var error: String?
     @State private var showLogin = false
 
-    private var parentMuted: Bool { parent?.notificationsMuted == true }
+    private var parentMuted: Bool { parent?.isMuted(in: stores) == true }
     private var requiresSignIn: Bool {
         scope.workspaceID(in: stores).map { WorkspaceRepository.shared.requiresSignIn(for: $0) } ?? false
     }
@@ -194,9 +204,9 @@ struct NotificationPreferencesScreen: View {
             if let parent {
                 Section {
                     NavigationLink {
-                        NotificationPreferencesScreen(scope: .agent(parent.id))
+                        NotificationPreferencesScreen(scope: parent)
                     } label: {
-                        Label(t("notifications.agentSettings"), icon: .bell)
+                        Label(parent.title(in: stores) ?? t("notifications.agentSettings"), icon: .bell)
                     }
                 }
             }
@@ -208,6 +218,7 @@ struct NotificationPreferencesScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: reload)
         .observeWorkspaceCache(reload)
+        .onChange(of: stores.bots.revision) { reload() }
         .task { await refresh() }
         .refreshable { await refresh(force: true) }
         .mindwireLoginSheet(isPresented: $showLogin) {
@@ -220,7 +231,7 @@ struct NotificationPreferencesScreen: View {
         exists = name != nil
         title = name ?? t("notifications.unavailable")
         muted = scope.savedMute(in: stores) == true
-        parent = scope.parentAgent(in: stores)
+        parent = scope.parent(in: stores)
     }
 
     private func refresh(force: Bool = false) async {

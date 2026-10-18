@@ -36,17 +36,18 @@ const (
 // server holds the resolved parameters for one turn. It is a value receiver — created fresh per turn by
 // RunStream, never shared.
 type server struct {
-	env         map[string]string // auth env (AuthModule.EnvForRun) overlaid on os.Environ
-	message     string            // the user text part (may carry an appended "Attached files" block)
-	extraParts  []map[string]any  // extra prompt parts beyond the text (e.g. image `file` parts)
-	provider    string            // "" ⇒ omit model from the prompt (opencode uses its configured default)
-	model       string
-	agentName   string
-	system      string
-	cwd         string
-	resumeID    string
-	interactive bool // true ⇒ pump permission asks to the user; false ⇒ auto-approve
-	compact     bool // true ⇒ this run is an on-demand compaction (summarize) rather than a prompt
+	env                 map[string]string // auth env (AuthModule.EnvForRun) overlaid on os.Environ
+	message             string            // the user text part (may carry an appended "Attached files" block)
+	extraParts          []map[string]any  // extra prompt parts beyond the text (e.g. image `file` parts)
+	provider            string            // "" ⇒ omit model from the prompt (opencode uses its configured default)
+	model               string
+	agentName           string
+	system              string
+	contextInstructions string
+	cwd                 string
+	resumeID            string
+	interactive         bool // true ⇒ pump permission asks to the user; false ⇒ auto-approve
+	compact             bool // true ⇒ this run is an on-demand compaction (summarize) rather than a prompt
 }
 
 // Run spawns the per-turn opencode server, drives one turn over it, and tears it down. On any failure
@@ -277,7 +278,10 @@ func (s server) route(
 		var p struct {
 			Part ocPart `json:"part"`
 		}
-		if json.Unmarshal(ev.Properties, &p) != nil || !mine(p.Part.SessionID) {
+		if json.Unmarshal(ev.Properties, &p) != nil || !mine(p.Part.SessionID) || p.Part.Synthetic {
+			return
+		}
+		if role := st.roles[p.Part.MessageID]; role != "" && role != "assistant" {
 			return
 		}
 		id, full := st.emitPart(p.Part, emit)
@@ -294,7 +298,11 @@ func (s server) route(
 		var p struct {
 			Info ocMessage `json:"info"`
 		}
-		if json.Unmarshal(ev.Properties, &p) != nil || p.Info.Role != "assistant" || !mine(p.Info.SessionID) {
+		if json.Unmarshal(ev.Properties, &p) != nil || !mine(p.Info.SessionID) {
+			return
+		}
+		st.roles[p.Info.ID] = p.Info.Role
+		if p.Info.Role != "assistant" {
 			return
 		}
 		if m := usageMeta(p.Info); m != nil {
@@ -435,7 +443,13 @@ func (s server) ensureSession(ctx context.Context, client *http.Client, base str
 // prompt sends the user turn. The model is included only when both halves resolved; agent/system are
 // included only when set. It is fire-and-forget (204) — the turn plays out over the event bus.
 func (s server) prompt(ctx context.Context, client *http.Client, base, sid string) error {
-	parts := []any{map[string]any{"type": "text", "text": s.message}}
+	parts := []any{}
+	if s.contextInstructions != "" {
+		// A native synthetic context part leaves the selected agent's built-in prompt
+		// and tools intact. It is not user-authored text or another conversation.
+		parts = append(parts, map[string]any{"type": "text", "text": s.contextInstructions, "synthetic": true})
+	}
+	parts = append(parts, map[string]any{"type": "text", "text": s.message})
 	for _, p := range s.extraParts { // image `file` parts, etc.
 		parts = append(parts, p)
 	}

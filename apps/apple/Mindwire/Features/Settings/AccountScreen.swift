@@ -48,15 +48,29 @@ struct AccountScreen: View {
 
     @ViewBuilder private func signedIn(_ user: AuthUser?) -> some View {
         Section {
-            VStack(spacing: Spacing.sm) {
-                avatar(user)
-                Text(user?.name ?? "You").font(.title2)
-                if let email = user?.email, !email.isEmpty {
-                    Text(email).font(.subheadline).foregroundStyle(.secondary)
+            if ApplePlatform.isDesktop {
+                HStack(spacing: 12) {
+                    avatar(user, size: 40)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(user?.name ?? "You").font(.system(size: 13, weight: .semibold))
+                        if let email = user?.email, !email.isEmpty {
+                            Text(email).font(.system(size: 12)).foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
                 }
+                .padding(.vertical, 6)
+            } else {
+                VStack(spacing: Spacing.sm) {
+                    avatar(user)
+                    Text(user?.name ?? "You").font(.title2)
+                    if let email = user?.email, !email.isEmpty {
+                        Text(email).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.sm)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Spacing.sm)
         }
         Section {
             if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.secondary) }
@@ -106,27 +120,42 @@ struct AccountScreen: View {
 
     private var signedOut: some View {
         Section {
-            ContentUnavailableView {
-                Label(t("account.title"), icon: .userCircle)
-            } description: {
-                Text(t("account.notSignedIn"))
-            } actions: {
-                Button(t("account.signIn")) { showLogin = true }
-                    .buttonStyle(.glassProminent)
-                    .tint(Palette.accent)
+            if ApplePlatform.isDesktop {
+                HStack(spacing: 12) {
+                    AppIcon(.userCircle, size: 32, decorative: true).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Oblien account").font(.system(size: 13, weight: .semibold))
+                        Text(t("account.notSignedIn")).font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 16)
+                    signInButton.buttonStyle(.borderedProminent).controlSize(.regular)
+                }
+                .padding(.vertical, 6)
+            } else {
+                ContentUnavailableView {
+                    Label(t("account.title"), icon: .userCircle)
+                } description: {
+                    Text(t("account.notSignedIn"))
+                } actions: {
+                    signInButton.buttonStyle(.glassProminent)
+                }
             }
         }
     }
 
-    @ViewBuilder private func avatar(_ user: AuthUser?) -> some View {
+    private var signInButton: some View {
+        Button(t("account.signIn")) { showLogin = true }.tint(Palette.accent)
+    }
+
+    @ViewBuilder private func avatar(_ user: AuthUser?, size: CGFloat = 72) -> some View {
         if let s = user?.image, let url = URL(string: s) {
             AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: {
-                Avatar(initial: initial(user), size: 72)
+                Avatar(initial: initial(user), size: size)
             }
-            .frame(width: 72, height: 72)
+            .frame(width: size, height: size)
             .clipShape(Circle())
         } else {
-            Avatar(initial: initial(user), size: 72)
+            Avatar(initial: initial(user), size: size)
         }
     }
 

@@ -36,8 +36,12 @@ struct FilesSheet: View {
     var initialLine: Int? = nil
     /// Chat previews can close from the editor or a nested folder in one tap.
     var allowsQuickClose = false
+    var embedded = false
+    var onDirtyChange: ((Bool) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss   // the SHEET's dismiss (not a nav-stack pop)
+    @State private var desktopEditorID = UUID()
+    @State private var columns: NavigationSplitViewVisibility = .automatic
     @State private var root: String?
     @State private var clip: FileClip?
     /// Type-erased so the stack can push folder paths (`String`) AND file-editor routes.
@@ -69,35 +73,25 @@ struct FilesSheet: View {
             if selectFolder || selectFileExtensions != nil {
                 browser
             } else {
-                NavigationSplitView(preferredCompactColumn: $preferredColumn) {
-                    browser
-                        .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 400)
-                } detail: {
-                    NavigationStack(path: $editorPath) {
-                        Group {
-                            if let selectedFile {
-                                FileEditorScreen(workspace: workspace, path: selectedFile.path,
-                                                 repoRoot: selectedFile.repoRoot, projectId: projectId,
-                                                 onOpenChat: { id, draft in
-                                                     editorPath.append(ChatDraftRoute(chatId: id, draft: draft))
-                                                 }, onDirtyChange: { fileDirty = $0 }, initialLine: selectedFile.line)
-                                    .id(selectedFile.path)
-                                    .toolbar { quickCloseToolbar }
-                            } else {
-                                ContentUnavailableView("Choose a file", icon: .fileCode,
-                                                       description: Text("Browse your project alongside the editor."))
-                                    .navigationTitle(title)
-                                    .navigationBarTitleDisplayMode(.inline)
-                            }
-                        }
-                        .navigationDestination(for: ChatDraftRoute.self) { route in
-                            ChatScreen(chatId: route.chatId, draft: route.draft)
-                        }
-                    }
+                if embedded && ApplePlatform.isDesktop {
+                    DesktopToolSplitView { browser } detail: { editor }
+                } else {
+                    NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $preferredColumn) {
+                        browser.navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 400)
+                    } detail: { editor }
+                    .navigationSplitViewStyle(.balanced)
                 }
-                .navigationSplitViewStyle(.balanced)
             }
         }
+        .environment(\.embeddedWorkspaceTool, embedded)
+        .onChange(of: fileDirty) { _, dirty in
+            onDirtyChange?(dirty)
+            if ApplePlatform.isDesktop {
+                if dirty { DesktopFileEditing.shared.editors.insert(desktopEditorID) }
+                else { DesktopFileEditing.shared.editors.remove(desktopEditorID) }
+            }
+        }
+        .onDisappear { DesktopFileEditing.shared.editors.remove(desktopEditorID) }
         .environment(\.openFilePath, selectedFile?.path)
         .workspaceToolPresentation()
         .interactiveDismissDisabled(fileDirty)
@@ -127,6 +121,32 @@ struct FilesSheet: View {
         }
         .task(id: refresh) {
             if let root, !selectFolder, selectFileExtensions == nil, refresh > 0 { await gitDeco.load(workspace: workspace, root: root) }
+        }
+    }
+
+    private var editor: some View {
+        NavigationStack(path: $editorPath) {
+            Group {
+                if let selectedFile {
+                    FileEditorScreen(workspace: workspace, path: selectedFile.path,
+                                     repoRoot: selectedFile.repoRoot, projectId: projectId,
+                                     onOpenChat: { id, draft in
+                                         editorPath.append(ChatDraftRoute(chatId: id, draft: draft))
+                                     }, onDirtyChange: { fileDirty = $0 }, initialLine: selectedFile.line)
+                        .id(selectedFile.path)
+                        .toolbar { quickCloseToolbar }
+                        .toolbar(.visible, for: .navigationBar)
+                } else {
+                    ContentUnavailableView("Choose a file", icon: .fileCode,
+                                           description: Text("Select a file in the sidebar to open it here."))
+                        .navigationTitle(embedded ? "" : title)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar(embedded ? .hidden : .visible, for: .navigationBar)
+                }
+            }
+            .navigationDestination(for: ChatDraftRoute.self) { route in
+                ChatScreen(chatId: route.chatId, draft: route.draft)
+            }
         }
     }
 
@@ -238,9 +258,11 @@ private struct FolderView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openFilePath) private var openFilePath
+    @Environment(\.embeddedWorkspaceTool) private var embedded
     @AppStorage("mindwire.files.density") private var density: FilesDensity = .large
     var treePreferences = FileTreePreferences()
-    private var s: CGFloat { density.scale }
+    private var s: CGFloat { density.scale * (ApplePlatform.isDesktop ? 0.85 : 1) }
+    private var desktopEmbedded: Bool { embedded && ApplePlatform.isDesktop }
 
     @State private var entries: [FileEntry] = []
     @State private var treeRevision = 0
@@ -264,6 +286,7 @@ private struct FolderView: View {
     @State private var showTreeSettings = false
     @State private var showUpload = false        // file importer
     @State private var infoTarget: FileEntry?    // Get Info sheet
+    @State private var download: WorkspaceFileDownloadRequest?
     @State private var loadError: String?
 
     private var canManage: Bool { !selectFolder && selectFileExtensions == nil }
@@ -296,12 +319,11 @@ private struct FolderView: View {
     }
 
     var body: some View {
-        layoutContent
+        browserContent
         .refreshable { treeRevision &+= 1; await load() }
         .onAppear {
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { skeletonPulse = true }
         }
-        .searchable(text: $query, prompt: t("files.search"))
         .searchToolbarBehavior(!canManage ? .minimize : .automatic)
         .searchPresentationToolbarBehavior(!canManage ? .avoidHidingContent : .automatic)
         .onChange(of: layout) { _, _ in exitSelect() }
@@ -309,10 +331,12 @@ private struct FolderView: View {
         .environment(\.editMode, $editMode)
         .navigationTitle(isRoot ? title : folderName)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { toolbar }
+        .toolbar { if !desktopEmbedded { toolbar } }
+        .toolbar(desktopEmbedded ? .hidden : .visible, for: .navigationBar)
         .sheet(isPresented: $showViewOptions) { ViewOptionsSheet(layout: $layout) }
         .sheet(isPresented: $showTreeSettings) { FileTreeSettingsSheet() }
         .sheet(item: $infoTarget) { entry in FileInfoSheet(workspace: workspace, entry: entry) }
+        .workspaceFileDownload($download, workspace: workspace)
         .fileImporter(isPresented: $showUpload, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             Task { await upload(result) }
         }
@@ -352,6 +376,38 @@ private struct FolderView: View {
     }
 
     // MARK: Layouts
+
+    @ViewBuilder private var browserContent: some View {
+        if desktopEmbedded {
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    if !isRoot {
+                        Button { dismiss() } label: { Image(systemName: "chevron.left") }
+                            .help("Back to parent folder").accessibilityLabel("Back to parent folder")
+                    }
+                    Text(isRoot ? "Files" : folderName).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    if loading || busy { ProgressView().controlSize(.mini) }
+                    if editing {
+                        selectionMenu
+                        Button(t("common.done")) { exitSelect() }.font(.system(size: 11))
+                    } else {
+                        Button { Task { treeRevision &+= 1; await load() } } label: {
+                            Image(systemName: "arrow.clockwise").font(.system(size: 12))
+                        }.help("Refresh files").accessibilityLabel("Refresh files")
+                        manageMenu
+                    }
+                }
+                .buttonStyle(AssistantDesktopButtonStyle()).foregroundStyle(.secondary)
+                .padding(.horizontal, 14).frame(height: 38)
+                DesktopBrowserSearch(prompt: "Search files", text: $query)
+                layoutContent.scrollContentBackground(.hidden)
+            }
+            .background(AssistantDesktopStyle.sidebar)
+        } else {
+            layoutContent.searchable(text: $query, prompt: t("files.search"))
+        }
+    }
 
     @ViewBuilder
     private var layoutContent: some View {
@@ -478,7 +534,8 @@ private struct FolderView: View {
                     ExplorerTreeActions(workspace: workspace, entry: entry, clip: $clip, refresh: $refresh,
                                         expanded: expanded, selecting: selecting,
                                         onRename: { e in promptText = e.name; prompt = .rename(e) },
-                                        onDelete: { e in deleteTargets = [e] }, onInfo: { infoTarget = $0 })
+                                        onDelete: { e in deleteTargets = [e] }, onInfo: { infoTarget = $0 },
+                                        onDownload: { download = .init(path: $0.path) })
                 })
             }
         }
@@ -592,6 +649,10 @@ private struct FolderView: View {
     @ViewBuilder
     private func itemActions(_ entry: FileEntry) -> some View {
         Button { infoTarget = entry } label: { Label(t("files.info"), icon: .info) }
+        if entry.type == .file {
+            Button { download = .init(path: entry.path) } label: { Label(t("files.download"), icon: .download) }
+                .accessibilityIdentifier("files.download")
+        }
         Button { promptText = entry.name; prompt = .rename(entry) } label: { Label(t("common.rename"), icon: Icon.edit) }
         Button { setClip([entry], cut: false) } label: { Label(t("files.copy"), icon: .copy) }
         Button { setClip([entry], cut: true) } label: { Label(t("files.cut"), icon: .scissors) }
@@ -651,7 +712,7 @@ private struct FolderView: View {
                     .tint(.red).disabled(selection.isEmpty)
             }
         } else {
-            if isRoot { AppToolbarItem(placement: .topBarLeading) { Button(t("common.done")) { if let onClose { onClose() } else { dismiss() } }.tint(.primary) } }
+            if isRoot && !embedded { AppToolbarItem(placement: .topBarLeading) { Button(t("common.done")) { if let onClose { onClose() } else { dismiss() } }.tint(.primary) } }
             if loading || busy {
                 AppToolbarItem(placement: .topBarTrailing) { ProgressView() }
             }
@@ -858,11 +919,16 @@ private struct ExplorerTreeActions: ViewModifier {
     let onRename: (FileEntry) -> Void
     let onDelete: (FileEntry) -> Void
     let onInfo: (FileEntry) -> Void
+    let onDownload: (FileEntry) -> Void
 
     func body(content: Content) -> some View { content.appContextMenu { if !selecting { menu } } }
 
     @ViewBuilder private var menu: some View {
         Button { onInfo(entry) } label: { Label(t("files.info"), icon: .info) }
+        if entry.type == .file {
+            Button { onDownload(entry) } label: { Label(t("files.download"), icon: .download) }
+                .accessibilityIdentifier("files.download")
+        }
         Button { onRename(entry) } label: { Label(t("common.rename"), icon: Icon.edit) }
         Button { clip = FileClip(items: [entry], cut: false) } label: { Label(t("files.copy"), icon: .copy) }
         Button { clip = FileClip(items: [entry], cut: true) } label: { Label(t("files.cut"), icon: .scissors) }

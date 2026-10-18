@@ -53,6 +53,7 @@ final class AppLifecycle {
             }
         }, activeChanged: { active in
             stores.portForwards.setActive(active)
+            stores.workspaceData.botConnections.setActive(active)
             BackendFactory.pushService().setActive(active)
             WorkspaceRepository.shared.computerRecovery.setActive(active)
             if active { Task { await stores.connectionSync.foreground() } }

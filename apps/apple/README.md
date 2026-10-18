@@ -1,13 +1,15 @@
 # Mindwire — Apple app
 
-Native **SwiftUI** client for Mindwire, built for **iOS 26** with Apple's
+Native **SwiftUI** client for Mindwire, built for **iOS 26 and macOS 26** with Apple's
 **Liquid Glass** design language and native components throughout (system `TabView`
 glass bar, glass toolbars, `.buttonStyle(.glass/.glassProminent)`, `NavigationStack`,
 sheets). Clean, protocol-oriented architecture using the Observation framework.
 
-This is the shared home for the Apple clients. The current generated target supports iPhone and
-iPad. Native macOS and visionOS targets are planned; this directory move does not enable them yet.
-Models, services, and portable SwiftUI components should remain shared as platform adapters are added.
+This is the shared home for the Apple clients. iPhone, iPad, and the Mac Catalyst build share
+chat, drafts, connections, terminal, editor, and developer tools. General opens a bot messenger;
+Developer retains the workspace tools. Mac uses a collapsible sidebar and desktop chat presentation
+on those same stores and services.
+visionOS support is planned.
 The runtime is in [`packages/daemon`](../../packages/daemon) in this same repository.
 
 Original Mindwire material in this component is [source-available](LICENSE), not open source.
@@ -24,6 +26,8 @@ Apple contributions carry the explicit copyright grant in section 5 of the licen
   `.buttonStyle(.glass)`, the glass `TabView` — are in the iOS 26 SDK).
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) — the
   `.xcodeproj` is generated from `project.yml` and is git-ignored.
+- **Go** is required for Mac builds, which compile and sign the local runtime from
+  `packages/daemon`. The declared toolchain is resolved by Go automatically; iOS builds skip it.
 - **OblienKit** is fetched from [oblien/swift-sdk](https://github.com/oblien/swift-sdk)
   at the merged revision pinned in `project.yml`. No separate SDK checkout is needed.
 
@@ -37,10 +41,80 @@ open Mindwire.xcodeproj
 # CLI:
 xcodebuild -scheme Mindwire \
   -destination 'platform=iOS Simulator,name=iPhone 16,OS=26' build
+# Mac desktop:
+xcodebuild -scheme MindwireMac \
+  -destination 'platform=macOS,variant=Mac Catalyst' build
 ```
 
 > Liquid Glass's specular highlights and motion render fully only on **physical
 > hardware** (the simulator approximates them).
+
+### General mobile setup
+
+**Settings → AI connections** manages accounts on each connected computer. The same controls are
+available from a conversation's tools. ChatGPT and Claude use their existing browser/code login
+flows, Grok uses an xAI API key, and OpenCode exposes provider keys and the native model picker.
+Connection rows use provider marks; bot conversations keep their own avatars. Opening account
+management only reads status. Sign-in changes and model saves require user actions, and Developer
+authentication continues through the same adapter, session, and credential store.
+
+General uses designed onboarding pages and a single setup navigation stack, then opens the shared
+chat. Developer retains the existing workspace interface. Pairing, AI authentication, cloud creation,
+and billing checks are shared by both presentations. Setup asks which computer to use: Your computer
+or Cloud computer. Each destination contains only its own saved computers. History opens from the
+left with a scrolling logo/search header, plain conversation titles, and an active-chat highlight.
+New chat is a plus icon beside Search; Settings and Account live in the trailing ellipsis menu.
+There is no New chat row or bottom Settings/account button. The drawer slides the full-width chat aside with a
+charcoal overlay on the exposed edge; tapping that overlay closes it. Native iOS pan recognizers
+open it from the chat body and close it using fixed screen coordinates. The chat's menu control hides while
+the drawer is visible, and New chat lives only in the sidebar. The active chat and its unfinished
+message stay mounted. General's empty-state logo is fitted to its artwork bounds.
+Deleting the open chat returns to the start view immediately; deleting another chat preserves the
+current draft. The sidebar uses a light wordmark, capsule search, white circular + button, and rounded selection.
+Creating bots and linking computers require `botsVersion: 3`; bot notification preferences and the expanded avatar catalog require version 4; existing profiles can be viewed on
+older bot-capable services. Mindwire is the default bot and can create, delegate to, inspect and revise
+bots conversationally. Profiles, memory, document knowledge and chat membership
+are daemon-owned; both modes show the same flat bot list. Bot actions and
+knowledge limits are documented in [BOTS.md](../../packages/daemon/BOTS.md).
+
+Set `MINDWIRE_DESKTOP_DOWNLOAD_URL` to the real HTTPS desktop-app installer or download page when
+it is published. General then offers Open and Share actions before QR pairing. The phone directs users
+to **Connect your phone** in the desktop app; `mindwire connect pair` is available under Use Terminal instead.
+Do not point this setting at the daemon binary or the command-line installation guide.
+
+### Mac runtime
+
+The Mac opens its bot messenger and automatically prepares **This Mac**. It reuses the current account's
+running Mindwire computer service, or starts the signed runtime bundled with the app. Local access
+uses authenticated loopback HTTP with the same request, streaming, files, Git and terminal services
+as the phone. Extra computers and cloud workspaces are optional.
+
+General uses `~/.mindwire-workspace`. Startup reuses its saved AI connection; on first use it checks
+installed AI accounts without starting a conversation or interactive login. If an account is needed,
+the shared account picker and authentication appear inline. There is no computer picker or pairing
+step for local work. The last conversation is restored rather than creating one on each launch.
+The computer's existing service is retained when adopting a saved pairing to this same Mac. Local
+service updates are managed by the app or computer CLI, outside remote-workspace update batches.
+
+Bots have their own saved names and avatars, including in notifications. Provider identities belong
+in AI setup and developer configuration. Navigation and actions use the same bundled PNG icon catalog as the phone.
+Windows have independent navigation and share the existing bounded chat cache and draft store.
+
+Developer uses the same desktop shell, adding Projects and Computers. A project opens its own
+workspace: Back to Projects and the project switcher sit above Chats, Files, Changes, and Terminal
+in the left sidebar. The existing file tree, change list, conversation list, or terminal sessions
+fill that column; the selected content opens on the right. The sidebar can collapse with its button
+or Control–Command–S. Switching tools preserves file selections, unsaved buffers, and terminal
+sessions. Navigation away from edited files asks before discarding them.
+
+**Connect your phone**, in the Mac sidebar and app menu, displays the installed CLI's QR code and
+phone approval request. `scripts/mindwire-cli.sh` reuses the user's CLI and Node; missing tools install
+in `~/.local/share/mindwire/toolchain` without sudo. The app ships only this launcher, not Node or a
+second CLI. First-time setup uses `mindwire connection automatic`; existing setups use `mindwire connect pair`.
+Device lists, approvals, revocations and startup changes use the regular JSON CLI commands. Closing
+the window cancels its foreground command while the computer service and tunnel keep running.
+
+Connecting to another computer on Mac accepts a pasted link or a QR-code image through the system file picker.
 
 ## Architecture
 
@@ -65,8 +139,9 @@ Mindwire/
 
 ### State & data
 
-The app opens directly to Projects, including on a fresh install. Oblien sign-in
-is available from account settings and cloud features; it is not a launch requirement.
+Fresh mobile installs choose General or Developer; upgrades preserve the existing Developer interface.
+Mac defaults to General and local execution. Oblien sign-in is available from account settings and
+cloud features; it is not a launch requirement.
 
 - **Personal computers:** QR pairing creates a normal workspace over pinned native
   SSH, directly or inside WSS. `ComputerWorkspaceService` implements the same workspace
@@ -170,4 +245,4 @@ is available from account settings and cloud features; it is not a launch requir
 Glass is the **navigation/control layer only** (tab bar, toolbars, FAB, selection,
 terminal overlays). Content — cards and list rows — stays on solid elevation fills
 (`Surface`/`SurfaceAlt`). Glass is never nested on glass; adjacent glass is grouped in a
-`GlassEffectContainer`. The brand accent `#E25D3E` tints only primary actions.
+`GlassEffectContainer`. The adaptive orange accent tints primary actions; bot chats use the selected pastel identity color.

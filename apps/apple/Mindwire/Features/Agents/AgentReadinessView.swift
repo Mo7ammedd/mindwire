@@ -6,6 +6,7 @@ struct AgentReadinessView<Content: View>: View {
     let agent: Agent
     let session: DaemonSession?
     var requiresAuthentication = true
+    var preferredAuthMethodID: String? = nil
     @ViewBuilder let content: () -> Content
     @Environment(\.scenePhase) private var scenePhase
 
@@ -15,7 +16,7 @@ struct AgentReadinessView<Content: View>: View {
     }
 
     var body: some View {
-        AgentAuthPresenter(model: session) {
+        AgentAuthPresenter(model: session, preferredMethodID: preferredAuthMethodID) {
             switch session?.phase ?? .checking {
             case .ready:
                 content()

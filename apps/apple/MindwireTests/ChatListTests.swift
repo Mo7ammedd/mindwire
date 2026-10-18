@@ -107,6 +107,32 @@ final class ChatListTests: XCTestCase {
         XCTAssertNil(stores.chats.get(chat.id))
     }
 
+    func testListDeletionReusesTheOpenSessionAndDisposesItsHistoryAndDraft() async throws {
+        let stores = try stores()
+        stores.projects.save(Project(id: "project", name: "Project", workspaceId: "workspace",
+                                     path: "/project", createdAt: isoNow()))
+        let chat = stores.createChat(agentId: "agent", projectId: "project")
+        let channel = ChatListChannel()
+        let session = session(channel)
+        stores.chatSessions = ChatSessionStore(stores: stores, makeModel: { id in
+            ChatModel(chatId: id, session: session)
+        })
+        let model = stores.chatSessions.model(for: chat.id)
+        await model.load()
+        stores.chatDrafts.draft(for: chat.id).text = "Unsent draft"
+        XCTAssertFalse(model.messages.isEmpty)
+
+        try await ChatListActions().delete(chat, stores: stores, activity: ChatActivityStore())
+
+        XCTAssertNil(stores.chats.get(chat.id))
+        XCTAssertNil(stores.chatSessions.cached(chat.id))
+        XCTAssertTrue(model.messages.isEmpty)
+        XCTAssertFalse(model.isLoadingConversation)
+        XCTAssertEqual(stores.chatDrafts.draft(for: chat.id).text, "")
+        let requests = await channel.requests
+        XCTAssertEqual(requests.filter { $0.hasPrefix("DELETE ") }.count, 1)
+    }
+
     func testProjectHistoryIncludesOlderChatsAndExcludesOtherProjects() async throws {
         let stores = try stores()
         let codex = stores.createAgent(.init(name: "Codex", agentType: .codex, workspaceId: "workspace"))

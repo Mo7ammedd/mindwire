@@ -8,6 +8,8 @@ struct AddServerScreen: View {
     @Environment(\.stores) private var stores
     @Environment(\.dismiss) private var dismiss
 
+    private let assistantSetup: Bool
+    private let embedded: Bool
     private let onSaved: ((Connection) -> Void)?
     private let allowsTypeSelection: Bool
     private let editing: RemoteHostConnection?
@@ -28,7 +30,9 @@ struct AddServerScreen: View {
     @State private var pairingError: String?
     @State private var pairingTask: Task<Void, Never>?
 
-    init(presetType: ConnectionType? = nil, pairingCode: String? = nil, name: String = "", editing: RemoteHostConnection? = nil, expectedComputerID: String? = nil, scanner: QRScanPresentation? = nil, onSaved: ((Connection) -> Void)? = nil) {
+    init(presetType: ConnectionType? = nil, pairingCode: String? = nil, name: String = "", editing: RemoteHostConnection? = nil, expectedComputerID: String? = nil, scanner: QRScanPresentation? = nil, assistantSetup: Bool = false, embedded: Bool = false, onSaved: ((Connection) -> Void)? = nil) {
+        self.assistantSetup = assistantSetup
+        self.embedded = embedded
         self.onSaved = onSaved
         self.editing = editing
         self.expectedComputerID = expectedComputerID
@@ -54,28 +58,29 @@ struct AddServerScreen: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                if allowsTypeSelection { typeSection.disabled(pairing || setupStage != nil) }
-                if isRemote {
-                    connectionSection.disabled(setupStage != nil)
-                    authSection.disabled(setupStage != nil)
-                    if draft.authMethod == .password { keySection.disabled(setupStage != nil) }
-                    testSection
+        SetupNavigation(embedded: embedded) {
+            Group {
+                if assistantSetup && !isRemote {
+                    AssistantComputerSetup(code: $draft.pairCode, pairing: pairing, status: pairingStatus,
+                                           scan: { scanner.present() }, connect: pairComputer)
                 } else {
-                    localSection
+                    developerForm
                 }
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(editing != nil ? "Edit connection" : isReconnecting ? "Reconnect computer" : allowsTypeSelection ? "Add connection" : isRemote ? t("addServer.title") : "Add computer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                AppToolbarItem(placement: .cancellationAction) {
-                    Button(t("common.cancel")) { cancelTasks(); dismiss() }.tint(.primary)
+                if !embedded {
+                    AppToolbarItem(placement: .cancellationAction) {
+                        Button(t("common.cancel")) { cancelTasks(); dismiss() }.tint(.primary)
+                    }
                 }
-                AppToolbarItem(placement: .confirmationAction) {
-                    Button(editing != nil ? "Save" : isRemote ? t("addServer.add") : "Connect", action: save)
-                        .disabled(!canAdd || setupStage != nil || pairing)
+                if !assistantSetup {
+                    AppToolbarItem(placement: .confirmationAction) {
+                        Button(editing != nil ? "Save" : isRemote ? t("addServer.add") : "Connect", action: save)
+                            .disabled(!canAdd || setupStage != nil || pairing)
+                    }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -92,6 +97,20 @@ struct AddServerScreen: View {
             testTask?.cancel()
             testState = .idle
             testError = nil
+        }
+    }
+
+    private var developerForm: some View {
+        Form {
+            if allowsTypeSelection { typeSection.disabled(pairing || setupStage != nil) }
+            if isRemote {
+                connectionSection.disabled(setupStage != nil)
+                authSection.disabled(setupStage != nil)
+                if draft.authMethod == .password { keySection.disabled(setupStage != nil) }
+                testSection
+            } else {
+                localSection
+            }
         }
     }
 
@@ -316,7 +335,7 @@ struct AddServerScreen: View {
                     generateKey: installKey) { setupStage = $0 }
                 try Task.checkCancellation()
                 onSaved?(connection)
-                dismiss()
+                if !embedded { dismiss() }
             } catch {
                 setupStage = nil
                 if !Task.isCancelled { pairingError = error.localizedDescription }
@@ -351,7 +370,7 @@ struct AddServerScreen: View {
                 let connection = stores.savePairedComputer(result, name: draft.name)
                 WorkspaceRepository.shared.connectionRecovered(connection, health: result.health)
                 onSaved?(connection)
-                dismiss()
+                if !embedded { dismiss() }
             } catch {
                 if !Task.isCancelled { pairingError = error.localizedDescription }
             }

@@ -1,4 +1,5 @@
 import Intents
+import SwiftUI
 import UIKit
 import UserNotifications
 
@@ -17,14 +18,26 @@ enum CommunicationNotification {
 
     static func intent(for content: UNNotificationContent) throws -> INSendMessageIntent? {
         let data = PushPayload.data(from: content.userInfo)
-        guard let rawID = data["agent"] as? String else { return nil }
-        let id = rawID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !id.isEmpty else { return nil }
-        let brand = AgentBrand.resolve(id)
-        let avatar = INImage(imageData: try avatarPNG(for: brand))
-        let senderID = "mindwire.harness.\(id)"
+        let avatar: INImage
+        let senderID: String
+        let name: String
+        if let botID = data["botId"] as? String, !botID.isEmpty,
+           let botName = data["botName"] as? String, !botName.isEmpty {
+            avatar = INImage(imageData: try avatarPNG(botID: botID, icon: data["botIcon"] as? String))
+            let workspace = data["workspaceId"] as? String ?? ""
+            senderID = "mindwire.bot.\(workspace).\(botID)"
+            name = botName
+        } else {
+            guard let rawID = data["agent"] as? String else { return nil }
+            let id = rawID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !id.isEmpty else { return nil }
+            let brand = AgentBrand.resolve(id)
+            avatar = INImage(imageData: try avatarPNG(for: brand))
+            senderID = "mindwire.harness.\(id)"
+            name = brand.name
+        }
         let sender = INPerson(personHandle: INPersonHandle(value: senderID, type: .unknown),
-                              nameComponents: nil, displayName: brand.name, image: avatar,
+                              nameComponents: nil, displayName: name, image: avatar,
                               contactIdentifier: nil, customIdentifier: senderID)
         let conversation = (data["chatId"] ?? data["chat_id"] ?? data["target_id"]) as? String
         let intent = INSendMessageIntent(recipients: nil, outgoingMessageType: .outgoingMessageText,
@@ -33,6 +46,14 @@ enum CommunicationNotification {
                                          serviceName: nil, sender: sender, attachments: nil)
         intent.setImage(avatar, forParameterNamed: \.sender)
         return intent
+    }
+
+    /// Render the same saved character used in the bot list and chat header.
+    static func avatarPNG(botID: String, icon: String?) throws -> Data {
+        let renderer = ImageRenderer(content: AssistantBotAvatar(botId: botID, icon: icon, size: 256))
+        renderer.scale = 1
+        guard let data = renderer.uiImage?.pngData() else { throw AvatarError.renderFailed }
+        return data
     }
 
     /// Asset-catalog vectors must be rasterized before they leave the extension as an INImage.
@@ -60,5 +81,5 @@ enum CommunicationNotification {
         }
     }
 
-    private enum AvatarError: Error { case missingAsset(String) }
+    private enum AvatarError: Error { case missingAsset(String), renderFailed }
 }

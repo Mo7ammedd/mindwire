@@ -10,9 +10,12 @@ import UIKit
 struct TerminalScreen: View {
     let title: String
     var startsNewSessionIfEmpty = true
+    var embedded = false
     let makeProvider: () -> TerminalProvider
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.desktopProjectContext) private var desktopProject
+    @Environment(\.isEnabled) private var isEnabled
     @AppStorage("mindwire.terminal.theme") private var themeId = "oblien-dark"
     @AppStorage("mindwire.terminal.fontSize") private var fontSizeKey = "medium"
 
@@ -26,32 +29,10 @@ struct TerminalScreen: View {
     private var fontSize: CGFloat { TerminalFontSize.points(for: fontSizeKey) }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(uiColor: theme.background).ignoresSafeArea()
-
-                ZStack {
-                    ForEach(tabs) { tab in
-                        WorkspaceTerminalView(session: tab.session, theme: theme, fontSize: fontSize, isActive: tab.id == activeId)
-                            .opacity(tab.id == activeId ? 1 : 0)
-                            .allowsHitTesting(tab.id == activeId)
-                    }
-                }
-                .padding(.horizontal, Spacing.sm)
-
-                if restoring && tabs.isEmpty {
-                    ProgressView().controlSize(.large).tint(.white)
-                }
-            }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { toolbar }
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Color(uiColor: theme.background), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if tabs.count > 1 { tabStrip }
-            }
+        Group {
+            if embedded && ApplePlatform.isDesktop, desktopProject != nil {
+                DesktopToolSplitView { desktopSessions } detail: { terminal }
+            } else { terminal }
         }
         .task { await bootstrap() }
         .alert(t("workspace.terminal.closeConfirm"), isPresented: Binding(
@@ -69,16 +50,73 @@ struct TerminalScreen: View {
         }
     }
 
+    private var terminal: some View {
+        NavigationStack {
+            ZStack {
+                Color(uiColor: theme.background).ignoresSafeArea()
+
+                ZStack {
+                    ForEach(tabs) { tab in
+                        WorkspaceTerminalView(session: tab.session, theme: theme, fontSize: fontSize, isActive: isEnabled && tab.id == activeId)
+                            .opacity(tab.id == activeId ? 1 : 0)
+                            .allowsHitTesting(tab.id == activeId)
+                    }
+                }
+                .padding(.horizontal, Spacing.sm)
+
+                if restoring && tabs.isEmpty {
+                    ProgressView().controlSize(.large).tint(.white)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { toolbar }
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color(uiColor: theme.background), for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if tabs.count > 1 && !(embedded && ApplePlatform.isDesktop && desktopProject != nil) { tabStrip }
+            }
+        }
+    }
+
+    private var desktopSessions: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Sessions").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                Spacer()
+                Button { addTab() } label: { Image(systemName: "plus").font(.system(size: 13)) }
+                    .buttonStyle(AssistantDesktopButtonStyle()).disabled(provider == nil)
+                    .help("New terminal").accessibilityLabel("New terminal")
+            }.padding(.horizontal, 16).frame(height: 40)
+            List {
+                ForEach(tabs) { tab in
+                    Button { activeId = tab.id } label: {
+                        Label(tab.title, systemImage: "terminal").font(.system(size: 13))
+                            .frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowInsets(.init(top: 10, leading: 14, bottom: 10, trailing: 14))
+                    .listRowBackground(activeId == tab.id ? AssistantDesktopStyle.selection : .clear)
+                    .listRowSeparator(.hidden)
+                    .contextMenu { Button("Close terminal", role: .destructive) { closingTab = tab.id } }
+                }
+            }.listStyle(.plain).scrollContentBackground(.hidden)
+        }
+    }
+
     // MARK: - Navigation bar
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        if !embedded {
         AppToolbarItem(placement: .topBarLeading) {
             Button(t("common.done")) {
                 // Drop the terminal keyboard before the cover dismisses (it lingers otherwise).
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 dismiss()
             }
+        }
         }
         AppToolbarItem(placement: .topBarTrailing) {
             AppMenu {
@@ -156,7 +194,7 @@ struct TerminalScreen: View {
         let restored = await p.restoreSessions()
         if restored.isEmpty {
             if startsNewSessionIfEmpty { addTab() }
-            else { dismiss() }
+            else if !embedded { dismiss() }
         } else {
             for (i, session) in restored.enumerated() {
                 tabs.append(TerminalTab(title: t("workspace.terminal.tab", ["n": "\(i + 1)"]), session: session))
@@ -180,7 +218,7 @@ struct TerminalScreen: View {
         tab.session.kill()   // closing a tab terminates its PTY (cloud: DELETE /terminals/:id)
         tabs.removeAll { $0.id == tab.id }
         if activeId == tab.id { activeId = tabs.last?.id }
-        if tabs.isEmpty { dismiss() }
+        if tabs.isEmpty && !embedded { dismiss() }
     }
 }
 

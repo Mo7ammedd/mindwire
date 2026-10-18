@@ -36,6 +36,8 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>MindwireDesktopDownloadURL</key>
+	<string>$(MINDWIRE_DESKTOP_DOWNLOAD_URL)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Take photos to attach to your chats, and scan pairing QR codes from your computers.</string>
 	<key>NSLocalNetworkUsageDescription</key>

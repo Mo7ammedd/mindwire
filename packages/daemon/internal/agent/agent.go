@@ -94,6 +94,10 @@ type TurnOptions struct {
 	// SystemPrompt fully REPLACES the agent's default system prompt for this turn (distinct from the
 	// sticky appendSystemPrompt, which augments it). Per-turn overrides the sticky system-prompt setting.
 	SystemPrompt string `json:"systemPrompt,omitempty"`
+	// ContextInstructions is daemon-owned additive context (a saved bot's identity,
+	// memory and tools). It must never replace a harness's native system prompt.
+	// Recomputed from the registry on each turn; excluded from public turn receipts.
+	ContextInstructions string `json:"-"`
 
 	// Session controls (precedence resolved by the adapter): SessionID pins an explicit session id for
 	// this turn; ContinueLatest resumes the most recent session in the cwd; ForkOnResume branches a new
@@ -283,7 +287,9 @@ func Catalog() []CatalogEntry {
 	all := All()
 	out := make([]CatalogEntry, 0, len(all))
 	for _, a := range all {
-		out = append(out, a.Meta())
+		entry := a.Meta()
+		entry.BotProfiles = a.Capabilities().BotProfiles
+		out = append(out, entry)
 	}
 	return out
 }

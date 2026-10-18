@@ -12,6 +12,7 @@ struct WorkspaceMetadata: Codable {
     var sessionDiscoveryIssues: [WorkspaceSessionDiscoveryIssue]? = nil
     var agentDiscoveryIssues: [WorkspaceAgentDiscoveryIssue]? = nil
     var projectLibrary: DaemonProjectLibrary? = nil
+    var bots: [AssistantBot]? = nil
 }
 
 struct WorkspaceAgentDiscoveryIssue: Codable, Equatable {

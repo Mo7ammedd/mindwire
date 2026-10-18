@@ -12,7 +12,8 @@ final class ChatListActions {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, pending.insert(chat.id).inserted else { return }
         defer { pending.remove(chat.id) }
-        let session = session ?? DaemonManager.shared.session(for: chat.agentId, stores: stores)
+        let session = session ?? stores.chatSessions.cached(chat.id)?.session
+            ?? DaemonManager.shared.session(for: chat.agentId, stores: stores)
         _ = try await session.renameChat(chat.id, title: title)
         stores.renameChat(chat.id, title: title)
     }
@@ -21,7 +22,8 @@ final class ChatListActions {
                 activity: ChatActivityStore? = nil) async throws {
         guard pending.insert(chat.id).inserted else { return }
         defer { pending.remove(chat.id) }
-        let session = session ?? DaemonManager.shared.session(for: chat.agentId, stores: stores)
+        let session = session ?? stores.chatSessions.cached(chat.id)?.session
+            ?? DaemonManager.shared.session(for: chat.agentId, stores: stores)
         try await session.deleteChat(chat.id, stopRunning: true)
         stores.deleteChat(chat.id)
         (activity ?? .shared).remove(chat.id)

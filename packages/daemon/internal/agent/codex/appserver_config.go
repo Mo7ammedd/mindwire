@@ -22,7 +22,8 @@ func newAppServer(in agent.TurnInput, files materialized) appServer {
 		resumeID:     agent.FirstNonEmpty(in.Options.SessionID, in.SessionID),
 		fork:         in.Options.ForkOnResume,
 		instructions: files.systemPrompt, images: files.imagePaths, audio: files.audioAttachments,
-		files: files.fileAttachments, outputSchema: in.Options.OutputSchema,
+		developerInstructions: in.Options.ContextInstructions,
+		files:                 files.fileAttachments, outputSchema: in.Options.OutputSchema,
 		config: map[string]any{},
 		voice:  in.Voice, voiceOptions: in.Options.Voice,
 	}

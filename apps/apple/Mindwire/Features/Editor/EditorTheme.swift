@@ -94,7 +94,7 @@ final class EditorTheme: Runestone.Theme {
         fontSize: fontSize,
         textColor: UIColor(hex: 0xDCE0E6),
         backgroundColor: UIColor(hex: 0x151515),
-        caretColor: UIColor(hex: 0xE25D3E),               // Oblien accent for caret + selection tint
+        caretColor: Palette.accentColor(for: .dark),
         gutterBackgroundColor: UIColor(hex: 0x151515),
         lineNumberColor: UIColor(hex: 0x9BA5B2),
         selectedLineBackgroundColor: UIColor(hex: 0x252323),
@@ -117,7 +117,7 @@ final class EditorTheme: Runestone.Theme {
         fontSize: fontSize,
         textColor: UIColor(hex: 0x1F2328),
         backgroundColor: UIColor(hex: 0xFFFFFF),
-        caretColor: UIColor(hex: 0xE25D3E),
+        caretColor: Palette.accentColor(for: .light),
         gutterBackgroundColor: UIColor(hex: 0xFFFFFF),
         lineNumberColor: UIColor(hex: 0x657080),
         selectedLineBackgroundColor: UIColor(hex: 0xF2F2F5),

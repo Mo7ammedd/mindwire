@@ -8,6 +8,8 @@ enum BackendFactory {
     /// always comes from a project's workspace, so callers pass `workspace.runtime`.
     static func make(forRuntime runtime: AgentRuntime, stores: Stores) -> Backend {
         switch runtime {
+        case .local(let computerId):
+            return LocalComputerBackend(computerId: computerId)
         case .cloud(let workspaceId):
             return CloudBackend(workspaceId: workspaceId)
         case .server(let serverId):
@@ -50,7 +52,7 @@ enum BackendFactory {
 
     /// Workspace metadata and harness operations share exactly the same authenticated channel.
     static func daemonChannel(forBackend backend: Backend, daemonToken: String? = nil) -> DaemonChannel {
-        if let computer = backend.workspace as? ComputerWorkspaceService { return computer.channel }
+        if let computer = backend.workspace as? DaemonWorkspaceService { return computer.daemonChannel }
         if let container = backend as? DockerWorkspaceBackend {
             return SSHTunnelChannel(ssh: container.ssh, token: daemonToken) {
                 try await container.host.port(container.sandbox)
@@ -70,6 +72,9 @@ enum BackendFactory {
     /// interface, impl by type: Oblien Cloud pushes the device-fetched binary in over the files API
     /// (runtime-exec can't do outbound HTTPS); self-hosted `curl`s it directly over the exec/SSH seam.
     static func daemonInstaller(forBackend backend: Backend) -> DaemonInstaller {
+        #if targetEnvironment(macCatalyst)
+        if backend.runtime.isLocal { return LocalComputerInstaller() }
+        #endif
         if let computer = backend.workspace as? ComputerWorkspaceService { return ComputerDaemonInstaller(channel: computer.channel) }
         if backend.runtime.isCloud {
             return UploadDaemonInstaller(workspace: backend.workspace)

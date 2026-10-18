@@ -49,10 +49,16 @@ settings:
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "6"
     DEVELOPMENT_LANGUAGE: en
+    MINDWIRE_DESKTOP_DOWNLOAD_URL: "" # Set to the published desktop installer/landing URL when available.
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: "5Q877873WD" # Abdelhamed Mohamed; inherited by every target.
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_EMIT_LOC_STRINGS: YES
+    SUPPORTS_MACCATALYST: YES
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+    DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO
+    "TARGETED_DEVICE_FAMILY[sdk=macosx*]": "6"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
 
 targets:
   Mindwire:
@@ -61,6 +67,8 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: Mindwire
+      - path: scripts/mindwire-cli.sh
+        buildPhase: resources
     dependencies:
       - package: OblienKit
       - package: RoyalVNCKit
@@ -115,14 +123,21 @@ targets:
       - package: Firebase
         product: FirebaseMessaging
       - target: NotifyService   # embed the notification service extension
+    postBuildScripts:
+      - name: Embed local Mac runtime
+        path: scripts/embed-local-runtime.sh
+        basedOnDependencyAnalysis: false
     settings:
       base:
+        "ENABLE_USER_SCRIPT_SANDBOXING[sdk=macosx*]": NO # Go uses its shared module/build caches.
         PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire
         INFOPLIST_FILE: Mindwire/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: Mindwire/Resources/Mindwire.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Mindwire/Resources/MindwireMac.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: Accent
         TARGETED_DEVICE_FAMILY: "1,2"
+        "TARGETED_DEVICE_FAMILY[sdk=macosx*]": "6"
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_PREVIEWS: YES
       configs:
@@ -156,6 +171,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Mindwire
+        SUPPORTS_MACCATALYST: NO
 
   # Rewrites incoming pushes into communication notifications (agent logo as sender). Runs only
   # when the push has mutable-content:1. Shares the app's asset catalog for the agent logos.
@@ -167,15 +183,36 @@ targets:
       - path: NotifyService
       - path: Mindwire/Resources/Assets.xcassets
       - path: Mindwire/Models/AgentBrand.swift
+      - path: Mindwire/DesignSystem/BotPalette.swift
+      - path: Mindwire/Features/Assistant/AssistantBotAvatar.swift
+      - path: Mindwire/Localization/Strings.swift
       - path: Mindwire/Services/Notifications/CommunicationNotification.swift
       - path: Mindwire/Services/Notifications/PushTarget.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire.notifyservice
+        "TARGETED_DEVICE_FAMILY[sdk=macosx*]": "6"
         INFOPLIST_FILE: NotifyService/Info.plist
         GENERATE_INFOPLIST_FILE: NO
 
 schemes:
+  MindwireMac:
+    build:
+      targets:
+        Mindwire: all
+        MindwireTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: MindwireTests
+          selectedTests:
+            - ListStoreObservationTests
+            - ChatDraftTests
+            - ChatLifecycleTests
+            - ChatReconnectionTests
+            - NativeChatTests
   Mindwire:
     build:
       targets:

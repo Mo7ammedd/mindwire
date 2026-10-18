@@ -55,6 +55,10 @@ struct WorkspaceTerminalView: UIViewRepresentable {
         term.nativeForegroundColor = theme.foreground
         term.caretColor = theme.caret
         term.backgroundColor = theme.background
+        #if targetEnvironment(macCatalyst)
+        // Keep keyboard/first-responder input; only remove UIKit's rectangular focus halo.
+        term.focusEffect = nil
+        #endif
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(session: session) }

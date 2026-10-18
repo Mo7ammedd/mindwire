@@ -2,6 +2,7 @@ import { Http, type FetchLike } from "./http.js";
 import { readSSE } from "./sse.js";
 import { Run } from "./run.js";
 import { WorkspaceApi, type ProjectAuth } from "./workspace.js";
+import { BotsApi } from "./bots.js";
 import { SurfacesApi } from "./surfaces.js";
 import { ServiceApi } from "./service.js";
 import { ExecutionApi } from "./execution.js";
@@ -125,6 +126,7 @@ export interface AgentScoped {
 export class Mindwire {
   /** Workspace registry: saved agent profiles, projects and chat relationships. */
   readonly workspace: WorkspaceApi;
+  readonly bots: BotsApi;
   readonly surfaces: SurfacesApi;
   readonly service: ServiceApi;
   readonly execution: ExecutionApi;
@@ -170,6 +172,7 @@ export class Mindwire {
     });
     this.defaultAgent = opts.agent;
     this.workspace = new WorkspaceApi(this);
+    this.bots = new BotsApi(this);
     this.surfaces = new SurfacesApi(this);
     this.service = new ServiceApi(this);
     this.execution = new ExecutionApi(this);
@@ -199,6 +202,7 @@ export class Mindwire {
     clone.http = this.http;
     clone.defaultAgent = agent;
     clone.workspace = new WorkspaceApi(clone as Mindwire);
+    clone.bots = new BotsApi(clone as Mindwire);
     clone.surfaces = new SurfacesApi(clone as Mindwire);
     clone.service = new ServiceApi(clone as Mindwire);
     clone.execution = new ExecutionApi(clone as Mindwire);

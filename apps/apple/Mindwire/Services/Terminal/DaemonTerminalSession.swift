@@ -19,11 +19,17 @@ struct DaemonTerminalEvent: Decodable {
 }
 
 final class DaemonTerminalProvider: TerminalProvider {
-    private let channel: ComputerDaemonChannel
+    private let channel: any StreamingDaemonChannel
     private let workdir: String?
     private var closing: [Task<Void, Never>] = []
+    private let closeChannel: () async -> Void
     init(computer: PairedComputer, workdir: String?, network: ComputerNetworkMonitor = .shared) {
-        channel = ComputerDaemonChannel(computer: computer, network: network); self.workdir = workdir
+        let channel = ComputerDaemonChannel(computer: computer, network: network)
+        self.channel = channel; self.workdir = workdir
+        closeChannel = { await channel.close() }
+    }
+    init(channel: any StreamingDaemonChannel, workdir: String?) {
+        self.channel = channel; self.workdir = workdir; closeChannel = {}
     }
     func restoreSessions() async -> [TerminalSession] {
         let http = DaemonHTTP(channel: channel, agentType: "")
@@ -52,8 +58,8 @@ final class DaemonTerminalProvider: TerminalProvider {
         }
     }
     func teardown() {
-        let closing = self.closing, channel = self.channel
-        Task { for task in closing { await task.value }; await channel.close() }
+        let closing = self.closing, closeChannel = self.closeChannel
+        Task { for task in closing { await task.value }; await closeChannel() }
     }
 }
 
@@ -62,7 +68,7 @@ final class DaemonTerminalProvider: TerminalProvider {
 final class DaemonTerminalSession: TerminalSession {
     var onOutput: ((Data) -> Void)?
     let handlesDeviceQueries = true
-    private let channel: ComputerDaemonChannel
+    private let channel: any StreamingDaemonChannel
     private var http: DaemonHTTP { DaemonHTTP(channel: channel, agentType: "") }
     private let workdir: String?
     private var terminalId: String
@@ -82,7 +88,7 @@ final class DaemonTerminalSession: TerminalSession {
     private var resizeTask: Task<Void, Never>?
     private let closeTerminal: (String) -> Void
 
-    init(channel: ComputerDaemonChannel, state: DaemonTerminalState? = nil, workdir: String?, recoverExisting: Bool = false,
+    init(channel: any StreamingDaemonChannel, state: DaemonTerminalState? = nil, workdir: String?, recoverExisting: Bool = false,
          closeTerminal: @escaping (String) -> Void) {
         self.channel = channel; self.workdir = workdir
         terminalId = state?.id ?? UUID().uuidString

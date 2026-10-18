@@ -19,3 +19,8 @@ python3 scripts/sync-agent-logos.py --daemon-repo /path/to/mindwire
 
 To re-export the bundled originals, omit `--daemon-repo`. The generated PDFs
 are checked in, so building the app does not require librsvg or a daemon checkout.
+
+General's ChatGPT connection uses the OpenAI mark from
+[Lobe Icons](https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/icons/openai.svg),
+stored as `chatgpt.svg` and exported to `service-chatgpt`. Its MIT notice is in
+`LobeIcons-LICENSE`. Harness views keep their original Codex mark.

@@ -23,10 +23,7 @@ struct HarnessVoiceSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: Spacing.lg) {
-                    Group {
-                        if let agentType { AgentLogo(id: agentType, size: 48) }
-                        else { AppLogo(size: 48) }
-                    }
+                    AppLogo(size: 48)
                         .frame(width: 76, height: 76)
                         .background(Color.primary.opacity(0.045), in: .circle)
                         .padding(.top, Spacing.md)

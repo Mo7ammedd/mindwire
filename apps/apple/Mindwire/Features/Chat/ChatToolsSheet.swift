@@ -18,16 +18,18 @@ struct ChatToolsSheet: View {
     var showCommands: () -> Void = {}
 
     @Environment(\.stores) private var stores
+    @Environment(\.appExperienceMode) private var experienceMode
     @Environment(\.dismiss) private var dismiss
     @State private var project: Project?
     @State private var destination: Destination?
     @State private var showingTerminal = false
 
     private enum Destination: Identifiable {
-        case settings, tool(ProjectTool)
+        case settings, authentication, tool(ProjectTool)
         var id: String {
             switch self {
             case .settings: "settings"
+            case .authentication: "authentication"
             case .tool(let tool): tool.id
             }
         }
@@ -37,7 +39,20 @@ struct ChatToolsSheet: View {
         NavigationStack {
             List {
                 modelSection
-                if session?.capabilities?.commands == true {
+                if experienceMode == .general {
+                    Section { attachmentButtons }
+                    if let agent, let service = AssistantAIService(agentType: agent.agentType) {
+                        Section {
+                            Button { destination = .authentication } label: {
+                                Label { Text("\(service.name) connection") } icon: {
+                                    AssistantServiceMark(service: service, size: 22)
+                                }
+                            }
+                            .tint(.primary).accessibilityIdentifier("chat.aiConnection")
+                        }
+                    }
+                }
+                if experienceMode == .developer, session?.capabilities?.commands == true {
                     Section {
                         Button(action: showCommands) {
                             Label(t("chat.commands.title"), icon: .command)
@@ -48,14 +63,16 @@ struct ChatToolsSheet: View {
                 }
                 if let project {
                     Section {
-                        ForEach(ProjectTool.available(workspaceId: project.workspaceId)) { tool in
+                        ForEach(ProjectTool.available(workspaceId: project.workspaceId).filter {
+                            experienceMode == .developer || $0 == .files || $0 == .desktop
+                        }) { tool in
                             ProjectToolButton(tool: tool) {
                                 if tool == .terminal { showingTerminal = true }
                                 else { destination = .tool(tool) }
                             }
                         }
                     } header: {
-                        Text(t("chat.tools.project", ["name": project.name]))
+                        Text(experienceMode == .general ? t("assistant.files") : t("chat.tools.project", ["name": project.name]))
                             .lineLimit(1).truncationMode(.middle)
                     }
                 }
@@ -63,24 +80,20 @@ struct ChatToolsSheet: View {
             .listStyle(.insetGrouped)
             .listSectionSpacing(.compact)
             .contentMargins(.top, Spacing.sm, for: .scrollContent)
-            .navigationTitle(t("chat.tools"))
+            .navigationTitle(t(experienceMode == .general ? "assistant.attachments" : "chat.tools"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                AppToolbarItem(placement: .topBarLeading) {
-                    AppMenu {
-                        Button { addAttachment(.photos) } label: { Label("Photo Library", icon: .filePicture) }
-                            .disabled(session?.capabilities?.imageInput == false || images.items.count >= ChatImageEncoding.maximumCount)
-                        Button { addAttachment(.camera) } label: { Label("Take Photo", icon: .camera) }
-                            .disabled(session?.capabilities?.imageInput == false || images.items.count >= ChatImageEncoding.maximumCount)
-                        Button { addAttachment(.files) } label: { Label("Choose Files", icon: .file) }
-                            .disabled(images.items.count >= ChatImageEncoding.maximumCount)
-                        Button { addAttachment(.voice) } label: { Label(t("chat.voice.native.recordFile"), icon: .microphone) }
-                    } label: {
-                        Label("Attach", icon: .attachment)
+                if experienceMode == .developer {
+                    AppToolbarItem(placement: .topBarLeading) {
+                        AppMenu {
+                            attachmentButtons
+                        } label: {
+                            Label("Attach", icon: .attachment)
+                        }
+                        .tint(.primary)
+                        .disabled(images.importing)
+                        .accessibilityIdentifier("chat.addImage")
                     }
-                    .tint(.primary)
-                    .disabled(images.importing)
-                    .accessibilityIdentifier("chat.addImage")
                 }
                 AppToolbarItem(placement: .confirmationAction) {
                     Button(t("common.done")) { dismiss() }.tint(.primary)
@@ -93,10 +106,24 @@ struct ChatToolsSheet: View {
         .observeWorkspaceCache(resolveProject)
         .sheet(item: $destination) { selected in
             switch selected {
+            case .authentication:
+                if let agent {
+                    NavigationStack {
+                        AgentAuthenticationScreen(agentId: agent.id, session: session)
+                            .toolbar {
+                                AppToolbarItem(placement: .confirmationAction) {
+                                    Button(t("common.done")) { destination = nil }.tint(.primary)
+                                }
+                            }
+                    }
+                }
             case .settings:
                 if let settings {
                     AgentQuickSettingsSheet(settings: settings, session: session,
-                                            livePermissions: livePermissions, apply: applySettings)
+                                            livePermissions: livePermissions,
+                                            title: experienceMode == .general ? "Models" : nil,
+                                            settingCanons: experienceMode == .general ? ["model", "reasoningEffort"] : nil,
+                                            apply: applySettings)
                 }
             case .tool(let tool):
                 if let project {
@@ -122,8 +149,8 @@ struct ChatToolsSheet: View {
                             if let effort = settings.reasoningLabel {
                                 Text(t("chat.tools.reasoning", ["effort": effort]))
                                     .font(.subheadline).foregroundStyle(.secondary)
-                            } else if let agent {
-                                Text(agent.displayName).font(.subheadline).foregroundStyle(.secondary)
+                            } else {
+                                Text("Mindwire").font(.subheadline).foregroundStyle(.secondary)
                             }
                         }
                         Spacer(minLength: Spacing.sm)
@@ -157,13 +184,22 @@ struct ChatToolsSheet: View {
         }
     }
 
-    @ViewBuilder
-    private var agentIcon: some View {
-        if let agent {
-            AgentLogo(id: agent.agentType, size: 24, mono: true).accessibilityHidden(true)
-        } else {
-            AppIcon(.cpu).frame(width: 24, height: 24).accessibilityHidden(true)
+    private var attachmentButtons: some View {
+        Group {
+            Button { addAttachment(.photos) } label: { Label("Photo Library", icon: .filePicture) }
+                .disabled(session?.capabilities?.imageInput == false || images.items.count >= ChatImageEncoding.maximumCount)
+            Button { addAttachment(.camera) } label: { Label("Take Photo", icon: .camera) }
+                .disabled(session?.capabilities?.imageInput == false || images.items.count >= ChatImageEncoding.maximumCount)
+            Button { addAttachment(.files) } label: { Label("Choose Files", icon: .file) }
+                .disabled(images.items.count >= ChatImageEncoding.maximumCount)
+            Button { addAttachment(.voice) } label: { Label(t("chat.voice.native.recordFile"), icon: .microphone) }
         }
+        .tint(.primary)
+        .disabled(images.importing)
+    }
+
+    private var agentIcon: some View {
+        AppLogo(size: 24).accessibilityHidden(true)
     }
 
     private func resolveProject() {

@@ -22,6 +22,7 @@ struct AppStorePreviewScene: View {
                     .restoringNavigation(fixture.app, store: fixture.navigationStore)
                     .environment(fixture.app)
                     .environment(\.stores, fixture.stores)
+                    .environment(\.appExperienceMode, fixture.stores.experience.mode ?? .developer)
                     .tint(Palette.accent)
                     .labelIconToTitleSpacing(Spacing.md)
                     .accessibilityIdentifier("store.ready")
@@ -65,6 +66,13 @@ struct AppStorePreviewScene: View {
                     data.app.openProject(data.projects[0].id)
                 } else if scenario == "workspaces" { data.app.selectedTab = .workspaces }
                 else if scenario == "agents" { data.app.selectedTab = .agents }
+                else if scenario.hasPrefix("assistant") {
+                    data.stores.experience.mode = .general
+                    if let agent = data.stores.agents.get("store-mac-codex") {
+                        data.stores.experience.use(agent: agent, project: data.projects[0])
+                    }
+                    data.app.assistantChatID = data.chatID
+                }
                 else if scenario == "backup" {
                     data.app.selectedTab = .settings
                     data.app.settingsPath = NavigationPath([SettingsRoute.backupSync])
@@ -97,6 +105,10 @@ struct AppStorePreviewScene: View {
 
     @ViewBuilder private func content(_ data: AppStoreFixture, git: GitModel) -> some View {
         switch scenario {
+        case "assistant":
+            AssistantScene(repository: data.repository)
+        case "assistant-setup":
+            AssistantSetupScreen(repository: data.repository, onReady: {})
         case "notification-intro":
             MainScene(repository: data.repository)
                 .sheet(isPresented: $showNotificationIntro, onDismiss: {

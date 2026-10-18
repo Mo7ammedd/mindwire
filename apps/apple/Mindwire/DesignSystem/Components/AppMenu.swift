@@ -7,11 +7,18 @@ struct AppMenu<Content: View, Label: View>: View {
     @ViewBuilder var label: () -> Label
 
     var body: some View {
+        if ApplePlatform.isDesktop {
+            menu.buttonStyle(.plain).menuStyle(.borderlessButton).menuIndicator(.hidden)
+        } else { menu }
+    }
+
+    private var menu: some View {
         Menu {
             content().menuIconLayout()
         } label: {
             label()
         }
+        .tint(.primary)
     }
 }
 
@@ -34,7 +41,11 @@ extension View {
 
     fileprivate func menuIconLayout() -> some View {
         environment(\.appIconContext, .menu)
+            // Native action text and template icons stay neutral as app accents change.
+            .tint(.primary)
+            .foregroundStyle(.primary)
             .labelReservedIconWidth(AppIconMetrics.menuSize)
-            .labelIconToTitleSpacing(Spacing.sm)
+            .labelIconToTitleSpacing(ApplePlatform.isDesktop ? 6 : Spacing.sm)
+            .font(ApplePlatform.isDesktop ? .system(size: 13) : .body)
     }
 }

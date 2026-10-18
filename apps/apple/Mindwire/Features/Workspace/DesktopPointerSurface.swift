@@ -135,7 +135,7 @@ final class DesktopPointerSurfaceView: UIView {
         let radius = min(DesktopPointerMotion.radius, max(0, (min(bounds.width, bounds.height) - 38) / 2))
         let scale = length > radius ? radius / length : 1
         thumb.center = CGPoint(x: bounds.midX + offset.width * scale, y: bounds.midY + offset.height * scale)
-        pointer.tintColor = gesture.buttonDown ? .systemOrange : .label
+        pointer.tintColor = gesture.buttonDown ? UIColor(Palette.accent) : .label
         CATransaction.commit()
     }
     deinit { if let inactivity { NotificationCenter.default.removeObserver(inactivity) } }

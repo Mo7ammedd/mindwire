@@ -25,13 +25,17 @@ type Action struct {
 
 // Notification is the unified payload the daemon emits; the webhook receiver fans it out.
 type Notification struct {
-	Condition Condition `json:"condition"`
-	Title     string    `json:"title"`
-	Body      string    `json:"body"`
-	Agent     string    `json:"agent,omitempty"`
-	ChatID    string    `json:"chatId,omitempty"`
-	RunID     string    `json:"runId,omitempty"`
-	Actions   []Action  `json:"actions,omitempty"`
+	Condition   Condition `json:"condition"`
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	Agent       string    `json:"agent,omitempty"`
+	BotID       string    `json:"botId,omitempty"`
+	BotName     string    `json:"botName,omitempty"`
+	BotIcon     string    `json:"botIcon,omitempty"`
+	WorkspaceID string    `json:"workspaceId,omitempty"`
+	ChatID      string    `json:"chatId,omitempty"`
+	RunID       string    `json:"runId,omitempty"`
+	Actions     []Action  `json:"actions,omitempty"`
 }
 
 // NotifyChannelType is the delivery shape of a notification channel. It selects only how the

@@ -62,8 +62,9 @@ struct RootNavigationLink<Content: View>: View {
         self.label = label
     }
 
-    init(value: SettingsRoute, @ViewBuilder label: @escaping () -> Content) {
+    init(value: SettingsRoute, usesDefaultRowBackground: Bool = true, @ViewBuilder label: @escaping () -> Content) {
         destination = .settings(value)
+        self.usesDefaultRowBackground = usesDefaultRowBackground
         self.label = label
     }
 
@@ -175,9 +176,12 @@ struct AdaptiveTabNavigation<Root: View>: View {
         case (.projects, .chat(let id)):
             root = stores.chats.get(id).map { .projectDetail(id: $0.projectId) }
         case (.agents, .agentDetail): root = route
+        case (.agents, .botDetail): root = route
         case (.agents, .agentAuthentication(let id)): root = .agentDetail(agentId: id)
         case (.agents, .chat(let id)):
-            root = stores.chats.get(id).map { .agentDetail(agentId: $0.agentId) }
+            root = stores.chats.get(id).map { chat in
+                chat.botId.map { .botDetail(botId: $0) } ?? .agentDetail(agentId: chat.agentId)
+            }
         case (.workspaces, .workspaceDetail): root = route
         case (.workspaces, .workspaceProjects(let id)): root = .workspaceDetail(id: id)
         case (.workspaces, .projectDetail(let id)):

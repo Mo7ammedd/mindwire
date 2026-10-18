@@ -56,6 +56,7 @@ struct ChatTranscriptScrollView<Row: Identifiable & Equatable, Content: View>: V
 }
 
 private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>: UIViewRepresentable {
+    @Environment(AppModel.self) private var app: AppModel?
     let rows: [Row]
     let isRunning: Bool
     let isRestoring: Bool
@@ -121,6 +122,7 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
         private var measuredHeights: [Row.ID: CGFloat] = [:]
         private var parent: ChatTranscriptTable?
         private var environment = EnvironmentValues()
+        private weak var app: AppModel?
         private var restorationRevision = -1
         private var jumpRevision = 0
         private var latestRequestRevision = 0
@@ -173,13 +175,17 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
                         .environment(\.desktopWorkspaceID, self.environment.desktopWorkspaceID)
                         .environment(\.chatAttachmentSession, self.environment.chatAttachmentSession)
                         .environment(\.chatProjectPath, self.environment.chatProjectPath)
+                        .environment(\.chatBotColor, self.environment.chatBotColor)
+                        .environment(\.desktopMessenger, self.environment.desktopMessenger)
+                        .environment(\.appExperienceMode, self.environment.appExperienceMode)
+                        .modifier(ChatTranscriptAppContext(app: self.app))
                         .environment(\.openURL, OpenURLAction { [weak self] url in
                             guard let self else { return .discarded }
                             // Read the current route context even when a cached cell is reused.
                             self.environment.openURL(url)
                             return .handled
                         })
-                        .frame(maxWidth: AdaptiveLayout.readableWidth, alignment: .leading)
+                        .frame(maxWidth: self.environment.desktopMessenger ? AssistantDesktopStyle.conversationWidth : AdaptiveLayout.readableWidth, alignment: .leading)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .fixedSize(horizontal: false, vertical: true)
                         // The table owns bar/keyboard insets. A recycled cell passing underneath a
@@ -188,7 +194,7 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
                         // Reusing a cell must never reuse another tool's disclosure state.
                         .id(id)
                 }
-                .margins(.horizontal, Spacing.lg)
+                .margins(.horizontal, self.environment.desktopMessenger ? AssistantDesktopStyle.gutter : Spacing.lg)
                 .margins(.vertical, ChatContentStyle.partSpacing / 2)
                 .minSize(height: 0)
                 return cell
@@ -212,6 +218,11 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
                 || self.environment.desktopWorkspaceID != environment.desktopWorkspaceID
                 || self.environment.chatAttachmentSession !== environment.chatAttachmentSession
                 || self.environment.chatProjectPath != environment.chatProjectPath
+                || self.environment.chatBotColor != environment.chatBotColor
+                || self.environment.desktopMessenger != environment.desktopMessenger
+                || self.environment.appExperienceMode != environment.appExperienceMode
+                || self.app !== parent.app
+            self.app = parent.app
             self.environment = environment
             let restore = restorationRevision != parent.restorationRevision
             let jump = jumpRevision != parent.jumpRevision
@@ -455,6 +466,15 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
             guard let id = (cell as? TranscriptCell)?.rowID?.base as? Row.ID, rowsByID[id] != nil else { return }
             measuredHeights[id] = cell.bounds.height
         }
+    }
+}
+
+private struct ChatTranscriptAppContext: ViewModifier {
+    let app: AppModel?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let app { content.environment(app) }
+        else { content }
     }
 }
 

@@ -6,6 +6,7 @@ struct AgentSetupScreen: View {
     let onReady: () -> Void
     private let onRemoved: (() -> Void)?
     @Environment(\.stores) private var stores
+    @Environment(\.appExperienceMode) private var experienceMode
     @Environment(\.dismiss) private var dismiss
     @State private var agent: Agent
     @State private var session: DaemonSession?
@@ -20,14 +21,19 @@ struct AgentSetupScreen: View {
         _session = State(initialValue: session)
     }
 
+    private var assistantService: AssistantAIService? {
+        experienceMode == .general ? AssistantAIService(agentType: agent.agentType) : nil
+    }
+
     var body: some View {
-        AgentReadinessView(agent: agent, session: session) {
+        AgentReadinessView(agent: agent, session: session, preferredAuthMethodID: assistantService?.preferredMethodID) {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationTitle(agent.displayName)
+        .navigationTitle(experienceMode == .general ? t("assistant.setup.connectAI") : agent.displayName)
         .navigationBarTitleDisplayMode(.inline)
-        .agentManagement(agent: agent, session: session, actions: actions,
+        .agentManagement(agent: experienceMode == .developer ? agent : nil, session: session, actions: actions,
                          showsAuthentication: false, onRemoved: removed)
+        .environment(\.assistantAIService, assistantService)
         .observeWorkspaceCache {
             if let updated = stores.agents.get(agent.id) { agent = updated }
         }

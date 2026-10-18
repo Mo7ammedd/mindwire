@@ -63,6 +63,10 @@
     {
       "name": "Computer",
       "description": "Optional computer mode only. Workspace API remains authenticated loopback HTTP, carried inside pinned SSH."
+    },
+    {
+      "name": "Bots",
+      "description": "General profiles, durable knowledge/memory, and bot chat membership."
     }
   ],
   "components": {
@@ -311,6 +315,10 @@
           "nativeSessionVersion": {
             "type": "integer",
             "description": "Native session observation and capability-aware control protocol."
+          },
+          "botsVersion": {
+            "type": "integer",
+            "description": "1: saved bot profiles, knowledge and memory; 2: saved icons; 3: native task delegation and authenticated cross-computer bot control."
           }
         },
         "required": [
@@ -1249,6 +1257,10 @@
       "CatalogEntry": {
         "type": "object",
         "properties": {
+          "botProfiles": {
+            "type": "boolean",
+            "description": "Supports persistent Mindwire bot profiles, including subsequent turns."
+          },
           "id": {
             "type": "string"
           },
@@ -1292,6 +1304,10 @@
       "Capabilities": {
         "type": "object",
         "properties": {
+          "botProfiles": {
+            "type": "boolean",
+            "description": "Saved bot instructions and native management tools remain available on resumed turns."
+          },
           "output": {
             "type": "string",
             "enum": [
@@ -2532,6 +2548,46 @@
           },
           "at": {
             "type": "string"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "botId": {
+            "type": "string"
+          },
+          "botName": {
+            "type": "string",
+            "description": "Saved bot name, also used for the notification title. The agent field retains the engine for routing."
+          },
+          "botIcon": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "preview": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
           }
         },
         "required": [
@@ -2994,6 +3050,10 @@
             "pattern": "^[a-f0-9]{64}$",
             "description": "Daemon-owned logical identity shared by preserved workspace replicas. Local IDs remain different.",
             "readOnly": true
+          },
+          "botId": {
+            "type": "string",
+            "description": "General bot membership, preserved by metadata edits."
           }
         }
       },
@@ -3030,6 +3090,9 @@
           "notificationsMuted": {
             "type": "boolean",
             "description": "Mutes this chat; false clears its own mute but does not override a muted parent profile. Omit to preserve an existing value; send false to clear. Applies to every notification channel and condition. Requires notificationPreferencesVersion >= 1."
+          },
+          "botId": {
+            "type": "string"
           }
         }
       },
@@ -3075,6 +3138,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/WorkspaceChatInput"
+            }
+          },
+          "bots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bot"
             }
           }
         }
@@ -3178,6 +3247,12 @@
               }
             },
             "description": "Failed executable checks retain the last known installation state."
+          },
+          "bots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bot"
+            }
           }
         }
       },
@@ -7167,6 +7242,570 @@
             "type": "string"
           }
         }
+      },
+      "BotKnowledge": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "content"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "Bot": {
+        "type": "object",
+        "required": [
+          "id",
+          "workspaceId",
+          "agentId",
+          "projectId",
+          "name",
+          "purpose",
+          "instructions",
+          "memory",
+          "knowledge",
+          "isMaster",
+          "archived",
+          "createdAt",
+          "revision"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "memory": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "isMaster": {
+            "type": "boolean"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "knowledge": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BotKnowledge"
+            }
+          },
+          "icon": {
+            "type": "string",
+            "description": "Saved color-character avatar, for example peach-fox. Version 4 supports 10 colors and 24 characters. Empty resets to the stable automatic avatar."
+          },
+          "notificationsMuted": {
+            "type": "boolean",
+            "description": "Mute notifications from this named bot, independently of other bots using the same base agent. Requires botsVersion >= 4 and notificationPreferencesVersion >= 2."
+          }
+        }
+      },
+      "BotInput": {
+        "type": "object",
+        "required": [
+          "agentId",
+          "projectId",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "memory": {
+            "type": "string"
+          },
+          "knowledge": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BotKnowledge"
+            }
+          },
+          "icon": {
+            "type": "string",
+            "description": "Saved color-character avatar, for example peach-fox. Version 4 supports 10 colors and 24 characters. Empty resets to the stable automatic avatar."
+          }
+        }
+      },
+      "BotEdit": {
+        "type": "object",
+        "required": [
+          "expectedRevision"
+        ],
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "memory": {
+            "type": "string"
+          },
+          "knowledge": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BotKnowledge"
+            }
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Saved color-character avatar, for example peach-fox. Version 4 supports 10 colors and 24 characters. Empty resets to the stable automatic avatar."
+          },
+          "notificationsMuted": {
+            "type": "boolean",
+            "description": "Mute notifications from this named bot, independently of other bots using the same base agent. Requires botsVersion >= 4 and notificationPreferencesVersion >= 2."
+          }
+        }
+      },
+      "BotMutation": {
+        "type": "object",
+        "required": [
+          "bot",
+          "snapshot"
+        ],
+        "properties": {
+          "bot": {
+            "$ref": "#/components/schemas/Bot"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/WorkspaceSnapshot"
+          }
+        }
+      },
+      "BotEnsure": {
+        "type": "object",
+        "required": [
+          "agentId",
+          "projectId"
+        ],
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        }
+      },
+      "BotChatInput": {
+        "type": "object",
+        "properties": {
+          "chatId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "BotChatMutation": {
+        "type": "object",
+        "required": [
+          "chatId",
+          "snapshot"
+        ],
+        "properties": {
+          "chatId": {
+            "type": "string"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/WorkspaceSnapshot"
+          }
+        }
+      },
+      "BotTaskRequest": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "description": "Stable idempotency key; reuse for retries of the same intent."
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "chatId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "requestId",
+          "message"
+        ]
+      },
+      "BotTaskInput": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "description": "Stable idempotency key; reuse for retries of the same intent."
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          }
+        },
+        "required": [
+          "requestId",
+          "message"
+        ]
+      },
+      "BotTask": {
+        "type": "object",
+        "properties": {
+          "botId": {
+            "type": "string"
+          },
+          "chatId": {
+            "type": "string"
+          },
+          "run": {
+            "$ref": "#/components/schemas/Run"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role",
+                "text",
+                "createdAt"
+              ]
+            }
+          },
+          "output": {
+            "type": "string"
+          },
+          "interactions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "needsResponse": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "needsResponse"
+              ]
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
+          "cancelRequested": {
+            "type": "boolean"
+          },
+          "historyError": {
+            "type": "string",
+            "description": "Native history temporarily unavailable; run state and live output remain authoritative."
+          }
+        },
+        "required": [
+          "botId",
+          "chatId",
+          "run"
+        ]
+      },
+      "BotAgents": {
+        "type": "object",
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceAgent"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceProject"
+            }
+          }
+        },
+        "required": [
+          "agents",
+          "projects"
+        ]
+      },
+      "BotPeerIdentity": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "publicKey": {
+            "type": "string"
+          },
+          "hostKeyFingerprint": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "sshPort": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BotPeerRoute"
+            }
+          }
+        },
+        "required": [
+          "workspaceId",
+          "publicKey",
+          "hostKeyFingerprint"
+        ]
+      },
+      "BotPeerRoute": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ssh"
+                ]
+              },
+              "host": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              }
+            },
+            "required": [
+              "kind",
+              "host",
+              "port"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "websocket"
+                ]
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "kind",
+              "url"
+            ]
+          }
+        ]
+      },
+      "BotPeerInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "publicKey": {
+            "type": "string"
+          },
+          "hostKeyFingerprint": {
+            "type": "string"
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BotPeerRoute"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "publicKey",
+          "hostKeyFingerprint",
+          "routes"
+        ]
+      },
+      "BotPeer": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "publicKey": {
+            "type": "string"
+          },
+          "hostKeyFingerprint": {
+            "type": "string"
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BotPeerRoute"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "name",
+          "publicKey",
+          "hostKeyFingerprint",
+          "routes"
+        ]
+      },
+      "BotPeerListenerInput": {
+        "type": "object",
+        "properties": {
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          }
+        }
+      },
+      "BotPeerCheck": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "reachable": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "addressRecovery": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "reachable"
+        ]
       }
     }
   },
@@ -18711,6 +19350,820 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/bots": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "listBots",
+        "summary": "List General bots",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Bot"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot or parent missing"
+          },
+          "409": {
+            "description": "Revision or name conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "createBot",
+        "summary": "Create a saved General bot",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotMutation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot or parent missing"
+          },
+          "409": {
+            "description": "Revision or name conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bots/ensure": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "ensureMindwire",
+        "summary": "Prepare Mindwire and migrate the General project chats",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotMutation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot or parent missing"
+          },
+          "409": {
+            "description": "Revision or name conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotEnsure"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bots/{id}": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "getBot",
+        "summary": "Read a bot profile",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot or parent missing"
+          },
+          "409": {
+            "description": "Revision or name conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "updateBot",
+        "summary": "Update a bot using its current revision",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotMutation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot or parent missing"
+          },
+          "409": {
+            "description": "Revision or name conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotEdit"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bots/{id}/chats": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "listBotChats",
+        "summary": "List conversations belonging to a bot",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceChat"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot or parent missing"
+          },
+          "409": {
+            "description": "Revision or name conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "createBotChat",
+        "summary": "Create a conversation for a bot",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotChatMutation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot or parent missing"
+          },
+          "409": {
+            "description": "Revision or name conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotChatInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bots/agents": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "botAgents",
+        "summary": "List base agents and projects available for bots",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotAgents"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        }
+      }
+    },
+    "/bots/{id}/tasks": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "botTasks",
+        "summary": "List recent native tasks for a bot",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BotTask"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "delegateBotTask",
+        "summary": "Start or resume a bot conversation using a stable request ID",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotTaskRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bots/{id}/tasks/{runId}": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "getBotTask",
+        "summary": "Inspect a bot task, recent messages and pending interactions",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/bots/{id}/tasks/{runId}/input": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "sendBotTaskInput",
+        "summary": "Send a follow-up using native input receipts",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotTaskInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bots/{id}/tasks/{runId}/cancel": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "cancelBotTask",
+        "summary": "Request cancellation of a bot task",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/bots/peers/identity": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "botPeerIdentity",
+        "summary": "Read the daemon-owned bot peer public identity",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotPeerIdentity"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        }
+      }
+    },
+    "/bots/peers/listener": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "startBotPeerListener",
+        "summary": "Start the persisted peer-only SSH over WebSocket listener",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotPeerIdentity"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotPeerListenerInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bots/peers": {
+      "get": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "listBotPeers",
+        "summary": "List explicitly authorized bot-control peers",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BotPeer"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        }
+      }
+    },
+    "/bots/peers/{workspaceId}": {
+      "put": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "pairBotPeer",
+        "summary": "Authorize a daemon public key and pin its bot-control route",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotPeer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotPeerInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "revokeBotPeer",
+        "summary": "Revoke bot-control access for a paired daemon",
+        "responses": {
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Bot, task or peer not found"
+          },
+          "409": {
+            "description": "Revision, idempotency or busy conflict"
+          },
+          "200": {
+            "description": "Revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/bots/peers/{workspaceId}/check": {
+      "post": {
+        "tags": [
+          "Bots"
+        ],
+        "operationId": "checkBotPeer",
+        "summary": "Check peer reachability without starting a native task",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reachability result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotPeerCheck"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Peer not found"
           }
         }
       }

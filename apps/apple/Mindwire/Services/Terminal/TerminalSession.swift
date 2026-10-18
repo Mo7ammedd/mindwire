@@ -71,6 +71,12 @@ enum TerminalSessionFactory {
     /// sessions per tab. `workdir` cd's a new shell into a project path.
     static func provider(for workspace: Workspace?, stores: Stores, workdir: String? = nil) -> TerminalProvider {
         switch workspace?.runtime {
+        case .local(let computerId):
+            #if targetEnvironment(macCatalyst)
+            return DaemonTerminalProvider(channel: LocalDaemonChannel(computerId: computerId), workdir: workdir)
+            #else
+            break
+            #endif
         case .cloud(let workspaceId):
             if let workspaceId {
                 return CloudTerminalProvider(workspaceId: workspaceId, workdir: workdir)

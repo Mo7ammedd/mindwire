@@ -64,6 +64,7 @@ func (adapter) Capabilities() agent.Capabilities {
 		// passthroughs opencode cannot take — each stays false so api.turn returns an honest 400 rather
 		// than silently dropping the option.
 		SystemPrompt:       true,
+		BotProfiles:        true,
 		AppendSystemPrompt: false,
 		MCPServers:         false,
 		Subagents:          false,
@@ -263,15 +264,16 @@ func (adapter) RunStream(ctx context.Context, in agent.TurnInput, emit agent.Emi
 	}
 
 	return server{
-		env:         env,
-		message:     in.Message + msgAppend,
-		extraParts:  extraParts,
-		provider:    provider,
-		model:       model,
-		agentName:   strings.TrimSpace(in.Config[keyAgent]),
-		system:      system,
-		cwd:         workdir,
-		resumeID:    agent.FirstNonEmpty(in.Options.SessionID, in.SessionID),
-		interactive: permMode(in) == "ask" && in.Inbound != nil,
+		env:                 env,
+		message:             in.Message + msgAppend,
+		extraParts:          extraParts,
+		provider:            provider,
+		model:               model,
+		agentName:           strings.TrimSpace(in.Config[keyAgent]),
+		system:              system,
+		contextInstructions: in.Options.ContextInstructions,
+		cwd:                 workdir,
+		resumeID:            agent.FirstNonEmpty(in.Options.SessionID, in.SessionID),
+		interactive:         permMode(in) == "ask" && in.Inbound != nil,
 	}.Run(ctx, in, emit)
 }

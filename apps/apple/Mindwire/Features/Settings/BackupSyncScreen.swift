@@ -60,7 +60,7 @@ struct BackupSyncScreen: View {
 
             Section {
                 Button("What’s Saved", icon: .info) { showingInfo = true }.tint(.primary)
-                LabeledContent("Computers & Servers", value: sync.savedConnectionCount.formatted())
+                LabeledContent("Computers", value: sync.savedConnectionCount.formatted())
             }
 
             Section {

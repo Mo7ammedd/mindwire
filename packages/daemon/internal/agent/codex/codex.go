@@ -65,6 +65,7 @@ func (adapter) Capabilities() agent.Capabilities {
 		// App-server carries full system instructions and MCP config in thread RPCs; exec uses a
 		// temporary profile overlay. Both keep prompt/MCP credentials off the command line.
 		SystemPrompt:       true,
+		BotProfiles:        true,
 		AppendSystemPrompt: false,
 		MCPServers:         true,
 		// Subagents (--agents) and a settings/hooks bundle (--settings) are Claude-native shapes with no
@@ -479,7 +480,7 @@ func materialize(in agent.TurnInput) (files materialized, msgAppend string, clea
 		}
 		files.systemPrompt, files.mcpServers = sp, servers
 		// Live turns send these values directly over the private app-server pipe.
-		if in.Inbound == nil {
+		if in.Inbound == nil && in.Options.ContextInstructions == "" {
 			base := configBase()
 			if base == "" {
 				return files, "", cleanup, fmt.Errorf("cannot honor systemPrompt/mcpServers: CODEX_HOME is not resolvable")
@@ -542,7 +543,7 @@ func (adapter) RunStream(ctx context.Context, in agent.TurnInput, emit agent.Emi
 		emit(agent.Event{Type: agent.EventError, Error: err.Error()})
 		return agent.TurnResult{Text: err.Error(), IsError: true}, nil
 	}
-	if in.Inbound != nil || in.Command != nil || in.Options.ForkOnResume || len(files.audioAttachments) > 0 || in.Options.Voice != nil {
+	if in.Inbound != nil || in.Options.ContextInstructions != "" || in.Command != nil || in.Options.ForkOnResume || len(files.audioAttachments) > 0 || in.Options.Voice != nil {
 		return newAppServer(in, files).Run(ctx, in, emit)
 	}
 	in.Message += msgAppend // exec has no native audio input; keep one ordered file-reference block

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/oblien/mindwire/packages/daemon/internal/agent"
+	"github.com/oblien/mindwire/packages/daemon/internal/bots"
 	"github.com/oblien/mindwire/packages/daemon/internal/gitaccess"
 	"github.com/oblien/mindwire/packages/daemon/internal/nativesessions"
 	"github.com/oblien/mindwire/packages/daemon/internal/notify"
@@ -190,6 +191,8 @@ type Supervisor struct {
 	// parks on idle so a caller can Cancel every run and then tear down the state directory without
 	// racing a late persist. Guarded by mu, like the maps above.
 	surfaces          *surface.Service
+	bots              *bots.Service
+	botTasks          map[string]string // delegated run ID -> bot ID; protected by mu
 	serviceReplies    map[string]map[string]chan agent.InteractionResponse
 	serviceEmit       map[string]agent.Emit
 	inflight          int
@@ -268,6 +271,7 @@ type StartTurnInput struct {
 	CWD            string // run this turn in a specific dir (a project workdir); else the daemon default
 	Options        agent.TurnOptions
 	GitAuth        *gitaccess.Auth // write-only; never session or transcript state
+	botID          string          // set only by native bot delegation, never HTTP turn input
 	gitLease       *gitaccess.Lease
 	reply          *session.InteractionReply // internal: atomically commit a resumed async answer with the turn
 }
@@ -304,6 +308,9 @@ func (s *Supervisor) StartResolve(a *Agent, req StartTurnInput, ro ResolveOption
 }
 
 func (s *Supervisor) StartResolveChecked(a *Agent, req StartTurnInput, ro ResolveOptions) (session.Run, error) {
+	if err := s.checkBotEngine(a, req.ChatID); err != nil {
+		return session.Run{}, err
+	}
 	if _, err := s.checkNativeSession(a, req, true); err != nil {
 		return session.Run{}, err
 	}
@@ -383,6 +390,9 @@ func (s *Supervisor) start(a *Agent, req StartTurnInput, compact bool) (session.
 }
 
 func (s *Supervisor) startChecked(a *Agent, req StartTurnInput, compact bool) (session.Run, error) {
+	if err := s.checkBotEngine(a, req.ChatID); err != nil {
+		return session.Run{}, err
+	}
 	if req.Options.Command != nil && (req.QueueIfRunning || compact) {
 		return session.Run{}, errors.New("Wait for the current turn to finish before running a command.")
 	}
@@ -414,6 +424,10 @@ func (s *Supervisor) startChecked(a *Agent, req StartTurnInput, compact bool) (s
 		if found || replayErr != nil {
 			s.mu.Unlock()
 			return replayed, replayErr
+		}
+		if err := s.botTaskAdmissionLocked(req.botID); err != nil {
+			s.mu.Unlock()
+			return session.Run{}, err
 		}
 		if s.serviceUpdatingLocked() {
 			s.mu.Unlock()
@@ -517,6 +531,9 @@ func (s *Supervisor) startChecked(a *Agent, req StartTurnInput, compact bool) (s
 		// Create + register the cancel func BEFORE returning the run id, so a client that
 		// cancels immediately after POST /turns can't race an unregistered run into a 404.
 		s.cancels[run.ID] = cancel
+		if req.botID != "" {
+			s.botTasks[run.ID] = req.botID
+		}
 		s.runClosed[run.ID] = make(chan struct{})
 		if req.Options.Voice != nil {
 			s.voices[run.ID] = agent.NewVoiceBridge(req.Options.Voice.ClientID)
@@ -784,6 +801,7 @@ func (s *Supervisor) execRun(ctx context.Context, cancel context.CancelFunc, a *
 			delete(s.voices, run.ID)
 		}
 		delete(s.inputQueues, run.ID)
+		delete(s.botTasks, run.ID)
 		delete(s.pending, run.ID)
 		if closed := s.runClosed[run.ID]; closed != nil {
 			close(closed)
@@ -1248,10 +1266,21 @@ func (s *Supervisor) buildNote(a *Agent, cond agent.Condition, body, chatID, run
 		}
 		actions = ux.Actions
 	}
-	return agent.Notification{
+	note := agent.Notification{
 		Condition: cond, Title: title, Body: body,
 		Agent: a.ID(), ChatID: chatID, RunID: runID, Actions: actions,
 	}
+	s.mu.Lock()
+	resolver, ok := s.notificationPreferences.(notify.IdentityResolver)
+	s.mu.Unlock()
+	if ok {
+		if identity, err := resolver.NotificationIdentity(chatID); err == nil && identity.ID != "" {
+			note.Title = agent.DefaultTitle(cond, identity.Name)
+			note.BotID, note.BotName, note.BotIcon = identity.ID, identity.Name, identity.Icon
+			note.WorkspaceID = identity.WorkspaceID
+		}
+	}
+	return note
 }
 
 // ---- helpers ---------------------------------------------------------------

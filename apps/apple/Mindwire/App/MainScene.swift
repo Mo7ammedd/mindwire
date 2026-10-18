@@ -1,9 +1,35 @@
 import SwiftUI
 
-/// The four-tab shell. The bottom bar is the native `TabView` — Liquid Glass is automatic.
+/// Mobile chooses a presentation; both modes share the same stores and services.
 struct MainScene: View {
     var repository: WorkspaceRepository = .shared
+    @Environment(\.stores) private var stores
+
+    var body: some View {
+        Group {
+            switch stores.experience.mode {
+            case .none: ExperienceOnboardingScreen()
+            case .general: AssistantScene(repository: repository)
+            case .developer:
+                #if targetEnvironment(macCatalyst)
+                AssistantScene(repository: repository)
+                #else
+                DeveloperScene(repository: repository)
+                #endif
+            }
+        }
+        .environment(\.appExperienceMode, stores.experience.mode ?? .general)
+        #if targetEnvironment(macCatalyst)
+        .task { await LocalComputer.shared.prepare(stores: stores, repository: repository) }
+        #endif
+    }
+}
+
+/// The existing four-tab app is the Developer experience.
+struct DeveloperScene: View {
+    var repository: WorkspaceRepository = .shared
     @Environment(AppModel.self) private var app
+    @Environment(\.stores) private var stores
 
     var body: some View {
         @Bindable var app = app
@@ -24,7 +50,7 @@ struct MainScene: View {
             Tab(value: AppTab.workspaces) {
                 WorkspacesTab(repository: repository)
             } label: {
-                Label { Text(t("tabs.workspaces")) } icon: { AppIcon(Icon.workspace, size: 24, decorative: true) }
+                Label { Text(t("tabs.workspaces")) } icon: { AppIcon(Icon.computer, size: 24, decorative: true) }
                     .accessibilityLabel(t("tabs.workspaces"))
             }
             Tab(value: AppTab.settings) {

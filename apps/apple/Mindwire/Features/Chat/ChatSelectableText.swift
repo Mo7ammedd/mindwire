@@ -3,13 +3,14 @@ import UIKit
 import MarkdownUI
 
 enum ChatTextTone: String {
-    case primary, secondary, onAccent
+    case primary, secondary, onAccent, onPastel
 
     var color: UIColor {
         switch self {
         case .primary: .label
         case .secondary: .secondaryLabel
         case .onAccent: UIColor(Palette.onAccent)
+        case .onPastel: UIColor(BotColor.ink)
         }
     }
 }

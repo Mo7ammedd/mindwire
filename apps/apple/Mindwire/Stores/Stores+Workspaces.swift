@@ -7,7 +7,7 @@ extension Stores {
 
     @discardableResult
     func createWorkspace(name: String, runtime: AgentRuntime, spec: WorkspaceSpec? = nil) -> Workspace {
-        if let existing = workspaces.list().first(where: { $0.runtime == runtime && runtime.isServer }) { return existing }
+        if let existing = workspaces.list().first(where: { $0.runtime == runtime && (runtime.isServer || runtime.isLocal) }) { return existing }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let workspace = Workspace(
             id: runtime.sandbox?.id ?? newId(),
@@ -59,12 +59,14 @@ extension Stores {
     /// separately, bound to the active session; local/server rows remain authoritative here.
     func purgePersistedCloudWorkspaces() {
         let all = workspaces.list()
-        let local = all.filter { $0.runtime.isServer }
+        let local = all.filter { !$0.runtime.isCloud }
         if local.count != all.count { workspaces.replaceAll(local) }
     }
 
     private func defaultWorkspaceName(for runtime: AgentRuntime) -> String {
         switch runtime {
+        case .local:
+            return "This Mac"
         case .cloud:
             return "Mindwire Cloud"
         case .server(let serverId), .container(let serverId, _):

@@ -1,178 +1,161 @@
 import SwiftUI
 
-/// Workspace headings group the agent capsules without an outer card.
+/// Bot identities are flat across connected computers. Engine profiles remain available in
+/// each computer's controls, without making the same engine appear as several personas.
 struct AgentsListScreen: View {
     var repository: WorkspaceRepository = .shared
+    @Environment(\.stores) private var stores
+    @Environment(AppModel.self) private var app
     @Environment(\.sidebarNavigation) private var sidebar
-    @Environment(\.dynamicTypeSize) private var typeSize
-    @ScaledMetric(relativeTo: .subheadline) private var minimumButtonWidth: CGFloat = 136
-    @ScaledMetric(relativeTo: .subheadline) private var minimumButtonHeight: CGFloat = 52
-
-    @State private var groups: [WorkspaceAgents] = []
-    @State private var showNewAgent = false
+    @State private var entries: [Entry] = []
+    @State private var search = ""
+    @State private var showCreation = false
     @State private var showHistory = false
+    @State private var showArchived = false
+    @State private var showConnections = false
+    @State private var pendingBot: AssistantBot?
+    @State private var pendingAssistance = false
+    @State private var error: String?
+    @State private var opening = false
+    @State private var activity = ChatActivityStore.shared
 
-    private struct WorkspaceAgents: Identifiable, Equatable {
-        let workspace: Workspace
-        let agents: [Agent]
-        var id: String { workspace.id }
+    private struct Entry: Identifiable {
+        let bot: AssistantBot
+        let computer: String
+        let latest: Chat?
+        var id: String { bot.id }
+    }
+
+    private var visible: [Entry] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return entries.filter {
+            $0.bot.archived == showArchived && (query.isEmpty || $0.bot.name.localizedStandardContains(query)
+                || $0.bot.purpose.localizedStandardContains(query) || $0.computer.localizedStandardContains(query))
+        }
     }
 
     var body: some View {
-        Group {
-            if groups.isEmpty {
-                emptyState
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: Spacing.lg) {
-                        ForEach(groups) { group in
-                            VStack(alignment: .leading, spacing: Spacing.sm) {
-                                AgentWorkspaceHeading(workspace: group.workspace)
-                                LazyVGrid(columns: columns, alignment: .leading, spacing: Spacing.sm) {
-                                    ForEach(group.agents) { agent in
-                                        agentButton(agent)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.sm)
-                    .padding(.bottom, Spacing.xl)
+        List {
+            ForEach(visible) { entry in
+                let selected = sidebar?.selected == .app(.botDetail(botId: entry.id))
+                RootNavigationLink(value: AppRoute.botDetail(botId: entry.id), usesDefaultRowBackground: false) {
+                    label(entry)
+                        .padding(.horizontal, 14).padding(.vertical, 14)
+                        .background(selected ? Palette.accentSoft : Color.clear, in: .rect(cornerRadius: 22))
                 }
-                .background(Palette.bg)
-                .accessibilityIdentifier("agents.workspaces")
+                .buttonStyle(.plain)
+                .listRowInsets(.init(top: 3, leading: 14, bottom: 3, trailing: 14))
+                .listRowSeparator(.hidden).listRowBackground(Color.clear)
+                .accessibilityIdentifier("bots.bot.\(entry.id)")
             }
         }
-        .navigationTitle(t("tabs.agents"))
+        .listStyle(.plain).scrollContentBackground(.hidden).background(Palette.bg)
+        .overlay {
+            if visible.isEmpty {
+                ContentUnavailableView {
+                    Label(t(showArchived ? "assistant.bots.archived" : "bots.empty.title"), icon: Icon.agents)
+                } description: {
+                    if search.isEmpty && !showArchived { Text(t("bots.empty.body")) }
+                } actions: {
+                    if search.isEmpty && !showArchived {
+                        Button(t("assistant.bots.create")) { showCreation = true }
+                            .buttonStyle(.borderedProminent).tint(Palette.accent).controlSize(.large)
+                    }
+                }
+            }
+        }
+        .searchable(text: $search, prompt: t("bots.search"))
+        .navigationTitle(t("assistant.bots.title"))
         .principalBrand()
         .toolbar {
             AppToolbarItem(placement: .topBarLeading) {
-                Button { showHistory = true } label: { AppIcon(Icon.history) }
-                    .tint(.primary)
-                    .accessibilityLabel(t("chat.all.title"))
+                Menu {
+                    Button { showConnections = true } label: { Label(t("bots.connections.title"), systemImage: "network") }
+                    Button { showHistory = true } label: { Label(t("chat.all.title"), icon: Icon.history) }
+                    Toggle(t("assistant.bots.archived"), isOn: $showArchived)
+                } label: { AppIcon(Icon.ellipsis) }
+                .tint(.primary).accessibilityLabel(t("bots.options"))
             }
             AppToolbarItem(placement: .topBarTrailing) {
-                Button { showNewAgent = true } label: { AppIcon(Icon.plus) }
-                    .tint(.primary)
-                    .accessibilityLabel(t("newAgent.title"))
+                Button { showCreation = true } label: { AppIcon(Icon.plus) }
+                    .tint(.primary).accessibilityLabel(t("assistant.bots.create"))
             }
         }
         .onAppear(perform: reload)
         .observeWorkspaceCache(reload)
+        .onChange(of: stores.bots.revision) { reload() }
         .onChange(of: repository.revision) { reload() }
-        .onChange(of: repository.agents().map(\.id)) { reload() }
-        .task { await repository.refreshIfNeeded() }
-        .refreshable {
-            await repository.refreshChecks()
-            reload()
+        .task { await repository.refreshIfNeeded(); await stores.workspaceData.refreshAll(repository.all); reload() }
+        .refreshable { await repository.refreshChecks(); await stores.workspaceData.refreshAll(repository.all, force: true); reload() }
+        .observeChatActivity(agentIds: Array(Set(entries.map(\.bot.agentId))))
+        .sheet(isPresented: $showCreation, onDismiss: finishCreation) {
+            BotCreationScreen(repository: repository, onCreated: { bot in
+                pendingBot = bot; pendingAssistance = false
+            }, onAskMindwire: { bot in
+                pendingBot = bot; pendingAssistance = true
+            })
         }
-        .observeChatActivity(agentIds: groups.flatMap { $0.agents.map(\.id) })
-        .sheet(isPresented: $showNewAgent, onDismiss: reload) {
-            NewAgentScreen(repository: repository)
-        }
-        .sheet(isPresented: $showHistory, onDismiss: reload) {
-            ChatHistorySheet()
-        }
+        .sheet(isPresented: $showHistory, onDismiss: reload) { ChatHistorySheet() }
+        .sheet(isPresented: $showConnections) { BotConnectionsScreen(repository: repository) }
+        .alert(t("assistant.bots.saveFailed"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            Button(t("common.ok"), role: .cancel) {}
+        } message: { Text(error ?? "") }
     }
 
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label(t("agents.empty.title"), icon: Icon.agents)
-        } description: {
-            Text(t("agents.empty.body"))
-        } actions: {
-            Button(t("agents.empty.cta")) { showNewAgent = true }
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
-                .tint(Palette.accent)
-        }
-    }
-
-    private var columns: [GridItem] {
-        typeSize.isAccessibilitySize
-            ? [GridItem(.flexible())]
-            : [GridItem(.adaptive(minimum: minimumButtonWidth), spacing: Spacing.sm)]
-    }
-
-    private func agentButton(_ agent: Agent) -> some View {
-        let selected = sidebar?.selected == .app(.agentDetail(agentId: agent.id))
-        return RootNavigationLink(value: AppRoute.agentDetail(agentId: agent.id), usesDefaultRowBackground: false) {
-            AgentCompactLabel(agent: agent)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .frame(maxWidth: .infinity, minHeight: minimumButtonHeight, alignment: .leading)
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(Palette.surface)
-                    if selected {
-                        Capsule(style: .continuous)
-                            .fill(Palette.accentSoft)
-                            .strokeBorder(Palette.accent.opacity(0.35), lineWidth: 1)
+    private func label(_ entry: Entry) -> some View {
+        HStack(spacing: 14) {
+            AssistantBotAvatar(botId: entry.id, icon: entry.bot.icon, size: 46)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(entry.bot.name).font(.body.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                    Spacer(minLength: 4)
+                    if let chat = entry.latest {
+                        if activity.status(chat.id) == .running { ChatRunStatusLabel(status: .running, startedAt: activity.runStartedAt(chat.id)) }
+                        else if let date = activity.lastActivity(chat) { RelativeTimestamp(date: date) }
                     }
                 }
-                .contentShape(.capsule)
+                Text(entry.latest.map { activity.title($0) } ?? entry.bot.purpose.nilIfEmpty ?? entry.computer)
+                    .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("agents.agent.\(agent.id)")
+        .contentShape(.rect)
     }
 
     private func reload() {
-        // Build groups only when the cached inventory changes. Group by ID so
-        // identically named computers stay distinct, and keep the repository's order.
-        let byWorkspace = Dictionary(grouping: repository.agents(), by: \.workspaceId)
-        let next = repository.all.compactMap { workspace -> WorkspaceAgents? in
-            guard let agents = byWorkspace[workspace.id], !agents.isEmpty else { return nil }
-            return WorkspaceAgents(workspace: workspace, agents: agents)
+        let workspaces = Dictionary(repository.all.map { ($0.id, $0.name) }, uniquingKeysWith: { _, last in last })
+        var latest: [String: Chat] = [:]
+        for chat in stores.chatsByRecency() {
+            if let id = chat.botId, latest[id] == nil { latest[id] = chat }
         }
-        if next != groups { groups = next }
-    }
-}
-
-/// A workspace-wide update or connection problem has one indicator and one route
-/// to its controls. Reading the shared state does not start another service check.
-private struct AgentWorkspaceHeading: View {
-    let workspace: Workspace
-    @Environment(\.stores) private var stores
-    @ScaledMetric(relativeTo: .subheadline) private var iconSize: CGFloat = 18
-
-    private var showsStatus: Bool {
-        let key = DaemonWorkKey(workspaceId: workspace.id)
-        let state = DaemonWorkCoordinator.shared.states[key]
-        return state?.workspaceUnavailable == true || state?.running == true
-            || state?.error != nil || state?.reachable == false || state?.updateAvailable == true
-            || (state?.reachable == true && state?.supportsProjects == false)
-            || state?.updateWaiting == true || state?.updateOperation?.isActive == true
-            || stores.preparation.active.contains(key) || stores.serviceUpdates.active.contains(workspace.id)
+        let connected = stores.bots.list().filter { workspaces[$0.workspaceId] != nil }
+        let bots = BotPresentation.visibleBots(connected, preferredAgentId: stores.experience.assistantAgentID,
+                                              projectIDs: stores.experience.projectIDs)
+        entries = bots.compactMap { bot in
+            guard let computer = workspaces[bot.workspaceId] else { return nil }
+            return Entry(bot: bot, computer: computer, latest: latest[bot.id])
+        }.sorted {
+            if $0.bot.isMaster != $1.bot.isMaster { return $0.bot.isMaster }
+            let left = $0.latest?.lastActivityAt ?? $0.latest?.createdAt ?? $0.bot.createdAt
+            let right = $1.latest?.lastActivityAt ?? $1.latest?.createdAt ?? $1.bot.createdAt
+            if left != right { return left > right }
+            return $0.bot.name.localizedStandardCompare($1.bot.name) == .orderedAscending
+        }
     }
 
-    var body: some View {
-        RootNavigationLink(value: AppRoute.workspaceDetail(id: workspace.id), usesDefaultRowBackground: false) {
-            HStack(spacing: Spacing.sm) {
-                Group {
-                    if workspace.isCloud && workspace.image == nil {
-                        AppIcon(Icon.cloud, size: iconSize).foregroundStyle(.secondary)
-                    } else {
-                        WorkspaceImageIcon(image: workspace.image, size: iconSize)
-                    }
-                }
-                .frame(width: iconSize + 14, height: iconSize + 14)
-                .background(Palette.surface, in: .circle)
-                .accessibilityHidden(true)
-                Text(workspace.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                Spacer(minLength: Spacing.sm)
-                if showsStatus {
-                    WorkspaceDaemonStatusLabel(workspaceId: workspace.id, compact: true)
-                }
-            }
-            .frame(minHeight: 44, alignment: .center)
-            .contentShape(.rect)
+    private func finishCreation() {
+        reload()
+        guard let bot = pendingBot else { return }
+        let assisted = pendingAssistance
+        pendingBot = nil; pendingAssistance = false
+        if !assisted { app.push(.botDetail(botId: bot.id)); return }
+        guard !opening else { return }
+        opening = true
+        Task { @MainActor in
+            defer { opening = false }
+            do {
+                let chat = try await BotConversationActions.configurationChat(for: bot, stores: stores)
+                app.openChat(chat.id)
+            } catch { if !error.isRequestCancellation { self.error = error.localizedDescription } }
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("agents.workspace.\(workspace.id)")
     }
 }

@@ -11,6 +11,8 @@ struct ToolCallCard: View {
     @State private var expanded = false
     private var expansion: Binding<Bool>?
     @State private var selectedOutput: ToolOutputDocument?
+    @Environment(\.appExperienceMode) private var experienceMode
+    @Environment(\.desktopWorkspaceID) private var workspaceId
 
     init(call: DaemonToolCall, durationMs: Int? = nil, initiallyExpanded: Bool = false, isRunning: Bool = false, expansion: Binding<Bool>? = nil) {
         self.call = call
@@ -20,7 +22,14 @@ struct ToolCallCard: View {
         _expanded = State(initialValue: initiallyExpanded)
     }
 
-    var body: some View {
+    @ViewBuilder var body: some View {
+        if experienceMode == .general, call.isError != true, isBotTool,
+           let result = AssistantBotToolResult.parse(call.output) {
+            AssistantBotToolContent(result: result, workspaceId: workspaceId)
+        } else { toolCard }
+    }
+
+    private var toolCard: some View {
         DisclosureGroup(isExpanded: expansion ?? $expanded) {
             VStack(alignment: .leading, spacing: Spacing.md) {
                 if let surface = call.action?.surface {
@@ -86,6 +95,11 @@ struct ToolCallCard: View {
         .tint(.secondary)
         .disclosureGroupStyle(ChatToolDisclosureStyle(identifier: "chat.tool.\(call.id)"))
         .sheet(item: $selectedOutput) { document in ToolOutputSheet(document: document) }
+    }
+
+    private var isBotTool: Bool {
+        call.action?.mcp?.server == "mindwire_bots" || call.name?.hasPrefix("mcp__mindwire_bots__") == true
+            || call.action?.shell?.command?.contains("--bot-tool") == true
     }
 
     // MARK: - Content

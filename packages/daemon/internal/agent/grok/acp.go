@@ -324,7 +324,16 @@ func acpRun(ctx context.Context, c *acpClient, in agent.TurnInput, emit agent.Em
 	}, 1)
 	go func() {
 		message := in.Message + agent.AttachmentReferenceText(in.Options.Attachments)
-		raw, err := c.requestTo(ctx, "session/prompt", map[string]any{"sessionId": sessionID, "prompt": []map[string]string{{"type": "text", "text": message}}})
+		prompt := []map[string]string{}
+		if context := strings.TrimSpace(in.Options.ContextInstructions); context != "" {
+			// Saved bot context is additive and refreshed on every prompt, including
+			// session/load and session/resume. Native system prompts and session-only
+			// MCP settings keep their existing behavior. The shared bot bridge uses
+			// run-scoped environment credentials through Grok's native command tool.
+			prompt = append(prompt, map[string]string{"type": "text", "text": context})
+		}
+		prompt = append(prompt, map[string]string{"type": "text", "text": message})
+		raw, err := c.requestTo(ctx, "session/prompt", map[string]any{"sessionId": sessionID, "prompt": prompt})
 		promptDone <- struct {
 			raw json.RawMessage
 			err error

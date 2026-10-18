@@ -40,7 +40,9 @@ def main():
         for filename in LOGOS.values():
             shutil.copyfile(source / filename, ORIGINALS / filename)
 
-    for asset, filename in LOGOS.items():
+    # Consumer branding is separate from harness identity. In particular ChatGPT
+    # must not use the Codex CLI mark in General's account picker.
+    for asset, filename in {**LOGOS, "service-chatgpt": "chatgpt.svg"}.items():
         imageset = CATALOG / f"{asset}.imageset"
         output = imageset / f"{asset}.pdf"
         # Preserve the artwork, gradient, transparency, and 24-point viewBox.

@@ -11,6 +11,11 @@ struct ChatScreen: View {
     private let initialDraft: String?
 
     @Environment(\.stores) private var stores
+    @Environment(\.appExperienceMode) private var experienceMode
+    @Environment(\.desktopMessenger) private var desktopMessenger
+    #if targetEnvironment(macCatalyst)
+    @Environment(\.openWindow) private var openWindow
+    #endif
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -21,6 +26,7 @@ struct ChatScreen: View {
     @State private var chat: Chat?
     @State private var chatRemoved = false
     @State private var agent: Agent?
+    @State private var computerName: String?
     @State private var composer: ChatDraft
     @State private var composerBound = false
     @State private var images = ChatImageDraft()
@@ -56,6 +62,7 @@ struct ChatScreen: View {
     @State private var resolvingCommand = false
     @State private var showingSettings = false            // presents the daemon-driven model settings sheet
     @State private var showingDisplay = false             // presents the chat display (text size) sheet
+    @State private var showingComputer = false
     @State private var showingNotifications = false
     @State private var showingInteractions = false
     @State private var showingNativeInfo = false
@@ -94,44 +101,27 @@ struct ChatScreen: View {
                                           workspace: model.session?.workspace))
             }
         }
+            .background(desktopMessenger ? AssistantDesktopStyle.canvas : Color.clear)
+            .safeAreaInset(edge: .top, spacing: 0) { if desktopMessenger { desktopHeader } }
             .safeAreaBar(edge: .bottom, spacing: 0) { if !chatRemoved { bottomBar } }
+            .ignoresSafeArea(.container, edges: desktopMessenger ? .top : [])
             .sensoryFeedback(.impact(weight: .medium), trigger: sendCount)
         .environment(\.desktopWorkspaceID, agent?.workspaceId)
         .environment(\.chatAttachmentSession, model.session)
+        .environment(\.chatBotColor, botColor)
         .toolbar(.hidden, for: .tabBar) // immersive thread — no bottom tab bar
         .navigationTitle(chat?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(desktopMessenger ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                ChatNavigationTitle(title: chat?.title ?? "", subtitle: agent?.displayName ?? "",
+                ChatNavigationTitle(title: experienceMode == .general ? generalBotName : chat?.title ?? "",
+                                    subtitle: experienceMode == .general ? computerName ?? "" : "Mindwire",
                                     refreshing: model.hasLoadedHistory && (model.preparing || model.loadingHistory
                                         || model.restoringRun || model.reconnecting || model.checkingOwnership))
             }
             AppToolbarItem(placement: .topBarTrailing) {
-                AppMenu {
-                    Button {
-                        renameText = chat?.title ?? ""
-                        renaming = true
-                    } label: {
-                        Label(t("chat.rename.title"), icon: Icon.edit)
-                    }
-                    if let settings, settings.hasConfig, !model.nativeState.ownsConversation {
-                        Button { showingSettings = true } label: {
-                            Label(t("chat.modelSettings"), icon: .sliders)
-                        }
-                    }
-                    Button { showingDisplay = true } label: {
-                        Label(t("chat.display.title"), icon: .type)
-                    }
-                    Button { showingNotifications = true } label: {
-                        Label(t("notifications.title"), icon: .bell)
-                    }
-                    DestructiveButton(t("common.delete"), icon: Icon.trash) {
-                        confirmingDelete = true
-                    }
-                } label: {
-                    AppIcon(Icon.ellipsis).foregroundStyle(.primary)
-                }
+                chatMenu
             }
         }
         .inputDialog(
@@ -199,10 +189,12 @@ struct ChatScreen: View {
             ChatCompactSheet(command: command, chat: model, instructions: compactInstructions)
         }
         .sheet(isPresented: $showingCommandHistory) {
-            ChatHistorySheet(projectId: chat?.projectId, agentId: chat?.agentId)
+            ChatHistorySheet(projectId: chat?.projectId, botId: experienceMode == .general ? chat?.botId : nil,
+                             agentId: chat?.agentId,
+                             onOpenChat: experienceMode == .general ? { app.openChat($0.id) } : nil)
         }
         .onChange(of: input) { _, value in
-            if DaemonCommandInvocation.query(value) != nil, !commandPicker.loaded {
+            if experienceMode == .developer, DaemonCommandInvocation.query(value) != nil, !commandPicker.loaded {
                 Task { await loadCommands() }
             }
         }
@@ -223,7 +215,7 @@ struct ChatScreen: View {
             presentAttachmentPicker()
         }) {
             HarnessVoiceSheet(chat: model, agentType: agent?.agentType, agentId: agent?.id,
-                              name: agent?.agentTypeName ?? agent?.displayName ?? "Agent") {
+                              name: "Mindwire") {
                 pendingAttachmentSource = .voice
                 showingVoice = false
             }
@@ -243,6 +235,12 @@ struct ChatScreen: View {
         }
         .sheet(isPresented: $showingDisplay) {
             ChatDisplaySettingsSheet(textSize: $chatTextSize)
+        }
+        .sheet(isPresented: $showingComputer) {
+            if let project = chat.flatMap({ stores.projects.get($0.projectId) }) {
+                ProjectToolDestination(tool: .desktop, project: project, files: model.session?.workspace)
+                    .workspaceToolPresentation()
+            }
         }
         .sheet(isPresented: $showingNotifications) {
             ChatNotificationSettingsSheet(chatID: chatId)
@@ -266,13 +264,8 @@ struct ChatScreen: View {
         }
         .onAppear(perform: reload)
         .visibleChatForNotifications(chatId)
-        .observeWorkspaceCache {
-            // Metadata synchronization must not reload the transcript or restart its live stream.
-            let previouslyPresent = chat != nil
-            chat = stores.chats.get(chatId)
-            agent = chat.flatMap { stores.agents.get($0.agentId) }
-            if previouslyPresent && chat == nil { chatRemoved = true; model.dispose() }
-        }
+        .observeWorkspaceCache(reloadMetadata)
+        .onChange(of: stores.chats.revision) { reloadMetadata() }
         .onDisappear {
             stores.chatDrafts.persist(chatId)
             model.viewDidDisappear(viewerID)
@@ -316,6 +309,57 @@ struct ChatScreen: View {
 
     // MARK: - Thread
 
+    private var desktopHeader: some View {
+        DesktopChatHeader(bot: chat?.botId.flatMap(stores.bots.get), title: desktopConversationTitle,
+                          computerName: remoteChatWorkspace?.name, status: desktopStatus,
+                          canOpenComputer: remoteChatWorkspace != nil,
+                          openHistory: { showingCommandHistory = true },
+                          openComputer: { showingComputer = true }) { chatMenuActions }
+    }
+
+    private var remoteChatWorkspace: Workspace? {
+        guard let workspaceId = agent?.workspaceId,
+              let workspace = WorkspaceRepository.shared.get(workspaceId),
+              !workspace.runtime.isLocal else { return nil }
+        return workspace
+    }
+
+    private var desktopStatus: String? {
+        if model.reconnecting { return t("chat.reconnecting") }
+        if model.thinking { return t("chat.running") }
+        if model.preparing || model.loadingHistory || model.restoringRun { return t("chat.history.loading") }
+        return nil
+    }
+
+    private var chatMenu: some View {
+        AppMenu { chatMenuActions } label: { AppIcon(Icon.ellipsis).foregroundStyle(.primary) }
+    }
+
+    @ViewBuilder private var chatMenuActions: some View {
+        Button {
+            renameText = chat?.title ?? ""
+            renaming = true
+        } label: { Label(t("chat.rename.title"), icon: Icon.edit) }
+        if experienceMode == .developer, let settings, settings.hasConfig, !model.nativeState.ownsConversation {
+            Button { showingSettings = true } label: { Label(t("chat.modelSettings"), icon: .sliders) }
+        }
+        Button {
+            #if targetEnvironment(macCatalyst)
+            openWindow.openMindwireSettings(.appearance)
+            #else
+            showingDisplay = true
+            #endif
+        } label: { Label(t("chat.display.title"), icon: .type) }
+        Button {
+            #if targetEnvironment(macCatalyst)
+            openWindow.openMindwireSettings(.notifications, chatID: chatId)
+            #else
+            showingNotifications = true
+            #endif
+        } label: { Label(t("notifications.title"), icon: .bell) }
+        DestructiveButton(t("common.delete"), icon: Icon.trash) { confirmingDelete = true }
+    }
+
     @ViewBuilder
     private var thread: some View {
         if !model.hasCachedTranscript && !model.hasLoadedHistory && model.preparing && model.session?.activity.isWorking == true {
@@ -345,16 +389,15 @@ struct ChatScreen: View {
             .gesture(ChatKeyboardDismissTap(onDismiss: dismissComposer))
     }
 
-    private var assistantGlyph: some View {
-        Group {
-            if let agent {
-                AgentLogo(id: agent.agentType, size: 20)
-            } else {
-                AppIcon(.sparkles).font(.callout).foregroundStyle(.secondary)
-            }
+    @ViewBuilder private var assistantGlyph: some View {
+        if experienceMode == .general {
+            AssistantBrandMark(size: 36)
+                .frame(width: 48, height: 48)
+        } else {
+            AppLogo(size: 20)
+                .frame(width: 30, height: 30)
+                .glassEffect(.regular, in: .circle)
         }
-        .frame(width: 30, height: 30)
-        .glassEffect(.regular, in: .circle)
     }
 
     /// Real setup work keeps the shared installation progress. Routine connections use the compact
@@ -371,15 +414,36 @@ struct ChatScreen: View {
         )
     }
 
-    private var emptyState: some View {
+    @ViewBuilder private var emptyState: some View {
+        if desktopMessenger, model.loadError == nil {
+            VStack(spacing: 18) {
+                if let bot = chat?.botId.flatMap(stores.bots.get) {
+                    AssistantBotAvatar(botId: bot.id, icon: bot.icon, size: 54)
+                } else { AssistantBrandMark(size: 46).frame(height: 54) }
+                Text(t("assistant.welcome")).font(.title2.weight(.medium))
+                    .multilineTextAlignment(.center)
+                if let bot = chat?.botId.flatMap(stores.bots.get), !bot.isMaster, !bot.purpose.isEmpty {
+                    Text(bot.purpose).font(.body).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center).lineLimit(3)
+                        .frame(maxWidth: 360)
+                }
+            }
+            .padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityIdentifier("chat.empty")
+        } else {
+            unavailableChat
+        }
+    }
+
+    private var unavailableChat: some View {
         ContentUnavailableView {
             Label {
-                Text(model.loadError == nil ? t("chat.empty.title") : t("chat.error.load"))
+                Text(model.loadError == nil ? t(experienceMode == .general ? "assistant.welcome" : "chat.empty.title") : t("chat.error.load"))
             } icon: {
                 assistantGlyph
             }
         } description: {
-            if model.loadError == nil { Text(t("chat.startHint")) }
+            if model.loadError == nil { Text(t(experienceMode == .general ? "assistant.welcome.body" : "chat.startHint")) }
         } actions: {
             if let error = model.loadError {
                 ChatErrorDisclosure(title: t("chat.error.title"), detail: error)
@@ -444,11 +508,25 @@ struct ChatScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("chat.nativeSession")
             }
-            commandSuggestions
-            GlassEffectContainer(spacing: Spacing.sm) {
-                HStack(alignment: .bottom, spacing: Spacing.sm) {
-                composerToolsButton
-                    inputField
+            if experienceMode == .developer { commandSuggestions }
+            if desktopMessenger {
+                HStack(alignment: .bottom, spacing: 10) {
+                    composerToolsButton
+                    composerTextField.padding(.vertical, 7)
+                    trailingButton
+                }
+                .padding(8).frame(minHeight: 54)
+                .background(AssistantDesktopStyle.canvas, in: .rect(cornerRadius: 28, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .strokeBorder(composerFocused ? Color.primary.opacity(0.2) : AssistantDesktopStyle.separator, lineWidth: 1)
+                }
+            } else {
+                GlassEffectContainer(spacing: Spacing.sm) {
+                    HStack(alignment: .bottom, spacing: Spacing.sm) {
+                        composerToolsButton
+                        inputField
+                    }
                 }
             }
         }
@@ -456,10 +534,13 @@ struct ChatScreen: View {
         // retains its own target when a draft reveals Send.
         .animation(.easeInOut(duration: 0.2), value: model.thinking)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: canSend)
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.sm)
-        .frame(maxWidth: AdaptiveLayout.readableWidth + 2 * Spacing.lg)
+        .padding(.horizontal, desktopMessenger ? AssistantDesktopStyle.gutter : Spacing.lg)
+        .padding(.top, Spacing.sm)
+        .padding(.bottom, desktopMessenger ? 16 : Spacing.sm)
+        .frame(maxWidth: desktopMessenger ? AssistantDesktopStyle.conversationWidth + 2 * AssistantDesktopStyle.gutter
+               : AdaptiveLayout.readableWidth + 2 * Spacing.lg)
         .frame(maxWidth: .infinity)
+        .background(desktopMessenger ? AssistantDesktopStyle.canvas : Color.clear)
     }
 
     private var composerError: String? {
@@ -483,17 +564,23 @@ struct ChatScreen: View {
             composerFocused = false
             showingTools = true
         } label: {
-            AppIcon(.sliders)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
+            if desktopMessenger {
+                AppIcon(.plus, size: 20).foregroundStyle(.secondary)
+                    .frame(width: 36, height: 36)
+                    .background(AssistantDesktopStyle.surface, in: .circle)
+            } else {
+                AppIcon(experienceMode == .general ? .plus : .sliders)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
                 // Match the input pill's collapsed height (send button 30 + 2×9 vertical padding = 48)
                 // so the circle and the field are the same size, bottom-aligned and consistent.
                 .frame(width: 48, height: 48)
-                .glassEffect(.regular.interactive(), in: .circle)
+                    .glassEffect(.regular.interactive(), in: .circle)
+            }
         }
         .buttonStyle(.plain)
         .tint(.primary)
-        .accessibilityLabel(t("chat.tools"))
+        .accessibilityLabel(t(experienceMode == .general ? "assistant.attachments" : "chat.tools"))
         .accessibilityValue(settings?.hasConfig == true ? settings?.modelSummary ?? "" : "")
         .accessibilityIdentifier("chat.tools")
     }
@@ -504,20 +591,27 @@ struct ChatScreen: View {
         // to multiple lines, and ONE symmetric vertical padding. A fixed-radius rounded rect (NOT a
         // capsule, whose radius = height/2 balloons into big half-circle ends on multi-line input).
         HStack(alignment: .bottom, spacing: 6) {
-            TextField(t("chat.placeholder"), text: Binding(get: { input }, set: { input = $0 }), axis: .vertical)
-                .font(.body)
-                .focused($composerFocused)
-                .textInputAutocapitalization(.sentences)
-                .naturalChatDirection(input)
-                .lineLimit(1...5)
-                .disabled(model.submitting)
-                .accessibilityIdentifier("chat.composer")
+            composerTextField
             trailingButton
         }
         .padding(.leading, Spacing.md)
         .padding(.trailing, 5)
         .padding(.vertical, 9)
         .glassEffect(.regular, in: .rect(cornerRadius: Radius.xl, style: .continuous))
+    }
+
+    @ViewBuilder private var composerTextField: some View {
+        let field = TextField(desktopMessenger ? t("assistant.messageBot", ["name": generalBotName]) : t("chat.placeholder"),
+                  text: Binding(get: { input }, set: { input = $0 }), axis: .vertical)
+            .font(ApplePlatform.isDesktop ? .system(size: (ChatTextSize(rawValue: chatTextSize) ?? .medium).points) : .body)
+            .focused($composerFocused)
+            .textInputAutocapitalization(.sentences)
+            .naturalChatDirection(input)
+            .lineLimit(1...5)
+            .disabled(model.submitting)
+            .accessibilityIdentifier("chat.composer")
+        if desktopMessenger { field.textFieldStyle(.plain) }
+        else { field }
     }
 
     /// Voice stays at the trailing edge; Send and Stop appear before it as needed.
@@ -528,9 +622,9 @@ struct ChatScreen: View {
           if model.thinking && model.canCancel {
             Button { Task { await model.cancel() } } label: {
                 AppIcon(.stop, size: 13)
-                    .foregroundStyle(canSend || model.submittingInput ? Color.primary : Color.white)
-                    .frame(width: 30, height: 30)
-                    .background(canSend || model.submittingInput ? Color.primary.opacity(0.08) : Palette.accent, in: .circle)
+                    .foregroundStyle(canSend || model.submittingInput ? Color.primary : BotColor.ink)
+                    .frame(width: composerControlSize, height: composerControlSize)
+                    .background(canSend || model.submittingInput ? Color.primary.opacity(0.08) : composerAccent, in: .circle)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(t("chat.stop"))
@@ -539,14 +633,14 @@ struct ChatScreen: View {
             .transition(.scale.combined(with: .opacity))
           }
           if model.submittingInput || model.cancelling || images.importing {
-            ProgressView().controlSize(.small).frame(width: 30, height: 30)
+            ProgressView().controlSize(.small).frame(width: composerControlSize, height: composerControlSize)
           } else {
             if canSend {
                 Button(action: sendMessage) {
                     AppIcon(Icon.send, size: 15)
-                        .foregroundStyle(.white)
-                        .frame(width: 30, height: 30)
-                        .background(Palette.accent, in: .circle)
+                        .foregroundStyle(BotColor.ink)
+                        .frame(width: composerControlSize, height: composerControlSize)
+                        .background(composerAccent, in: .circle)
                 }
                 .keyboardShortcut(.return, modifiers: .command)
                 .buttonStyle(.plain)
@@ -557,8 +651,9 @@ struct ChatScreen: View {
 
             Button { composerFocused = false; showingVoice = true } label: {
                 AppIcon(.microphone, size: 22)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 30, height: 30)
+                    .foregroundStyle(desktopMessenger ? BotColor.ink : .secondary)
+                    .frame(width: composerControlSize, height: composerControlSize)
+                    .background(desktopMessenger ? AssistantDesktopStyle.outgoing : Color.clear, in: .circle)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(t("chat.voice.native.label"))
@@ -569,6 +664,12 @@ struct ChatScreen: View {
     }
 
     // MARK: - Actions
+
+    private var composerAccent: Color {
+        desktopMessenger ? AssistantDesktopStyle.outgoing : (botColor ?? .brand).fill
+    }
+
+    private var composerControlSize: CGFloat { desktopMessenger ? 36 : 30 }
 
     private func presentAttachmentPicker() {
         guard let source = pendingAttachmentSource else { return }
@@ -603,7 +704,7 @@ struct ChatScreen: View {
         resolvingCommand = true
         Task {
             defer { resolvingCommand = false }
-            let invocation = DaemonCommandInvocation.parse(text)
+            let invocation = experienceMode == .developer ? DaemonCommandInvocation.parse(text) : nil
             if model.nativeState.ownsConversation, invocation != nil {
                 showingNativeInfo = true
                 return
@@ -616,7 +717,7 @@ struct ChatScreen: View {
                     return
                 }
             }
-            let selected = commandPicker.command(text)
+            let selected = experienceMode == .developer ? commandPicker.command(text) : nil
             if let (command, invocation) = selected, command.kind != "prompt" {
                 if !attachments.isEmpty { model.turnError = t("chat.commands.attachments"); return }
                 performCommand(command, arguments: invocation.arguments)
@@ -722,6 +823,33 @@ struct ChatScreen: View {
         voiceDraftAdded = true
     }
 
+    /// Local list actions and workspace sync both update metadata without restarting history.
+    private func reloadMetadata() {
+        let previouslyPresent = chat != nil
+        chat = stores.chats.get(chatId)
+        agent = chat.flatMap { stores.agents.get($0.agentId) }
+        computerName = agent?.workspaceId.flatMap { WorkspaceRepository.shared.get($0)?.name }
+        if previouslyPresent && chat == nil { chatRemoved = true; model.dispose() }
+    }
+
+    private var desktopConversationTitle: String {
+        if experienceMode == .developer, chat?.botId == nil {
+            return chat?.title.nilIfEmpty ?? agent?.displayName ?? "Mindwire"
+        }
+        return generalBotName
+    }
+
+    private var generalBotName: String {
+        _ = stores.bots.revision
+        return chat?.botId.flatMap(stores.bots.get)?.name ?? "Mindwire"
+    }
+
+    private var botColor: BotColor? {
+        _ = stores.bots.revision
+        guard let botId = chat?.botId, let bot = stores.bots.get(botId) else { return nil }
+        return AssistantBotIcon.resolve(botId: bot.id, icon: bot.icon).color
+    }
+
     private func reload() {
         if !composerBound {
             composer = stores.chatDrafts.draft(for: chatId)
@@ -735,6 +863,7 @@ struct ChatScreen: View {
             APILog.note("chat[\(chatId)]: no local chat record — deep-link to a chat not in this install, or store not loaded yet")
         }
         agent = chat.flatMap { stores.agents.get($0.agentId) }
+        computerName = agent?.workspaceId.flatMap { WorkspaceRepository.shared.get($0)?.name }
         model.bind(chat: chat, stores: stores)
     }
 
@@ -1037,6 +1166,7 @@ struct ChatTranscriptRowView: View {
     var onExpandTool: (Bool) -> Void = { _ in }
     var onCollapseGroup: () -> Void = { }
     @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.desktopMessenger) private var desktopMessenger
 
     /// Preview, copy, selection, and sharing all refer to the pressed part, including live output.
     @ViewBuilder
@@ -1072,7 +1202,8 @@ struct ChatTranscriptRowView: View {
                                attachments: row.message?.attachments ?? [])
             case .text(let text):
                 MessageContentView(text: text).equatable()
-                    .frame(maxWidth: hSizeClass == .regular ? 640 : .infinity, alignment: .leading)
+                    .frame(maxWidth: desktopMessenger ? nil : hSizeClass == .regular ? 640 : .infinity, alignment: .leading)
+                    .modifier(ChatAssistantBubble())
             case .part(let part):
                 TurnPartView(part: part, isLive: row.isLive, isLast: row.isLast,
                              autoExpanded: row.autoExpanded,

@@ -100,12 +100,24 @@ struct GitChangeSectionControls: View {
             onToggle: { withAnimation(.snappy) { expanded.toggle() } },
             scope: section.scope, breadcrumb: breadcrumb) {
             if section.bulkAction && showActions {
-                Button(t(section.staged ? "git.unstageAll" : "git.stageAll")) {
-                    Task { if section.staged { await model.unstageAll() } else { await model.stageAll() } }
+                if ApplePlatform.isDesktop {
+                    bulkAction.buttonStyle(AssistantDesktopButtonStyle()).font(.system(size: 11, weight: .medium))
+                } else {
+                    bulkAction
                 }
-                .textCase(nil).tint(.primary).disabled(model.isMutating)
             }
         }
+    }
+
+    private var bulkAction: some View {
+        Button {
+            Task { if section.staged { await model.unstageAll() } else { await model.stageAll() } }
+        } label: {
+            Text(t(section.staged ? "git.unstageAll" : "git.stageAll"))
+                .padding(.horizontal, ApplePlatform.isDesktop ? 6 : 0)
+                .frame(minHeight: ApplePlatform.isDesktop ? 24 : nil)
+        }
+        .textCase(nil).tint(.primary).disabled(model.isMutating)
     }
 }
 
@@ -132,7 +144,7 @@ struct GitChangeSectionHeader<Actions: View>: View {
                 Spacer(minLength: 0)
                 actions().fixedSize(horizontal: true, vertical: false)
             }
-            .font(path.isEmpty ? .subheadline : .caption)
+            .font(ApplePlatform.isDesktop ? .system(size: 11, weight: .medium) : path.isEmpty ? .subheadline : .caption)
             if !path.isEmpty {
                 GitFolderBreadcrumb(path: path, scope: scope)
             }

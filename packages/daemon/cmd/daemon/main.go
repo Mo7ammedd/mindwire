@@ -24,6 +24,7 @@ import (
 	"github.com/oblien/mindwire/packages/daemon/internal/agent"
 	"github.com/oblien/mindwire/packages/daemon/internal/api"
 	"github.com/oblien/mindwire/packages/daemon/internal/artifact"
+	"github.com/oblien/mindwire/packages/daemon/internal/bots"
 	"github.com/oblien/mindwire/packages/daemon/internal/computer"
 	"github.com/oblien/mindwire/packages/daemon/internal/conversations"
 	"github.com/oblien/mindwire/packages/daemon/internal/gitaccess"
@@ -53,6 +54,15 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--bot-tool" {
+		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer cancel()
+		if err := bots.ToolHelper(ctx, os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	authSource, err := agent.ConsumeAuthSource()
 	if err != nil {
 		log.Fatal(err)
@@ -201,7 +211,7 @@ func main() {
 	}
 	health.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "nativeAuthSource": true, "agent": sup.Default(), "version": agent.Version, "historyPageVersion": api.HistoryPageVersion, "workspaceMetadataVersion": registry.Version, "agentDiscoveryVersion": registry.AgentDiscoveryVersion, "projectLibraryVersion": registry.ProjectLibraryVersion, "projectOperationsVersion": registry.ProjectOperationsVersion, "projectIconsVersion": projecticon.Version, "projectSyncVersion": projectsync.ProtocolVersion(), "conversationBrowserVersion": conversations.BrowserVersion, "surfaceProtocolVersion": surface.Version, "localDesktopVersion": localDesktopVersion, "notificationPreferencesVersion": registry.NotificationPreferencesVersion, "gitAccessVersion": gitaccess.Version, "gitOperationsVersion": gitops.Version, "gitIdentityVersion": gitauthor.Version, "harnessPolicyVersion": toolchain.PolicyVersion, "serviceUpdateVersion": orchestrator.ServiceUpdateVersion, "workspaceIsolationVersion": agent.WorkspaceIsolationVersion, "workspaceIsolation": agent.WorkspaceIsolation(), "workspaceExecutionVersion": workspaceexec.Version, "terminalProtocolVersion": workspaceexec.TerminalVersion, "turnRequestVersion": orchestrator.TurnRequestVersion, "queuedInputVersion": orchestrator.QueuedInputVersion, "nativeSessionVersion": agent.NativeSessionVersion, "chatForkVersion": agent.ChatForkVersion, "imageAttachmentsVersion": agent.ImageAttachmentsVersion, "attachmentUploadVersion": artifact.UploadVersion, "computerConnectionVersion": computerVersion})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "nativeAuthSource": true, "agent": sup.Default(), "version": agent.Version, "historyPageVersion": api.HistoryPageVersion, "workspaceMetadataVersion": registry.Version, "botsVersion": registry.BotsVersion, "agentDiscoveryVersion": registry.AgentDiscoveryVersion, "projectLibraryVersion": registry.ProjectLibraryVersion, "projectOperationsVersion": registry.ProjectOperationsVersion, "projectIconsVersion": projecticon.Version, "projectSyncVersion": projectsync.ProtocolVersion(), "conversationBrowserVersion": conversations.BrowserVersion, "surfaceProtocolVersion": surface.Version, "localDesktopVersion": localDesktopVersion, "notificationPreferencesVersion": registry.NotificationPreferencesVersion, "gitAccessVersion": gitaccess.Version, "gitOperationsVersion": gitops.Version, "gitIdentityVersion": gitauthor.Version, "harnessPolicyVersion": toolchain.PolicyVersion, "serviceUpdateVersion": orchestrator.ServiceUpdateVersion, "workspaceIsolationVersion": agent.WorkspaceIsolationVersion, "workspaceIsolation": agent.WorkspaceIsolation(), "workspaceExecutionVersion": workspaceexec.Version, "terminalProtocolVersion": workspaceexec.TerminalVersion, "turnRequestVersion": orchestrator.TurnRequestVersion, "queuedInputVersion": orchestrator.QueuedInputVersion, "nativeSessionVersion": agent.NativeSessionVersion, "chatForkVersion": agent.ChatForkVersion, "imageAttachmentsVersion": agent.ImageAttachmentsVersion, "attachmentUploadVersion": artifact.UploadVersion, "computerConnectionVersion": computerVersion})
 	})
 	root.Handle("/healthz", api.Auth(token, health))
 
@@ -211,6 +221,18 @@ func main() {
 		connection, err := computer.New(filepath.Dir(statePath), listener.Addr().String(), token, workspaceRegistry.Identity())
 		if err != nil {
 			log.Fatalf("computer connection: %v", err)
+		}
+		if service := sup.BotService(); service != nil {
+			service.SetPeerDiscovery(connection.BotPeerRecovery, connection.BotPeerDiscoveryChanged)
+			connection.SetBotPeerBridge(service)
+			service.SetComputerPeerIdentity(func() (string, []bots.PeerRoute) {
+				fingerprint, routes := connection.BotPeerIdentity()
+				out := make([]bots.PeerRoute, 0, len(routes))
+				for _, route := range routes {
+					out = append(out, bots.PeerRoute{Kind: route.Kind, Host: route.Host, Port: route.Port, URL: route.URL})
+				}
+				return fingerprint, out
+			})
 		}
 		workspaceAPI.SetConnectionActivity(connection.PendingActivity)
 		workspaceAPI.SetConnectionUpdateForce(connection.ForceUpdatePending)
