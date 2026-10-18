@@ -17,8 +17,8 @@ export async function forwardComputer(c: Context, origin: string, path: string, 
       ...(["GET", "HEAD"].includes(c.req.method) ? {} : { body: body ?? c.req.raw.body, duplex: "half" } as RequestInit) });
   } catch { c.req.raw.signal.removeEventListener("abort", abort); throw new CloudError(503, "computer_unreachable", "This computer could not be reached. Check its status and retry."); }
   finally { clearTimeout(timer); }
-  // Data-plane responses may intentionally be an app redirect/error. Never
-  // follow them server-side or leak provider cookies/hop-by-hop headers.
+  // Never follow provider redirects server-side or leak provider cookies
+  // and hop-by-hop headers to the account client.
   const output = new Headers({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
   for (const key of ["Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "ETag", "Last-Modified", "Location", "Content-Disposition"])
     if (response.headers.has(key)) output.set(key, response.headers.get(key)!);

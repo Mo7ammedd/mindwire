@@ -11,7 +11,6 @@ import { CloudError, publicComputer, computerRuntime, type ComputerRow } from ".
 import { hostedUrl } from "./provider";
 import { cloudAccount, cloudBody, cloudRawBody } from "./access";
 import { registerComputerGateway } from "./gateway";
-import { registerRuntimeWebSockets } from "./websocket";
 
 export function registerCloud(root: Hono, service = new ComputerService()) {
   const app = new Hono();
@@ -80,7 +79,6 @@ export function registerCloud(root: Hono, service = new ComputerService()) {
     if (typeof namespace === "string") await consoleRows(sql`UPDATE cloud_computer SET updated_at=0 WHERE namespace=${namespace} AND state NOT IN ('draft','deleting','deleted') RETURNING id`);
     return c.json({ accepted: true });
   });
-  registerRuntimeWebSockets(app);
   registerComputerGateway(app, service);
   root.route("/", app);
 }
@@ -93,7 +91,6 @@ export function startComputerReconciliation(service = new ComputerService()) {
     running = true;
     try {
       await refreshLegacyAccounts();
-      await consoleRows(sql`DELETE FROM cloud_runtime_grant WHERE expires_at<${Date.now()} RETURNING token_hash`);
       if (!service.provider.configured()) return;
       const rows = await consoleRows<ComputerRow>(sql`SELECT * FROM cloud_computer WHERE state IN ('checkout_pending','payment_pending','paid','provisioning','ready') AND updated_at<${Date.now() - 60000} AND lease_until<${Date.now()} ORDER BY updated_at ASC LIMIT 10`);
       for (const row of rows) {

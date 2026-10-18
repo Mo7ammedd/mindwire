@@ -4,6 +4,12 @@ import OblienKit
 
 @MainActor
 final class WorkspaceSignInTests: XCTestCase {
+    func testCloudManagementAndRuntimeUseSeparateMindwireOrigins() {
+        XCTAssertEqual(MindwireCloud.client.config.baseURL.absoluteString, AppConstants.mindwireServicesBase + "/api/cloud/provider")
+        XCTAssertEqual(MindwireCloud.client.config.runtimeURL.absoluteString, "https://computers.mindwire.sh")
+        XCTAssertNotEqual(MindwireCloud.client.config.baseURL.host, MindwireCloud.client.config.runtimeURL.host)
+    }
+
     private let signedIn = AuthStatus(authenticated: true, user: AuthUser(id: "42", name: "Test owner"))
 
     private func stores() throws -> Stores {

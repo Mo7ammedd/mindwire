@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Hono } from "hono";
 import { sql } from "drizzle-orm";
 import { consoleRows } from "../database";
@@ -7,70 +6,18 @@ import { legacyClient, legacyCredential } from "./legacy";
 import { providerBase } from "./provider";
 import { CloudError, type ComputerRow } from "./types";
 import type { ComputerService } from "./service";
-import { runtimePublicOrigin } from "./runtime-origin";
 import { monthlyComputerImage } from "./images";
 import { forwardComputer } from "./proxy";
 import { computerCollection } from "./collections";
 
 const MANAGEMENT = "/api/cloud/provider";
-export const RUNTIME = "/api/cloud/runtime";
-const hash = (token: string) => createHash("sha256").update(token).digest("hex");
-
 function relativePath(url: URL, prefix: string): string {
   const path = url.pathname.slice(prefix.length);
   if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) throw new CloudError(400, "invalid_path", "Invalid computer request.");
   return path;
 }
 
-/** Grant lookup is local. The provider verifies the workspace JWT again; this
- * gate binds it to an owned, non-deleted computer before any data-plane IO. */
-export async function runtimeCredential(headers: Headers, hostname?: string): Promise<string> {
-  const token = /^Bearer ([^\s]{1,8192})$/.exec(headers.get("Authorization") ?? "")?.[1];
-  if (!token) throw new CloudError(401, "unauthorized", "A computer runtime credential is required.");
-  const grant = (await consoleRows<{ computer_id: string }>(sql`SELECT computer_id FROM cloud_runtime_grant WHERE token_hash=${hash(token)} AND expires_at>${Date.now()}`))[0];
-  if (!grant) throw new CloudError(401, "unauthorized", "Computer access expired. Reconnect to refresh it.");
-  let workspace: string;
-  if (grant.computer_id.startsWith("legacy:")) {
-    const [, owner, id] = grant.computer_id.split(":");
-    workspace = id;
-    if (!owner || !await legacyCredential(owner)) throw new CloudError(401, "unauthorized", "The previous cloud account is not connected.");
-  } else {
-    const active = await consoleRows<{ workspace_id: string }>(sql`SELECT workspace_id FROM cloud_computer WHERE id=${grant.computer_id} AND state NOT IN ('deleting','deleted')`);
-    if (!active.length) throw new CloudError(401, "unauthorized", "This computer is no longer available.");
-    workspace = active[0].workspace_id;
-  }
-  if (!hostname || hostname !== new URL(runtimePublicOrigin(workspace)).hostname)
-    throw new CloudError(403, "runtime_origin_required", "Use this computer’s dedicated Mindwire runtime address.");
-  return token;
-}
-
-export function runtimeOrigin(): string {
-  const url = new URL(process.env.OBLIEN_RUNTIME_URL ?? "https://workspace.oblien.com");
-  if (url.username || url.password || url.search || url.hash || url.pathname !== "/" ||
-      !(url.protocol === "https:" || (url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname)))) throw new Error("Runtime gateway requires an HTTPS origin");
-  return url.origin;
-}
-
-
-async function rememberGrant(computer: string, payload: unknown) {
-  if (!payload || typeof payload !== "object" || !("token" in payload) || typeof payload.token !== "string") return;
-  const token = payload.token;
-  if (token.length > 8192 || token.split(".").length !== 3) return; // Raw SSH/runtime credentials are not gateway grants.
-  let expiry = Date.now() + 55 * 60000;
-  try {
-    const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
-    if (typeof claims.exp === "number") expiry = Math.min(expiry, claims.exp * 1000);
-  } catch { return; }
-  if (expiry <= Date.now()) return;
-  await consoleRows(sql`INSERT INTO cloud_runtime_grant(token_hash,computer_id,expires_at) VALUES(${hash(token)},${computer},${expiry})
-    ON CONFLICT(token_hash) DO UPDATE SET expires_at=excluded.expires_at WHERE cloud_runtime_grant.computer_id=excluded.computer_id RETURNING token_hash`);
-}
-
 export function registerComputerGateway(app: Hono, service: ComputerService) {
-  app.all(`${RUNTIME}/*`, async c => {
-    const token = await runtimeCredential(c.req.raw.headers, new URL(c.req.url).hostname), url = new URL(c.req.url);
-    return forwardComputer(c, runtimeOrigin(), relativePath(url, RUNTIME), token, url.searchParams);
-  });
   app.all(`${MANAGEMENT}/*`, async c => {
     const user = await cloudAccount(c), url = new URL(c.req.url), path = relativePath(url, MANAGEMENT);
     // No encoded path separator can change which resource was checked below.
@@ -112,7 +59,6 @@ export function registerComputerGateway(app: Hono, service: ComputerService) {
       // Personal legacy tokens are only used after the provider confirms that
       // this exact computer belongs to that linked customer.
       if (legacy) await legacy.workspaces.get(match[1]);
-      const computerId = row?.id ?? `legacy:${user.id}:${match[1]}`;
       const token = row ? await service.provider.scopedToken(row.namespace) : (await legacyCredential(user.id))!;
       if (row && !match[2] && c.req.method === "DELETE") {
         return service.store.locked(user.id, row.id, async (current, save) => {
@@ -132,7 +78,6 @@ export function registerComputerGateway(app: Hono, service: ComputerService) {
             throw new CloudError(409, "computer_deleting", "Computer cleanup is still running. Retry shortly to confirm completion.");
           } catch (error) { if (!(error instanceof CloudError) || error.status !== 404) throw error; }
           current.state = "deleted"; await save(current);
-          await consoleRows(sql`DELETE FROM cloud_runtime_grant WHERE computer_id=${current.id} RETURNING token_hash`);
           return c.json({ success: true });
         });
       }
@@ -150,10 +95,6 @@ export function registerComputerGateway(app: Hono, service: ComputerService) {
       const response = await forwardComputer(c, providerBase(), path, token, query, body);
       if (response.ok && row && nextName) await consoleRows(sql`UPDATE cloud_computer SET name=${nextName}
         WHERE id=${row.id} AND owner_id=${user.id} AND state NOT IN ('deleting','deleted') RETURNING id`);
-      if (match[2]?.startsWith("/runtime-api-access") && response.ok && response.headers.get("Content-Type")?.includes("json")) {
-        const data = await response.json(); await rememberGrant(computerId, data);
-        return c.json(data);
-      }
       return response;
     }
     const collection = await computerCollection(c, user.id, path, service);

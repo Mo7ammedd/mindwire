@@ -45,7 +45,7 @@ private actor ProxyDaemonCredentials {
     func request(method: String, path: String, jsonBody: Data?, force: Bool) async throws -> URLRequest {
         let runtime = try await runtime(force: force)
         let gatewayToken = try await runtime.token()
-        let base = MindwireCloud.client(for: workspaceId).config.runtimeURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let base = MindwireCloud.client.config.runtimeURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: "\(base)/proxy/\(port)\(path)") else {
             throw BackendError.message("invalid Mindwire proxy URL")
         }

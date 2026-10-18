@@ -4,9 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
-import WebSocket from "ws";
 import { Pool } from "pg";
-import { createHash, randomBytes, createHmac } from "node:crypto";
+import { randomBytes, createHmac } from "node:crypto";
 
 const require = createRequire(import.meta.url);
 let child: ChildProcess, directory: string, url: string;
@@ -18,20 +17,8 @@ const canceled = new Set<string>();
 const previousTokens = new Set(["fixture-previous-account-session"]);
 let loseDeleteReply = false;
 let paid = false, loseCheckoutReply = false, loseCreateReply = false, checkoutWrites = 0, creates = 0;
+const issuedRuntimeTokens = new Map<string, string>();
 const providerRequests: Array<{ path: string; namespace: string | null }> = [];
-const runtimeTokens = new Set<string>();
-const runtime = Bun.serve<{ accepted: true }>({
-  port: 0, hostname: "127.0.0.1",
-  fetch(request, server) {
-    if (!runtimeTokens.has(request.headers.get("Authorization")?.replace(/^Bearer /, "") ?? "")) return Response.json({}, { status: 401 });
-    if (request.headers.get("Upgrade")?.toLowerCase() === "websocket") {
-      if (server.upgrade(request, { data: { accepted: true } })) return;
-      return new Response("No upgrade", { status: 400 });
-    }
-    return Response.json({ ok: true, target: request.headers.get("X-Oblien-Proxy-Target"), daemon: request.headers.get("X-Mindwire-Token") });
-  },
-  websocket: { message(socket, message) { socket.send(message); } },
-});
 const fake = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(request) {
   const u = new URL(request.url), path = u.pathname;
   const body = request.method === "GET" ? {} : await request.json().catch(() => ({})) as any;
@@ -88,7 +75,7 @@ const fake = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(request) {
     if (computer?.namespace !== namespace) return Response.json({}, { status: 404 });
     const payload = Buffer.from(JSON.stringify({ workspace_id: computer.id, exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url");
     const token = "eyJhbGciOiJIUzI1NiJ9." + payload + ".signature";
-    runtimeTokens.add(token);
+    issuedRuntimeTokens.set(computer.id, token);
     return ok({ token, enabled: true });
   }
   if (/^\/workspace\/vm_\d+\/(?:stop|start|restart)$/.test(path) && request.method === "POST") return ok({});
@@ -126,7 +113,7 @@ beforeAll(async () => {
   child = spawn("node", ["--import", require.resolve("tsx"), new URL("./fixtures/cloud-server.ts", import.meta.url).pathname], { stdio: ["ignore", "pipe", "pipe", "ipc"], env: { ...process.env,
     NODE_ENV: "test", CONSOLE_MODE: "cloud", BASE_URL: "http://127.0.0.1:8787", DATABASE_URL: databaseURL, POSTGRES_HOST: "", AUTH_DB_PATH: join(directory, "auth.db"),
     AUTH_SECRET: randomBytes(48).toString("base64url"), SECRETS_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
-    PUSH_IDENTITY_PROVIDER_URL: fake.url.origin, OBLIEN_CLIENT_ID: "reseller", OBLIEN_CLIENT_SECRET: "private-secret", OBLIEN_BASE_URL: fake.url.origin, OBLIEN_WEBHOOK_SECRET: "fixture-webhook-secret", OBLIEN_RUNTIME_URL: runtime.url.origin, SEED_DEFAULT_DAEMON: "false",
+    PUSH_IDENTITY_PROVIDER_URL: fake.url.origin, OBLIEN_CLIENT_ID: "reseller", OBLIEN_CLIENT_SECRET: "private-secret", OBLIEN_BASE_URL: fake.url.origin, OBLIEN_WEBHOOK_SECRET: "fixture-webhook-secret", SEED_DEFAULT_DAEMON: "false",
   } });
   url = await new Promise<string>((resolve, reject) => {
     let log = ""; child.stderr?.on("data", chunk => log = (log + chunk).slice(-4000));
@@ -138,7 +125,7 @@ beforeAll(async () => {
   stranger = (await api("/api/account/sign-up/email", "POST", { email: "stranger@example.test", password: "fixture-password-123456", name: "Stranger" }, "")).data;
   expect(owner.token).toBeTruthy(); expect(stranger.token).toBeTruthy();
 }, 25000);
-afterAll(async () => { child?.kill("SIGTERM"); fake.stop(true); runtime.stop(true); await cleanupDatabase?.(); if (directory) await rm(directory, { recursive: true, force: true }); });
+afterAll(async () => { child?.kill("SIGTERM"); fake.stop(true); await cleanupDatabase?.(); if (directory) await rm(directory, { recursive: true, force: true }); });
 
 const purchase = () => ({ idempotencyKey: randomBytes(16).toString("hex"), name: "My computer", planId: "essential", imageId: "linux" });
 
@@ -242,27 +229,23 @@ test("concurrent recovery serializes one computer while independent purchases do
   for (const id of ids) expect((await api(`/api/cloud/computers/${id}`)).data.computer.workspaceId).toBeTruthy();
 });
 
-test("owned runtime HTTP and real WebSockets work only on that computer's isolated hostname", async () => {
+test("only the computer owner can obtain the unchanged provider runtime JWT", async () => {
   const vm = [...computers.values()][0].id;
-  const grant = (await api(`/api/cloud/provider/workspace/${vm}/runtime-api-access/token`)).data.token;
-  expect(grant).toBeTruthy();
-  const host = createHash("sha256").update(vm).digest("hex").slice(0, 40) + ".computers.mindwire.sh";
-  const headers = { Host: host, Authorization: `Bearer ${grant}`, "X-Oblien-Proxy-Target": "127.0.0.1:8790", "X-Mindwire-Token": "daemon-only-secret" };
-  const response = await fetch(url + "/api/cloud/runtime/health", { headers });
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ ok: true, target: "127.0.0.1:8790", daemon: "daemon-only-secret" });
-  expect((await fetch(url + "/api/cloud/runtime/health", { headers: { Authorization: `Bearer ${grant}` } })).status).toBe(403);
-  expect((await fetch(url + "/api/cloud/runtime/health", { headers: { ...headers, Host: "another.computers.mindwire.sh" } })).status).toBe(403);
-  expect((await fetch(url + "/api/cloud/account", { headers: { Host: host, Authorization: `Bearer ${owner.token}` } })).status).toBe(404);
-  const socket = new WebSocket(url.replace("http:", "ws:") + "/api/cloud/runtime/ws", { headers });
-  const echoed = await new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("WebSocket timeout")), 5000);
-    socket.once("open", () => socket.send("terminal-input"));
-    socket.once("message", data => { clearTimeout(timer); resolve(data.toString()); });
-    socket.once("error", reject);
-  });
-  expect(echoed).toBe("terminal-input"); socket.close();
+  const path = `/api/cloud/provider/workspace/${vm}/runtime-api-access/token`;
+  const before = providerRequests.length;
+  expect((await api(path, "GET", undefined, stranger.token)).status).toBe(404);
+  expect((await api(path, "GET", undefined, "")).status).toBe(401);
+  expect(providerRequests).toHaveLength(before);
+  const result = await api(path);
+  expect(result.status).toBe(200);
+  expect(result.data.token).toBeTruthy();
+  expect(result.data.token).toBe(issuedRuntimeTokens.get(vm));
+  expect(result.data.token).not.toBe(owner.token);
+  expect((await api("/api/cloud/account", "GET", undefined, result.data.token)).status).toBe(401);
   expect((await api(`/api/cloud/provider/workspace/${vm}/stop`, "POST")).status).toBe(200);
+  const account = await fetch(url + "/api/cloud/account", { headers: { Authorization: `Bearer ${owner.token}` } });
+  expect(account.headers.get("X-Frame-Options")).toBe("DENY");
+  expect(account.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
 }, 10000);
 
 

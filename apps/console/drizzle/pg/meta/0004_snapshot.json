@@ -1,5 +1,5 @@
 {
-  "id": "a8ae9617-41af-437c-9067-af3d042603d1",
+  "id": "35d84b2c-e043-4d3d-8efe-d6adfd747d61",
   "prevId": "4f09f978-280e-4def-a8d4-0367e6b25517",
   "version": "7",
   "dialect": "postgresql",
@@ -254,53 +254,6 @@
           "columns": [
             {
               "expression": "next_refresh_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.cloud_runtime_grant": {
-      "name": "cloud_runtime_grant",
-      "schema": "",
-      "columns": {
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "computer_id": {
-          "name": "computer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "cloud_runtime_grant_expiry": {
-          "name": "cloud_runtime_grant_expiry",
-          "columns": [
-            {
-              "expression": "expires_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

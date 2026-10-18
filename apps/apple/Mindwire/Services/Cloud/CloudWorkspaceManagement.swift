@@ -11,7 +11,7 @@ actor CloudWorkspaceManagement: WorkspaceManagementService {
     private var runtime: RuntimeClient?
 
     init(workspaceId: String, client: OblienClient? = nil) {
-        self.workspaceId = workspaceId; self.client = client ?? MindwireCloud.client(for: workspaceId)
+        self.workspaceId = workspaceId; self.client = client ?? MindwireCloud.client
     }
     private func runtimeClient() async throws -> RuntimeClient {
         if let runtime { return runtime }

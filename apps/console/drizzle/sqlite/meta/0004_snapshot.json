@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7b4374f2-904a-4030-9dd9-210f5512ad4a",
+  "id": "417ba2b5-025c-4490-b203-76a2045e1895",
   "prevId": "73c676a8-20dc-4980-b38b-f817e14212ce",
   "tables": {
     "cloud_computer": {
@@ -211,45 +211,6 @@
           "name": "cloud_legacy_account_refresh",
           "columns": [
             "next_refresh_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "cloud_runtime_grant": {
-      "name": "cloud_runtime_grant",
-      "columns": {
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "computer_id": {
-          "name": "computer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "cloud_runtime_grant_expiry": {
-          "name": "cloud_runtime_grant_expiry",
-          "columns": [
-            "expires_at"
           ],
           "isUnique": false
         }

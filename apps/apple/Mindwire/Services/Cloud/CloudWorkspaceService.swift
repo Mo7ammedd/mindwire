@@ -173,7 +173,7 @@ actor CloudWorkspaceService: WorkspaceService {
         let rt = try await runtime()
         let token = try await rt.token()
         let wsURL = rt.websocketURL().absoluteString
-        let createURL = MindwireCloud.client(for: workspaceId).config.runtimeURL.absoluteString + "/terminals"
+        let createURL = MindwireCloud.client.config.runtimeURL.absoluteString + "/terminals"
         return WorkspaceTerminalEndpoint(wsUrl: wsURL, createUrl: createURL, token: token, protocol: "oblien")
     }
 

@@ -4,8 +4,6 @@ import { PushStore } from "../../server/notifications/store";
 import { refreshLegacyAccounts } from "../../server/cloud/legacy";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { runtimeHostBoundary } from "../../server/cloud/runtime-origin";
-import { cloudWebSockets } from "../../server/cloud/websocket";
 import { initAuth } from "../../server/auth";
 import { registerAuth } from "../../server/guard";
 import { registerCloud } from "../../server/cloud/routes";
@@ -13,7 +11,7 @@ import { sql } from "drizzle-orm";
 import { consoleRows } from "../../server/database";
 
 await initAuth();
-const app = new Hono(); app.use("*", runtimeHostBoundary); registerAuth(app); registerCloud(app);
+const app = new Hono(); registerAuth(app); registerCloud(app);
 const pushStore = new PushStore();
 const sent: string[][] = [];
 const pushService = new PushService(pushStore, {
@@ -21,7 +19,7 @@ const pushService = new PushService(pushStore, {
   async send(tokens) { sent.push(tokens); return { delivered: tokens.length, failed: 0, invalidTokens: [], errors: [] }; },
 });
 registerNotifications(app, pushService);
-const server = serve({ fetch: app.fetch, websocket: { server: cloudWebSockets }, port: 0, hostname: "127.0.0.1" }, info => process.send?.({ ready: `http://127.0.0.1:${info.port}` }));
+const server = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" }, info => process.send?.({ ready: `http://127.0.0.1:${info.port}` }));
 process.on("message", async ({ id, action, value }: { id: number; action: string; value: string }) => {
   try {
     let result: unknown;

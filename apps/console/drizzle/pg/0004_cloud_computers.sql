@@ -24,17 +24,10 @@ CREATE TABLE "cloud_legacy_account" (
 	"created_at" bigint NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "cloud_runtime_grant" (
-	"token_hash" text PRIMARY KEY NOT NULL,
-	"computer_id" text NOT NULL,
-	"expires_at" bigint NOT NULL
-);
---> statement-breakpoint
 CREATE UNIQUE INDEX "cloud_computer_request" ON "cloud_computer" USING btree ("owner_id","request_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "cloud_computer_namespace" ON "cloud_computer" USING btree ("namespace");--> statement-breakpoint
 CREATE UNIQUE INDEX "cloud_computer_workspace" ON "cloud_computer" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "cloud_computer_owner" ON "cloud_computer" USING btree ("owner_id");--> statement-breakpoint
 CREATE INDEX "cloud_computer_due" ON "cloud_computer" USING btree ("state","updated_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "cloud_legacy_account_owner" ON "cloud_legacy_account" USING btree ("owner_id");--> statement-breakpoint
-CREATE INDEX "cloud_legacy_account_refresh" ON "cloud_legacy_account" USING btree ("next_refresh_at");--> statement-breakpoint
-CREATE INDEX "cloud_runtime_grant_expiry" ON "cloud_runtime_grant" USING btree ("expires_at");
+CREATE INDEX "cloud_legacy_account_refresh" ON "cloud_legacy_account" USING btree ("next_refresh_at");

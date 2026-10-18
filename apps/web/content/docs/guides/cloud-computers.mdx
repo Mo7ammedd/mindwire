@@ -68,12 +68,14 @@ website or browser bundles. Each new computer has a private namespace restricted
 to one VM and its purchased resources. Native clients receive only their Mindwire
 session and short-lived credentials for a computer they own.
 
-Route `*.computers.mindwire.sh` to Console with wildcard TLS, the original Host,
-and WebSocket upgrades. Set `MINDWIRE_RUNTIME_PUBLIC_URL` to the separate root
-origin if hosting elsewhere. Computer hostnames are derived consistently by the
-server and native client. Account endpoints and the Console SPA are unavailable
-on these runtime hosts; production account cookies use the `__Host-` prefix.
-Configure runtime DNS/TLS before enabling purchases in production.
+Configure `computers.mindwire.sh` as a custom hostname for Oblien’s existing
+`workspace.oblien.com` runtime gateway, including TLS and WebSocket upgrades.
+A DNS CNAME alone does not configure the provider’s certificate or virtual host.
+The native app uses this single hostname directly with the unchanged short-lived
+computer JWT; the Mindwire account session stays on Console. Runtime traffic does
+not pass through Console, and published web ports keep their separate public URLs.
+No wildcard DNS is needed. Verify runtime access through the custom hostname before
+releasing the updated app. Production account cookies use the `__Host-` prefix.
 
 Billing webhooks may call `/api/cloud/webhook` with an HMAC SHA-256 signature in
 `X-Webhook-Signature` using `OBLIEN_WEBHOOK_SECRET`. Events only schedule fresh

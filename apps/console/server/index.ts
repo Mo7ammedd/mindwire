@@ -14,12 +14,8 @@ import { registerTurnRoutes } from "./turn";
 import { registerComputerDirectory, startDirectoryMaintenance } from "./computer-directory/routes";
 import { registerNotifications } from "./notifications/routes";
 import { registerCloud, startComputerReconciliation } from "./cloud/routes";
-import { runtimeHostBoundary } from "./cloud/runtime-origin";
-import { cloudWebSockets } from "./cloud/websocket";
 
 const app = new Hono();
-// Computer app hostnames never serve the account SPA or account APIs.
-app.use("*", runtimeHostBoundary);
 
 // Mount the global auth boundary first. The directory has its own key-based
 // authentication; workspace APIs continue to require a website session.
@@ -92,7 +88,7 @@ initAuth()
   .then(() => {
     startDirectoryMaintenance();
     startComputerReconciliation();
-    serve({ fetch: app.fetch, port: env.port, websocket: { server: cloudWebSockets } }, (info) => {
+    serve({ fetch: app.fetch, port: env.port }, (info) => {
       console.log(`[console] listening on http://127.0.0.1:${info.port} (daemon: ${env.daemonUrl})`);
     });
   })

@@ -77,12 +77,6 @@ export const cloudComputer = pgTable("cloud_computer", {
   uniqueIndex("cloud_computer_namespace").on(t.namespace), uniqueIndex("cloud_computer_workspace").on(t.workspaceId),
   index("cloud_computer_owner").on(t.ownerId), index("cloud_computer_due").on(t.state, t.updatedAt)]);
 
-export const cloudRuntimeGrant = pgTable("cloud_runtime_grant", {
-  tokenHash: text("token_hash").primaryKey(),
-  computerId: text("computer_id").notNull(),
-  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
-}, t => [index("cloud_runtime_grant_expiry").on(t.expiresAt)]);
-
 export const cloudLegacyAccount = pgTable("cloud_legacy_account", {
   providerId: text("provider_id").primaryKey(),
   ownerId: text("owner_id").notNull(),

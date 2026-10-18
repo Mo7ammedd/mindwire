@@ -30,11 +30,4 @@ CREATE TABLE `cloud_legacy_account` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `cloud_legacy_account_owner` ON `cloud_legacy_account` (`owner_id`);--> statement-breakpoint
-CREATE INDEX `cloud_legacy_account_refresh` ON `cloud_legacy_account` (`next_refresh_at`);--> statement-breakpoint
-CREATE TABLE `cloud_runtime_grant` (
-	`token_hash` text PRIMARY KEY NOT NULL,
-	`computer_id` text NOT NULL,
-	`expires_at` integer NOT NULL
-);
---> statement-breakpoint
-CREATE INDEX `cloud_runtime_grant_expiry` ON `cloud_runtime_grant` (`expires_at`);
+CREATE INDEX `cloud_legacy_account_refresh` ON `cloud_legacy_account` (`next_refresh_at`);
