@@ -1,21 +1,9 @@
-// The login gate. The console is multi-user and fully session-protected, so nothing behind it renders
-// until a user signs in. Email/password against Better Auth (`api.account.*`), plus — in cloud mode,
-// when the operator has wired up OAuth apps — GitHub / Google social sign-in. On success the caller gets
-// the resolved user and drops into the shell. Two modes on one form (sign in vs. create account) toggle
-// without a route change. Branding + which social buttons to show come from the public config, the one
-// endpoint reachable before auth.
-//
-// Layout: a clean top bar (brand + Docs), then a two-column split — a brand/value panel on the left
-// (desktop only) and the auth card on the right — over a plain ink canvas, with a footer of external
-// links + a deployment-mode badge. No decorative backdrop; the left panel carries the visual weight.
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowUpRight, Loader2 } from "lucide-react";
 
 import { api, type AuthUser } from "@/lib/api";
 import type { PublicConfig, SocialProvider } from "@shared/api";
-import { AgentIcon } from "@/components/AgentIcon";
 import { BrandMark } from "@/components/BrandMark";
-import { WireDiagram, WIRE_AGENTS } from "@/components/WireDiagram";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +14,11 @@ type Mode = "signin" | "signup";
 const DOCS_FALLBACK = "https://mindwire.sh/docs";
 const GITHUB_FALLBACK = "https://github.com/oblien/mindwire";
 
-export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
+export function AuthScreen({
+  onAuthed,
+}: {
+  onAuthed: (user: AuthUser) => void;
+}) {
   const [mode, setMode] = useState<Mode>("signin");
   const [cfg, setCfg] = useState<PublicConfig | null>(null);
   const [name, setName] = useState("");
@@ -35,7 +27,6 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
   const [busy, setBusy] = useState(false);
   const [social, setSocial] = useState<SocialProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
-
 
   // The one pre-auth call: branding + which sign-in options to offer. Failure is non-fatal — the gate
   // simply falls back to email/password with default links.
@@ -54,8 +45,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
   const socials = cfg?.socials ?? [];
   const docsUrl = cfg?.docsUrl ?? DOCS_FALLBACK;
   const githubUrl = cfg?.githubUrl ?? GITHUB_FALLBACK;
-  const isCloud = cfg?.mode === "cloud";
-  const isSignup = isCloud && mode === "signup";
+  const isSignup = mode === "signup";
   const locked = busy || social !== null;
 
   async function onSubmit(e: FormEvent) {
@@ -63,7 +53,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
     setError(null);
     const identifier = email.trim();
     if (!identifier || !password) {
-      setError(`${isCloud ? "Email" : "Username"} and password are required.`);
+      setError("Email and password are required.");
       return;
     }
     if (isSignup && password.length < 8) {
@@ -72,9 +62,13 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
     }
     setBusy(true);
     try {
-      const accountEmail = isCloud ? identifier : `${identifier.toLowerCase()}@mindwire.local`;
+      const accountEmail = identifier;
       const res = isSignup
-        ? await api.account.signUp(accountEmail, password, name.trim() || accountEmail.split("@")[0]!)
+        ? await api.account.signUp(
+            accountEmail,
+            password,
+            name.trim() || accountEmail.split("@")[0]!,
+          )
         : await api.account.signIn(accountEmail, password);
       onAuthed(res.user);
     } catch (err) {
@@ -90,7 +84,12 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
     setError(null);
     setSocial(provider);
     try {
-      const res = await api.account.socialSignIn(provider, window.location.origin + window.location.pathname + window.location.search);
+      const res = await api.account.socialSignIn(
+        provider,
+        window.location.origin +
+          window.location.pathname +
+          window.location.search,
+      );
       if (res.url) {
         window.location.href = res.url;
         return;
@@ -130,19 +129,29 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
           <div className="space-y-5">
             <span className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <span aria-hidden className="size-1.5 bg-ink/40" />
-              Stop building the agent
+              Your Mindwire account
             </span>
             <h1 className="text-4xl font-semibold leading-[1.03] tracking-tight lg:text-5xl">
-              Wire in the
+              Your computers.
               <br />
-              best ones.
+              Your account.
             </h1>
             <p className="max-w-md text-base leading-relaxed text-muted-foreground">
-              The control plane for the agents that power your product — wire in the best, swap them
-              like a model, and run them at scale.
+              Manage connected devices, choose a Cloud Computer and keep your
+              subscriptions in order. Your work stays with you in the Mindwire
+              app.
             </p>
           </div>
-          <WireDiagram />
+          <div className="grid grid-cols-3 gap-3 text-xs text-muted-foreground">
+            {["Your account", "Your devices", "Your compute"].map((label) => (
+              <div
+                key={label}
+                className="border border-border bg-card px-4 py-6"
+              >
+                {label}
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Auth card. */}
@@ -150,11 +159,13 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
           <div className="mx-auto w-full max-w-sm">
             <div className="mb-6 space-y-1.5">
               <h2 className="text-xl font-semibold tracking-tight">
-                {isSignup ? `Create your ${appName} account` : `Sign in to ${appName}`}
+                {isSignup
+                  ? `Create your ${appName} account`
+                  : `Sign in to ${appName}`}
               </h2>
               <p className="text-sm text-muted-foreground">
                 {isSignup
-                  ? "Set up your isolated fleet in a moment."
+                  ? "Manage your devices and Cloud Computers with one account."
                   : "Welcome back — pick up where you left off."}
               </p>
             </div>
@@ -203,16 +214,16 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
                     </div>
                   )}
                   <div className="space-y-1.5">
-                    <Label htmlFor="email">{isCloud ? "Email" : "Username"}</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
                       className="h-10"
-                      type="text"
-                      autoComplete={isCloud ? "email" : "username"}
+                      type="email"
+                      autoComplete="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder={isCloud ? "you@example.com" : "admin"}
+                      placeholder="you@example.com"
                       disabled={locked}
                     />
                   </div>
@@ -222,18 +233,26 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
                       id="password"
                       className="h-10"
                       type="password"
-                      autoComplete={isSignup ? "new-password" : "current-password"}
+                      autoComplete={
+                        isSignup ? "new-password" : "current-password"
+                      }
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={isSignup ? "At least 8 characters" : "••••••••"}
+                      placeholder={
+                        isSignup ? "At least 8 characters" : "••••••••"
+                      }
                       disabled={locked}
                     />
                   </div>
 
                   {error && <p className="text-xs text-destructive">{error}</p>}
 
-                  <Button type="submit" className="h-10 w-full" disabled={locked}>
+                  <Button
+                    type="submit"
+                    className="h-10 w-full"
+                    disabled={locked}
+                  >
                     {busy && <Loader2 className="size-4 animate-spin" />}
                     {isSignup ? "Create account" : "Sign in"}
                   </Button>
@@ -241,7 +260,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
               </CardContent>
             </Card>
 
-            {isCloud && <p className="mt-5 text-center text-xs text-muted-foreground">
+            <p className="mt-5 text-center text-xs text-muted-foreground">
               {isSignup ? "Already have an account?" : "Need an account?"}{" "}
               <button
                 type="button"
@@ -250,26 +269,13 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
               >
                 {isSignup ? "Sign in" : "Create one"}
               </button>
-            </p>}
+            </p>
           </div>
         </section>
       </main>
 
-      {/* Footer: external links + a badge naming how this console is deployed. On mobile — where the left
-          panel's wire diagram is hidden — the agents you can drive lead the footer so the proof isn't lost;
-          on desktop that strip is hidden (the diagram already carries it, so no duplication). */}
+      {/* Account service links. */}
       <footer className="shrink-0 border-t border-border">
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-5 pt-5 lg:hidden">
-          {WIRE_AGENTS.map((a) => (
-            <span
-              key={a.id}
-              className="inline-flex items-center gap-2 text-xs text-muted-foreground"
-            >
-              <AgentIcon agentId={a.id} className="size-4" />
-              {a.label}
-            </span>
-          ))}
-        </div>
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-5 pb-5 pt-4 text-xs text-muted-foreground lg:pt-5">
           <FooterLink href={docsUrl}>Docs</FooterLink>
           <Dot />
@@ -280,7 +286,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void })
           <Dot />
           <span className="inline-flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-ink/40" />
-            {isCloud ? "Cloud" : "Self-hosted"}
+            Mindwire Cloud
           </span>
         </div>
       </footer>
@@ -319,7 +325,9 @@ function Divider({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-3">
       <span className="h-px flex-1 bg-border" />
-      <span className="text-[0.7rem] uppercase tracking-wider text-muted-foreground">{children}</span>
+      <span className="text-[0.7rem] uppercase tracking-wider text-muted-foreground">
+        {children}
+      </span>
       <span className="h-px flex-1 bg-border" />
     </div>
   );
@@ -347,7 +355,12 @@ function Dot() {
 // (like the agent brand marks), never recolored, so it stays instantly recognizable.
 function GitHubIcon({ className = "size-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="currentColor"
+      aria-hidden
+    >
       <path d="M12 .5C5.73.5.5 5.73.5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.69 5.41-5.26 5.69.41.36.78 1.08.78 2.18v3.23c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5Z" />
     </svg>
   );

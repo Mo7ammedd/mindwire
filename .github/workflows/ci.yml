@@ -165,10 +165,6 @@ jobs:
           bun-version: 1.4.3
       - name: Install
         uses: ./.github/actions/bun-install
-      # The console typechecks and bundles against the SDK's built type declarations (mindwire
-      # resolves to dist/index.d.ts), and the Hono server imports the SDK at runtime — so build it first.
-      - name: Build SDK
-        run: bun --filter='mindwire' run build
       - name: Typecheck
         run: bun --filter='@mindwire/console' run check
       - name: Build

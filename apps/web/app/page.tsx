@@ -139,7 +139,9 @@ export default function Home() {
       >
         <div id="how" className={styles.sectionHeader}>
           <div>
-            <span className={styles.kicker}>Everyday work. Developer depth.</span>
+            <span className={styles.kicker}>
+              Everyday work. Developer depth.
+            </span>
             <h2 id="features-title" className={styles.sectionTitle}>
               From the first request.
               <br />
@@ -181,8 +183,8 @@ export default function Home() {
             </h2>
             <p className={styles.sectionDescription}>
               Put the AI access you already have to work with your files,
-              projects, and everyday tasks. Mindwire brings it together in
-              one personal agent.
+              projects, and everyday tasks. Mindwire brings it together in one
+              personal agent.
             </p>
             <a href="#workspaces" className={styles.textButton}>
               Choose where you work <ArrowRight size={16} />
@@ -213,9 +215,9 @@ export default function Home() {
               when you’re ready.
             </p>
             <p>
-              Your project files, local changes, and supported agent history travel
-              together. Both project copies stay yours, with conflicts checked
-              before changes are applied.
+              Your project files, local changes, and supported agent history
+              travel together. Both project copies stay yours, with conflicts
+              checked before changes are applied.
             </p>
             <Link
               href="/docs/guides/project-sync"
@@ -389,7 +391,9 @@ export default function Home() {
         <div className={styles.setupSection}>
           <Corners />
           <div>
-            <span className={styles.kicker}>Connect the computer doing the work</span>
+            <span className={styles.kicker}>
+              Connect the computer doing the work
+            </span>
             <h2 id="setup-title" className={styles.sectionTitle}>
               A QR code.
               <br />
@@ -442,10 +446,9 @@ export default function Home() {
               <span>A foundation for everyone.</span>
             </h2>
             <p>
-              Build on the Apache-2.0 runtime, SDKs, and web Console, and host
-              them on your own infrastructure. The Apple client’s source is
-              available for inspection and private personal builds under its
-              separate license.
+              Build on the Apache-2.0 runtime and SDKs, and run agents on your
+              own infrastructure. The Apple client’s source is available for
+              inspection and private personal builds under its separate license.
             </p>
             <div className={styles.actions}>
               <a href={githubUrl} className={styles.primaryButton}>
@@ -463,33 +466,40 @@ export default function Home() {
             </div>
           </div>
           <div className={styles.consolePreview}>
-            <a href={consoleUrl} aria-label="Open the Mindwire web Console">
+            <a href={consoleUrl} aria-label="Manage your Mindwire account">
               <div className={styles.consoleCaption}>
                 <span>
-                  <span /> Mindwire Console
+                  <span /> Your Mindwire account
                 </span>
                 <ArrowUpRight size={16} />
               </div>
-              <Image
-                src="/console-light.png"
-                alt="Mindwire web Console showing workspace activity and agent sessions"
-                width={2400}
-                height={1050}
-                sizes="(max-width: 767px) 90vw, 520px"
-                className={`${styles.consoleImage} dark:hidden`}
-              />
-              <Image
-                src="/console-dark.png"
-                alt="Mindwire web Console showing workspace activity and agent sessions"
-                width={2400}
-                height={1050}
-                sizes="(max-width: 767px) 90vw, 520px"
-                className={`${styles.consoleImage} hidden dark:block`}
-              />
+              <div className="grid gap-px bg-line p-px">
+                {[
+                  [
+                    "Your account",
+                    "Profile, sign-in security and connected devices.",
+                  ],
+                  [
+                    "Cloud Computers",
+                    "Choose Linux or Mac and manage monthly capacity.",
+                  ],
+                  [
+                    "Plans & billing",
+                    "Subscriptions, payment methods and invoices.",
+                  ],
+                ].map(([title, description]) => (
+                  <div key={title} className="bg-background p-6">
+                    <h3 className="text-sm font-semibold">{title}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {description}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </a>
             <p>
-              Building with agents? The same runtime powers the app, the
-              Console, and your next project.
+              Manage your account on the web. Work with your computers in the
+              Mindwire app.
             </p>
           </div>
         </div>

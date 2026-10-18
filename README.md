@@ -12,7 +12,7 @@ subscriptions, connect your computer, and put it to work from your iPhone, iPad,
 - **Work where you want.** Use your computer, a server, or a cloud workspace.
 
 [Get started](https://mindwire.sh/get-started) · [Documentation](https://mindwire.sh/docs) ·
-[Web console](https://console.mindwire.sh)
+[Account & Cloud portal](https://console.mindwire.sh)
 
 [Development](CONTRIBUTING.md) · [Self-hosting](docker/README.md)
 

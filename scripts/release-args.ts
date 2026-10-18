@@ -9,16 +9,13 @@
  * understands, so the two can't drift.
  */
 
-export type WizardBump = "patch" | "minor" | "major" | "rc" | "current" | "custom";
+export type WizardBump =
+  "patch" | "minor" | "major" | "rc" | "current" | "custom";
 
 export interface WizardAnswers {
-  mode: "version" | "docker";
   bump?: WizardBump;
   /** Literal semver when `bump === "custom"`. */
   literal?: string;
-  /** Empty/undefined → the console image is tagged with the short SHA. */
-  dockerTag?: string;
-  dockerRef?: string;
   dryRun: boolean;
   forceBranch: boolean;
   /** Re-release an existing tag (delete + re-push). Maps to `--force`. */
@@ -28,15 +25,8 @@ export interface WizardAnswers {
 export function buildWizardArgs(a: WizardAnswers): string[] {
   const out: string[] = [];
 
-  if (a.mode === "docker") {
-    out.push("docker");
-    if (a.dockerTag) out.push(a.dockerTag);
-    if (a.dockerRef) out.push(`--ref=${a.dockerRef}`);
-  } else {
-    // "current" is also the no-arg default, but it MUST be explicit here: the wizard re-executes this
-    // script, and an empty argv would land back in the wizard instead of releasing.
-    out.push(a.bump === "custom" ? a.literal! : (a.bump ?? "current"));
-  }
+  // An explicit current version avoids re-entering the interactive wizard.
+  out.push(a.bump === "custom" ? a.literal! : (a.bump ?? "current"));
 
   if (a.dryRun) out.push("--dry-run");
   if (a.forceBranch) out.push("--force-branch");

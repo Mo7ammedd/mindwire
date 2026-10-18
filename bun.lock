@@ -32,7 +32,6 @@
         "firebase-admin": "^13.10.0",
         "hono": "^4.13.13",
         "lucide-react": "^1.57.0",
-        "mindwire": "workspace:*",
         "oblien": "^2.10.0",
         "pg": "^8.23.1",
         "react": "^19.3.1",
@@ -55,10 +54,6 @@
         "tsx": "^4.23.15",
         "typescript": "^7.0.2",
         "vite": "^8.3.4",
-      },
-      "optionalDependencies": {
-        "dockerode": "^5.0.1",
-        "ssh2": "^1.17.0",
       },
     },
     "apps/web": {
@@ -102,6 +97,7 @@
         "@types/node": "26.6.5",
         "@types/qrcode": "^1.5.6",
         "@types/ws": "^8.18.2",
+        "dockerode": "^5.0.1",
         "tsup": "9.0.0",
         "typescript": "7.0.2",
       },
@@ -1375,7 +1371,7 @@
 
     "mz": ["mz@2.7.0", "", { "dependencies": { "any-promise": "^1.0.0", "object-assign": "^4.0.1", "thenify-all": "^1.0.0" } }, "sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q=="],
 
-    "nan": ["nan@2.29.0", "", {}, "sha512-GlGk3HIvitbvs+LT3g6XUP1kpirKNvmDFwF/bmo6XNWSb/eYEs/O4bfgIEIXCZ+lIOTS5xNwDvSGMw6FJdAhtA=="],
+    "nan": ["nan@2.30.0", "", {}, "sha512-P5mokDkSvCGBz6mZDD/2l+w9QoICRXdCyZ9ONGmTePr40oihJg3Kpn0YU3twKd6PJnwSlLBWNQeOT6yWEV2c4A=="],
 
     "nanoid": ["nanoid@3.3.20", "", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-uKdg2G3GNCKQn9byYOpxbGqrT2fGO5KRt5J/8b3pok8rT6qxGWF6hxMyJiEYtAf+FVyYuD9hRaDqX5uPFYJ4ZQ=="],
 

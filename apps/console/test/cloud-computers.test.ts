@@ -120,9 +120,9 @@ beforeAll(async () => {
     cleanupDatabase = async () => { try { await admin.query(`DROP DATABASE ${name} WITH (FORCE)`); } finally { await admin.end(); } };
   }
   child = spawn("node", ["--import", require.resolve("tsx"), new URL("./fixtures/cloud-server.ts", import.meta.url).pathname], { stdio: ["ignore", "pipe", "pipe", "ipc"], env: { ...process.env,
-    NODE_ENV: "test", CONSOLE_MODE: "cloud", BASE_URL: "http://127.0.0.1:8787", DATABASE_URL: databaseURL, POSTGRES_HOST: "", AUTH_DB_PATH: join(directory, "auth.db"),
+    NODE_ENV: "test", BASE_URL: "http://127.0.0.1:8787", DATABASE_URL: databaseURL, POSTGRES_HOST: "", AUTH_DB_PATH: join(directory, "auth.db"),
     AUTH_SECRET: randomBytes(48).toString("base64url"), SECRETS_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
-    PUSH_IDENTITY_PROVIDER_URL: fake.url.origin, OBLIEN_CLIENT_ID: "reseller", OBLIEN_CLIENT_SECRET: "private-secret", OBLIEN_BASE_URL: fake.url.origin, OBLIEN_WEBHOOK_SECRET: "fixture-webhook-secret", SEED_DEFAULT_DAEMON: "false",
+    PUSH_IDENTITY_PROVIDER_URL: fake.url.origin, OBLIEN_CLIENT_ID: "reseller", OBLIEN_CLIENT_SECRET: "private-secret", OBLIEN_BASE_URL: fake.url.origin, OBLIEN_WEBHOOK_SECRET: "fixture-webhook-secret",
   } });
   url = await new Promise<string>((resolve, reject) => {
     let log = ""; child.stderr?.on("data", chunk => log = (log + chunk).slice(-4000));
@@ -363,9 +363,9 @@ test("explicit account linking preserves existing push IDs and hashes, renews cr
 
 test("production account cookies are host-only and Secure, including device approval login", async () => {
   const production = spawn("node", ["--import", require.resolve("tsx"), new URL("./fixtures/cloud-server.ts", import.meta.url).pathname], {
-    stdio: ["ignore", "pipe", "pipe", "ipc"], env: { ...process.env, NODE_ENV: "production", CONSOLE_MODE: "cloud", BASE_URL: "https://console.mindwire.test",
+    stdio: ["ignore", "pipe", "pipe", "ipc"], env: { ...process.env, NODE_ENV: "production", BASE_URL: "https://console.mindwire.test",
       DATABASE_URL: "", POSTGRES_HOST: "", AUTH_DB_PATH: join(directory, "production-auth.db"), AUTH_SECRET: randomBytes(48).toString("base64url"),
-      SECRETS_ENCRYPTION_KEY: randomBytes(32).toString("base64url"), SEED_DEFAULT_DAEMON: "false" },
+      SECRETS_ENCRYPTION_KEY: randomBytes(32).toString("base64url") },
   });
   try {
     const address = await new Promise<string>((resolve, reject) => {
@@ -413,4 +413,43 @@ test("linked native and previous-account requests rotate one delivery channel at
   expect(new Set(minted.map(r => r.data.token.id)).size).toBe(1);
   const outcomes = await Promise.all(minted.map(r => api("/api/notifications/send", "POST", { title: "One active credential" }, r.data.token.token)));
   expect(outcomes.filter(r => r.status === 200)).toHaveLength(1);
+});
+
+test("account portal lists only owned connections without credentials and revokes by opaque ID", async () => {
+  expect((await api("/api/portal/sessions", "GET", undefined, "")).status).toBe(401);
+  const email = "portal-sessions@example.test", password = "fixture-password-123456";
+  const first = (await api("/api/account/sign-up/email", "POST", { email, password, name: "Portal" }, "")).data;
+  const second = await api("/api/account/sign-in/email", "POST", { email, password }, "");
+  const listed = await api("/api/portal/sessions", "GET", undefined, first.token);
+  expect(listed.status).toBe(200);
+  expect(listed.data.sessions).toHaveLength(2);
+  expect(listed.data.sessions.filter((s: any) => s.current)).toHaveLength(1);
+  for (const session of listed.data.sessions) {
+    expect(Object.keys(session).sort()).toEqual(["id", "current", "userAgent", "createdAt", "lastActiveAt", "expiresAt"].sort());
+    expect(session.id).not.toBe(first.token);
+    expect(session.id).not.toBe(second.data.token);
+  }
+  const other = listed.data.sessions.find((s: any) => !s.current);
+  expect((await api(`/api/portal/sessions/${other.id}/revoke`, "POST", {}, stranger.token)).status).toBe(404);
+  const cookie = second.headers.get("set-cookie")!.split(";")[0];
+  const forged = await fetch(`${url}/api/portal/sessions/${other.id}/revoke`, {
+    method: "POST", headers: { Cookie: cookie, Origin: "https://untrusted.example" },
+  });
+  expect(forged.status).toBe(403);
+  expect((await api(`/api/portal/sessions/${other.id}/revoke`, "POST", {}, first.token)).status).toBe(200);
+  expect((await api("/api/portal/sessions", "GET", undefined, second.data.token)).status).toBe(401);
+  expect((await api("/api/portal/sessions", "GET", undefined, first.token)).data.sessions).toHaveLength(1);
+});
+
+test("profile and password use the existing account API and revoke other connections", async () => {
+  const email = "portal-profile@example.test", password = "fixture-password-123456";
+  const first = (await api("/api/account/sign-up/email", "POST", { email, password, name: "Before" }, "")).data;
+  const second = (await api("/api/account/sign-in/email", "POST", { email, password }, "")).data;
+  expect((await api("/api/account/update-user", "POST", { name: "After" }, first.token)).status).toBe(200);
+  expect((await api("/api/account/get-session", "GET", undefined, first.token)).data.user.name).toBe("After");
+  const changed = await api("/api/account/change-password", "POST", { currentPassword: password, newPassword: "replacement-password-456", revokeOtherSessions: true }, first.token);
+  expect(changed.status).toBe(200);
+  expect((await api("/api/portal/sessions", "GET", undefined, second.token)).status).toBe(401);
+  expect((await api("/api/account/sign-in/email", "POST", { email, password }, "")).status).toBe(401);
+  expect((await api("/api/account/sign-in/email", "POST", { email, password: "replacement-password-456" }, "")).status).toBe(200);
 });

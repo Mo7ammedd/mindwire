@@ -1,7 +1,6 @@
 # Contributing to mindwire
 
-Mindwire is an open personal assistant and coding companion, with native Apple and browser clients
-over a shared agent runtime. Contributions to everyday workflows, clients, adapters, documentation,
+Mindwire is an open personal assistant and coding companion, with a native Apple client and shared agent runtime. Contributions to everyday workflows, clients, adapters, documentation,
 and infrastructure are welcome.
 
 By participating you agree to abide by our [Code of Conduct](./CODE_OF_CONDUCT.md).
@@ -16,8 +15,8 @@ By participating you agree to abide by our [Code of Conduct](./CODE_OF_CONDUCT.m
   `apps/web/content/docs/` — update it there (not in scattered repo markdown) when behavior changes.
 
 - **`apps/apple/`** — shared Apple app source and tests; iOS/iPadOS today.
-- **`apps/console/`** — browser client and control plane.
-- **`docker/`** — production image definitions and self-hosted deployment.
+- **`apps/console/`** — hosted account, device, billing and Cloud management portal.
+- **`docker/`** — source-built SaaS deployment.
 
 ## Prerequisites
 
@@ -42,8 +41,8 @@ go build ./...
 go test ./...
 DEV_CORS=1 go run ./cmd/daemon    # dev server on 127.0.0.1:8790
 
-# --- Preview app (Vite + Hono over the SDK) ---
-bun dev    # from the repo root: daemon + preview together; open http://127.0.0.1:5174
+# --- Hosted account portal (Vite + Hono) ---
+bun dev    # from the repo root: portal only; open http://127.0.0.1:5174
 
 # --- SDK ---
 bun --filter='mindwire' run typecheck
@@ -123,7 +122,9 @@ Releases are tag-driven (`.github/workflows/release.yml`). Maintainers only:
    (e.g. `v1.2.3-rc.1`) marks a prerelease → GitHub prerelease + npm `next` dist-tag.
 3. The workflow runs the **release gate** (`release-gate.yml`: Go suite + SDK unit + real E2E) first —
    a red gate publishes nothing. Then it builds the static Linux daemon binaries (amd64 + arm64) for a
-   GitHub Release and publishes the six npm packages (`mindwire-daemon-*` first, then `mindwire`).
+   GitHub Release, boots a downloaded artifact, and publishes the TypeScript SDK to npm. Runtime
+   binaries are downloaded and checksum-verified from the matching release; no runtime or Console
+   images are published to GHCR.
 
 Prerequisite: a repo secret **`NPM_TOKEN`** (an npm automation token with publish rights). Without it
 the build and packaged-install smoke still run as a dry run, but the `npm publish` steps skip. Every

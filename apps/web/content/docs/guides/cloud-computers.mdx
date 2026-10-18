@@ -35,6 +35,15 @@ retained storage follow the provider's saved contract; retained storage may incu
 charges. Deleting a computer stops renewal first and verifies resource removal.
 It does not refund the paid month.
 
+## Account portal
+
+Console manages your account, signed-in devices, notification devices, Cloud Computers and billing.
+Open **Devices** to review connections or sign out a device, and **Account** to update your name or
+password. Computer details include current power status and start, stop and restart controls.
+Included CPU, memory and storage describe your purchased capacity, not measured live utilization.
+Agent chats, terminals, personal computers and development tools remain in the Mindwire app.
+Console is Mindwire's hosted service, not a self-hosted browser client.
+
 ## Native sign-in
 
 The app opens Mindwire's browser sign-in with a short device code. Compare that
@@ -60,7 +69,7 @@ Mindwire social sign-in does not grant access to private repositories.
 
 ## Deploying the control plane
 
-Use the SaaS Compose stack with `CONSOLE_MODE=cloud`, PostgreSQL, a random
+Use the SaaS Compose stack with PostgreSQL, a random
 `AUTH_SECRET`, and a separate `SECRETS_ENCRYPTION_KEY`. Configure server-only
 `OBLIEN_CLIENT_ID` / `OBLIEN_CLIENT_SECRET` for the Mindwire reseller account.
 Never use a namespace chosen by the client or expose master credentials in app,

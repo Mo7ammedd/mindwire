@@ -1,4 +1,4 @@
-name: Docker images
+name: SaaS source deployment
 
 on:
   push:
@@ -86,8 +86,6 @@ jobs:
         run: |
           set -euo pipefail
           docker run -d --name mindwire-console-check -p 127.0.0.1:18787:8787 \
-            -e CONSOLE_USERNAME=ci-review \
-            -e CONSOLE_PASSWORD=ci-image-smoke-password \
             -e AUTH_SECRET=ci-image-smoke-auth-secret-at-least-32-characters \
             -e SECRETS_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
             mindwire-console:check
@@ -108,28 +106,3 @@ jobs:
             if (db.prepare("select 1 as value").get().value !== 1) process.exit(1);
             db.close();
           '
-
-  runtime-image:
-    name: Build and start runtime container
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.source-ref || github.ref }}
-      - name: Build runtime with pinned agent harnesses
-        run: docker build --progress=plain -f docker/runtime.Dockerfile -t mindwire-runtime:check .
-      - name: Start image and verify authenticated health
-        run: |
-          set -euo pipefail
-          docker run -d --name mindwire-runtime-check -p 127.0.0.1:18790:8790 -e DAEMON_TOKEN=ci-image-smoke-test mindwire-runtime:check
-          trap 'docker logs mindwire-runtime-check; docker rm -f mindwire-runtime-check' EXIT
-          ready=0
-          for attempt in {1..30}; do
-            if curl --fail --silent -H 'Authorization: Bearer ci-image-smoke-test' http://127.0.0.1:18790/healthz >/dev/null; then
-              ready=1
-              break
-            fi
-            sleep 2
-          done
-          test "$ready" = 1

@@ -1,4 +1,4 @@
-# Optional overlay for docker-compose.yml or docker-compose.selfhost.yml.
+# Optional overlay for docker-compose.yml.
 # The host file must be readable by container uid 1000; it is never copied into an image.
 services:
   console:

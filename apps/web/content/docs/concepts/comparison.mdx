@@ -129,12 +129,10 @@ mindwire treats as first-class are ones a sandboxed in-process library has reaso
 
 ## Operating it
 
-Because the runtime is a process with an API, it can be operated. `apps/console` in the repo is a
-self-hosted, multi-user console over exactly that API: a fleet of runtimes across five modes, every
-capability surface, a streaming chat, a page per runtime and a page per agent with its spend
-breakdown. Its surfaces are generated from what the runtime reports — the sidebar follows the
-adapter's capability flags, the settings form is rendered from the agent's declared schema — so there
-is no per-harness UI to maintain.
+Because the runtime is a process with an API, clients can operate it. The Mindwire app and SDK manage
+agent capabilities, configuration and streamed conversations over the same runtime contract.
+`apps/console` is the hosted account portal: it manages accounts, device connections, monthly Cloud
+Computers and billing. It does not host agent conversations or control personal runtime environments.
 
 The distinction worth being precise about is **observation versus control**. The LLM observability
 ecosystem is large and good at what it does, and roughly twenty providers integrate with AI SDK

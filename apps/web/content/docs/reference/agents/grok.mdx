@@ -11,7 +11,7 @@ const mw = new Mindwire({ agent: "grok" });
 
 ## Runtime requirements
 
-The production `mindwire-runtime` image preinstalls `@xai-official/grok`. On a host runtime, MindWire setup installs the same official package.
+Mindwire setup installs the official `@xai-official/grok` package on host and Docker runtimes.
 
 For unattended runs, connect an xAI API key in the Console or provide `XAI_API_KEY` to the runtime. You can also authenticate the CLI with `grok login` on an interactive host.
 

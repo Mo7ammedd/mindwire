@@ -7,11 +7,12 @@ import { serve } from "@hono/node-server";
 import { initAuth } from "../../server/auth";
 import { registerAuth } from "../../server/guard";
 import { registerCloud } from "../../server/cloud/routes";
+import { registerAccountPortal } from "../../server/account/routes";
 import { sql } from "drizzle-orm";
 import { consoleRows } from "../../server/database";
 
 await initAuth();
-const app = new Hono(); registerAuth(app); registerCloud(app);
+const app = new Hono(); registerAuth(app); registerCloud(app); registerAccountPortal(app);
 const pushStore = new PushStore();
 const sent: string[][] = [];
 const pushService = new PushService(pushStore, {

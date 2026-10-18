@@ -68,7 +68,7 @@ struct ComputerSetupHelpScreen: View {
                 command("Keep your provider · add recovery", "mindwire discovery enable")
                 Text("After enabling, open each saved phone once while its current connection works. You can self-host the directory in Mindwire Console; set its URL on the computer and your phone learns it securely when connected.")
                     .font(.subheadline).foregroundStyle(.secondary)
-                command("Self-hosted directory", "mindwire discovery enable --directory-url https://your-console.example/api/computer-directory/v1")
+                command("Private directory", "mindwire discovery enable --directory-url https://your-directory.example/api/computer-directory/v1")
             }
             Section("Persistent connection options") {
                 command("Oblien · sign in on your computer", "mindwire connection oblien")

@@ -1,17 +1,7 @@
 import type { Context } from "hono";
-import { auth } from "../auth";
-import { env } from "../env";
 import { CloudError } from "./types";
 
-export async function cloudAccount(c: Context) {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session?.user?.id) throw new CloudError(401, "unauthorized", "Sign in to Mindwire.");
-  // Cookie mutations require same-origin consent. Native Bearer sessions don't
-  // rely on ambient browser credentials and cannot be used in a cross-site form.
-  if (c.req.header("Cookie") && !["GET", "HEAD"].includes(c.req.method) && !env.trustedOrigins.includes(c.req.header("Origin") ?? ""))
-    throw new CloudError(403, "untrusted_origin", "This action must start from Mindwire Console.");
-  return session.user;
-}
+export { accountUser as cloudAccount } from "../account/access";
 
 export async function cloudBody(c: Context): Promise<Record<string, unknown>> {
   const raw = await cloudRawBody(c);

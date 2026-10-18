@@ -59,10 +59,10 @@ beforeAll(async () => {
   }
   child = spawn("node", ["--import", require.resolve("tsx"), new URL("./fixtures/push-server.ts", import.meta.url).pathname], {
     stdio: ["ignore", "pipe", "pipe", "ipc"], env: { ...process.env,
-      NODE_ENV: "test", CONSOLE_MODE: "cloud", BASE_URL: "http://127.0.0.1:8787", DATABASE_URL: databaseURL, POSTGRES_PASSWORD: "",
+      NODE_ENV: "test", BASE_URL: "http://127.0.0.1:8787", DATABASE_URL: databaseURL, POSTGRES_PASSWORD: "",
       AUTH_DB_PATH: join(directory, "auth.db"), AUTH_SECRET: randomBytes(48).toString("base64url"),
       SECRETS_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
-      PUSH_IDENTITY_PROVIDER_URL: `http://127.0.0.1:${identity.port}`, SEED_DEFAULT_DAEMON: "false",
+      PUSH_IDENTITY_PROVIDER_URL: `http://127.0.0.1:${identity.port}`,
     },
   });
   url = await new Promise<string>((resolve, reject) => {

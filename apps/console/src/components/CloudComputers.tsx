@@ -1,109 +1,454 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ExternalLink, Loader2, Monitor, RefreshCw } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowRight, Check, Cpu, Loader2, Monitor, Plus } from "lucide-react";
 import type { CloudComputer, ComputerPlan } from "@shared/cloud";
+import { useCloud, computerState } from "@/lib/cloud";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BrandMark } from "@/components/BrandMark";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  PageTitle,
+  ErrorNotice,
+  Loading,
+  money,
+  date,
+  ConfirmAction,
+} from "./portal/common";
 
-async function request<T>(path: string, method = "GET", body?: object): Promise<T> {
-  const response = await fetch(`/api/cloud${path}`, { method, credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000) });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error ?? "Could not load Cloud Computers. Try again.");
-  return data as T;
+export function ComputerRow({ computer }: { computer: CloudComputer }) {
+  return (
+    <Link
+      to={`/computers/${computer.id}`}
+      className="group flex flex-wrap items-center gap-4 border-b border-border p-5 transition-colors last:border-0 hover:bg-accent/40"
+    >
+      <span className="grid size-11 shrink-0 place-items-center bg-secondary">
+        <Monitor className="size-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{computer.name}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {computer.plan.name} · {computer.plan.vcpus} vCPU ·{" "}
+          {computer.plan.memoryMb / 1024} GB RAM · {computer.plan.diskGb} GB
+          storage
+        </p>
+      </div>
+      <span className="text-xs text-muted-foreground">
+        {computerState(computer)}
+      </span>
+      <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+    </Link>
+  );
 }
-
-export function CloudComputers({ email, onSignOut }: { email: string; onSignOut: () => void }) {
-  const [catalog, setCatalog] = useState<{ available: boolean; plans: ComputerPlan[] }>();
-  const [computers, setComputers] = useState<CloudComputer[]>([]);
-  const [images, setImages] = useState<Array<{ id: string; image: string; label: string; base_os?: { family: string }; minimum_resources?: { cpus?: number; memory_mb?: number; disk_size_mb?: number } }>>([]);
-  const [name, setName] = useState("My computer"), [planId, setPlan] = useState(() => { const plan = new URLSearchParams(window.location.search).get("plan"); return ["essential", "pro", "max"].includes(plan ?? "") ? plan! : "essential"; }), [image, setImage] = useState("");
-  const [error, setError] = useState(""), [busy, setBusy] = useState<string | null>(null), [loaded, setLoaded] = useState(false);
-  const [catalogRefresh, setCatalogRefresh] = useState(0);
-  const reconciling = useRef(false);
-  const [purchaseKey, setPurchaseKey] = useState(() => crypto.randomUUID());
-  const reload = useCallback(async () => {
-    const result = await request<{ computers: CloudComputer[] }>("/computers"); setComputers(result.computers);
-  }, []);
+export function CloudComputers() {
+  const cloud = useCloud();
+  return (
+    <div className="space-y-7">
+      <PageTitle
+        title="Cloud Computers"
+        description="Your managed computers, capacity and monthly plans. Connect from the Mindwire app to start working."
+        action={
+          <Button asChild>
+            <Link to="/computers/new">
+              <Plus />
+              New computer
+            </Link>
+          </Button>
+        }
+      />
+      {!cloud.loaded ? (
+        <Loading />
+      ) : cloud.computers.length ? (
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            {cloud.computers.map((c) => (
+              <ComputerRow key={c.id} computer={c} />
+            ))}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+            <span className="grid size-14 place-items-center bg-secondary">
+              <Monitor className="size-6" />
+            </span>
+            <div>
+              <h2 className="font-medium">
+                Your next computer, ready when you are
+              </h2>
+              <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                Choose a monthly plan for a managed Linux or Mac computer. Your
+                own computers stay free to use in Mindwire.
+              </p>
+            </div>
+            <Button asChild>
+              <Link to="/computers/new">
+                Choose a computer
+                <ArrowRight />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Personal computers and SSH connections are managed in the Mindwire app.
+        They do not require a Cloud subscription.
+      </p>
+    </div>
+  );
+}
+export function PlanCards({
+  selected,
+  onSelect,
+}: {
+  selected?: string;
+  onSelect?: (id: string) => void;
+}) {
+  const { catalog } = useCloud();
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {catalog?.plans.map((plan) => (
+        <Card
+          key={plan.id}
+          className={selected === plan.id ? "border-foreground" : ""}
+        >
+          <CardContent className="space-y-5 p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium">{plan.name}</h3>
+              {selected === plan.id ? (
+                <Check className="size-4" />
+              ) : (
+                <Cpu className="size-4 text-muted-foreground" />
+              )}
+            </div>
+            <p className="text-3xl font-semibold tracking-tight">
+              {money(plan.monthlyCents)}
+              <span className="ml-1 text-sm font-normal text-muted-foreground">
+                /month
+              </span>
+            </p>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>{plan.vcpus} shared vCPU</li>
+              <li>{plan.memoryMb / 1024} GB RAM</li>
+              <li>{plan.diskGb} GB storage</li>
+            </ul>
+            {onSelect ? (
+              <Button
+                type="button"
+                variant={selected === plan.id ? "default" : "outline"}
+                className="w-full"
+                onClick={() => onSelect(plan.id)}
+              >
+                {selected === plan.id ? "Selected" : `Choose ${plan.name}`}
+              </Button>
+            ) : (
+              <Button asChild variant="outline" className="w-full">
+                <Link to={`/computers/new?plan=${plan.id}`}>
+                  Choose {plan.name}
+                </Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+export function NewComputer() {
+  const cloud = useCloud(),
+    navigate = useNavigate(),
+    [search] = useSearchParams();
+  const [name, setName] = useState("My computer"),
+    [image, setImage] = useState(""),
+    [plan, setPlan] = useState(search.get("plan") ?? "essential");
+  const [key, setKey] = useState(() => crypto.randomUUID()),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [loadingImages, setLoadingImages] = useState(true),
+    [retry, setRetry] = useState(0);
   useEffect(() => {
+    if (!cloud.catalog?.available) {
+      if (cloud.loaded) setLoadingImages(false);
+      return;
+    }
     let disposed = false;
-    (async () => {
-      try {
-        const pricing = await request<{ available: boolean; plans: ComputerPlan[] }>("/catalog");
-        if (disposed) return;
-        setCatalog(pricing); await reload();
-        if (pricing.available) {
-          const result = await request<{ images: typeof images }>("/provider/workspace/images?monthly=true");
-          if (!disposed) { setImages(result.images); setImage(current => result.images.some(image => image.id === current) ? current : result.images[0]?.id ?? ""); }
+    setLoadingImages(true);
+    cloud
+      .loadImages()
+      .then((images) => {
+        if (!disposed) {
+          setImage((current) =>
+            images.some((i) => i.id === current)
+              ? current
+              : (images[0]?.id ?? ""),
+          );
+          setError("");
         }
-      } catch (error) { if (!disposed) setError((error as Error).message); }
-      finally { if (!disposed) setLoaded(true); }
-    })();
-    return () => { disposed = true; };
-  }, [reload, catalogRefresh]);
-  const pending = computers.some(c => ["checkout_pending", "payment_pending", "paid", "provisioning"].includes(c.state));
-  useEffect(() => {
-    if (!pending) return;
-    const timer = setInterval(async () => {
-      if (reconciling.current || document.hidden) return;
-      reconciling.current = true;
-      try {
-        let failure: string | undefined;
-        for (const computer of computers.filter(c => ["checkout_pending", "payment_pending", "paid", "provisioning"].includes(c.state))) {
-          try { await request(`/computers/${computer.id}/reconcile`, "POST"); }
-          catch (error) { failure ??= (error as Error).message; }
+      })
+      .catch((error) => {
+        if (!disposed) setError(error.message);
+      })
+      .finally(() => {
+        if (!disposed) setLoadingImages(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [cloud.catalog?.available, cloud.loaded, cloud.loadImages, retry]);
+  const selectedImage = cloud.images.find((i) => i.id === image),
+    selectedPlan = cloud.catalog?.plans.find((p) => p.id === plan);
+  const fits = (p: ComputerPlan) =>
+    p.vcpus >= (selectedImage?.minimum_resources?.cpus ?? 0) &&
+    p.memoryMb >= (selectedImage?.minimum_resources?.memory_mb ?? 0) &&
+    p.diskGb * 1024 >= (selectedImage?.minimum_resources?.disk_size_mb ?? 0);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const result = await cloud.purchase(name.trim(), image, plan, key);
+      if (result.computer && !result.computer.checkout)
+        navigate(`/computers/${result.computer.id}`);
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="space-y-7">
+      <PageTitle
+        title="New Cloud Computer"
+        description="Choose your system and monthly capacity. Review the payment before your computer is created."
+        action={
+          <Button asChild variant="ghost">
+            <Link to="/computers">Cancel</Link>
+          </Button>
         }
-        await reload();
-        if (failure) setError(failure);
-      } catch (error) { setError((error as Error).message); }
-      finally { reconciling.current = false; }
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [pending, computers, reload]);
-  async function action(id: string, operation: string) {
-    setBusy(id); setError("");
+      />
+      {error && (
+        <ErrorNotice message={error} retry={() => setRetry((n) => n + 1)} />
+      )}
+      {!cloud.loaded || loadingImages ? (
+        <Loading />
+      ) : !cloud.catalog?.available ? (
+        <ErrorNotice
+          message="Cloud Computer purchases are not enabled yet. Your existing account and personal computers remain available."
+          retry={() => void cloud.reload().catch(() => {})}
+        />
+      ) : (
+        <form onSubmit={submit} className="space-y-7">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+            <div className="space-y-7">
+              <Card>
+                <CardContent className="grid gap-5 p-6 sm:grid-cols-2">
+                  <label className="space-y-2 text-sm">
+                    <span>Name</span>
+                    <Input
+                      value={name}
+                      maxLength={100}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        setKey(crypto.randomUUID());
+                      }}
+                      required
+                    />
+                  </label>
+                  <label className="space-y-2 text-sm">
+                    <span>Operating system</span>
+                    <select
+                      className="h-9 w-full border border-input bg-background px-3"
+                      aria-label="Operating system"
+                      value={image}
+                      onChange={(e) => {
+                        setImage(e.target.value);
+                        setKey(crypto.randomUUID());
+                      }}
+                    >
+                      {cloud.images.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.label || i.id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </CardContent>
+              </Card>
+              <div>
+                <h2 className="mb-4 text-sm font-medium">Monthly capacity</h2>
+                <PlanCards
+                  selected={plan}
+                  onSelect={(id) => {
+                    setPlan(id);
+                    setKey(crypto.randomUUID());
+                  }}
+                />
+              </div>
+              {selectedPlan && !fits(selectedPlan) && (
+                <ErrorNotice message="Choose a larger plan for this system. Mac + Xcode needs the Max plan." />
+              )}
+            </div>
+            <aside>
+              <Card>
+                <CardContent className="space-y-5 p-6">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Your computer
+                  </p>
+                  <p className="text-lg font-medium">
+                    {name || "New computer"}
+                  </p>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p>{selectedImage?.label || selectedImage?.id}</p>
+                    <p>
+                      {selectedPlan?.name} · {selectedPlan?.vcpus} vCPU ·{" "}
+                      {(selectedPlan?.memoryMb ?? 0) / 1024} GB RAM
+                    </p>
+                    <p>{selectedPlan?.diskGb} GB storage</p>
+                  </div>
+                  <div className="border-t border-border pt-5">
+                    <p className="text-2xl font-semibold">
+                      {money(selectedPlan?.monthlyCents ?? 0)}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        {" "}
+                        /month
+                      </span>
+                    </p>
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={
+                      busy ||
+                      !name.trim() ||
+                      !image ||
+                      !selectedPlan ||
+                      !fits(selectedPlan)
+                    }
+                  >
+                    {busy ? <Loader2 className="animate-spin" /> : null}Continue
+                    to checkout
+                    <ArrowRight />
+                  </Button>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    CPU, RAM and included storage are covered for your paid
+                    month. Transfer and retained storage follow your
+                    subscription terms.
+                  </p>
+                </CardContent>
+              </Card>
+            </aside>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+export function Billing() {
+  const cloud = useCloud(),
+    [busy, setBusy] = useState<string | null>(null),
+    [error, setError] = useState("");
+  async function act(id: string, action: string) {
+    setBusy(id);
+    setError("");
     try {
-      const result = await request<{ url?: string; computer?: CloudComputer }>(`/computers/${id}/${operation}`, "POST");
-      if (result.url) window.location.assign(result.url);
-      else if (operation === "checkout" && result.computer?.checkout) window.location.assign(result.computer.checkout.url);
-      await reload();
-    } catch (error) { setError((error as Error).message); }
-    finally { setBusy(null); }
+      await cloud.action(id, action);
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy(null);
+    }
   }
-  const selectedImage = images.find(i => i.id === image);
-  const fitsImage = (plan: ComputerPlan) => plan.vcpus >= (selectedImage?.minimum_resources?.cpus ?? 0) && plan.memoryMb >= (selectedImage?.minimum_resources?.memory_mb ?? 0) && plan.diskGb * 1024 >= (selectedImage?.minimum_resources?.disk_size_mb ?? 0);
-  async function purchase() {
-    setBusy("new"); setError("");
-    try {
-      const result = await request<{ computer: CloudComputer }>("/computers", "POST", { name, imageId: image, planId, idempotencyKey: purchaseKey });
-      await reload(); await action(result.computer.id, "checkout");
-      setPurchaseKey(crypto.randomUUID());
-    } catch (error) { setError((error as Error).message); }
-    finally { setBusy(null); }
-  }
-  return <main className="mx-auto min-h-dvh max-w-6xl space-y-8 p-5 md:p-10">
-    <header className="flex flex-wrap items-center justify-between gap-4"><a href="/" className="flex items-center gap-3 text-sm"><BrandMark size={24} /><ArrowLeft className="size-4" /> Console</a><div className="flex items-center gap-3 text-sm text-muted-foreground"><span>{email}</span><Button variant="ghost" size="sm" onClick={onSignOut}>Sign out</Button></div></header>
-    <div><h1 className="text-2xl font-semibold">Cloud Computers</h1><p className="mt-2 text-sm text-muted-foreground">A computer for your projects, agents and development tools. One monthly subscription per computer.</p></div>
-    {error && <div role="alert" className="flex items-center justify-between gap-4 border border-destructive/30 p-4 text-sm"><p>{error}</p><Button size="sm" variant="outline" onClick={() => { setError(""); setLoaded(false); setCatalogRefresh(value => value + 1); }}>Retry</Button></div>}
-    {!loaded ? <Loader2 className="size-5 animate-spin" /> : <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
-      <section className="space-y-4"><div className="flex items-center justify-between"><h2 className="font-medium">Your computers</h2><Button size="sm" variant="ghost" onClick={() => void reload().catch(e => setError(e.message))}><RefreshCw className="size-4" />Refresh</Button></div>
-        {!computers.length && <Card><CardContent className="space-y-3 py-10 text-center"><Monitor className="mx-auto size-8 text-muted-foreground" /><p>No Cloud Computers yet</p><p className="text-sm text-muted-foreground">Choose a plan to get started. Your own computers and SSH connections stay free.</p></CardContent></Card>}
-        {computers.map(computer => <Card key={computer.id}><CardHeader><CardTitle className="flex items-center justify-between gap-4 text-base"><span>{computer.name}</span><span className="text-xs font-normal capitalize text-muted-foreground">{computer.state.replaceAll("_", " ")}</span></CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">{computer.plan.name} · {computer.plan.vcpus} vCPU · {computer.plan.memoryMb / 1024} GB RAM · {computer.plan.diskGb} GB storage · ${computer.plan.monthlyCents / 100}/month</p>
-          {computer.subscription?.paidThrough && <p className="text-sm text-muted-foreground">{computer.subscription.cancelAtPeriodEnd ? "Renewal stopped. Paid through " : "Next renewal "}{new Date(computer.subscription.paidThrough).toLocaleDateString()}</p>}
-          {computer.error && <p role="status" className="text-sm text-muted-foreground">{computer.error}</p>}
-          <div className="flex flex-wrap gap-2">{["paid", "provisioning"].includes(computer.state) && <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void action(computer.id, "reconcile")}>Check setup</Button>}{["draft", "checkout_pending", "payment_pending"].includes(computer.state) ? <><Button size="sm" disabled={busy !== null} onClick={() => void action(computer.id, "checkout")}>{busy === computer.id && <Loader2 className="size-4 animate-spin" />}Continue checkout<ExternalLink className="size-3" /></Button>{(["draft", "checkout_pending", "payment_pending"].includes(computer.state)) && <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void action(computer.id, "checkout/cancel")}>Cancel checkout</Button>}</> : <><Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void action(computer.id, "billing-portal")}>Manage billing</Button><Button size="sm" disabled={busy !== null || !computer.workspaceId} onClick={() => void action(computer.id, "use")}>Use in Console</Button><Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void action(computer.id, `subscription/${computer.subscription?.cancelAtPeriodEnd ? "resume" : "cancel"}`)}>{computer.subscription?.cancelAtPeriodEnd ? "Resume renewal" : "Stop renewal"}</Button></>}</div>
-        </CardContent></Card>)}
-      </section>
-      <aside><Card><CardHeader><CardTitle className="text-base">New Cloud Computer</CardTitle></CardHeader><CardContent className="space-y-5">
-        {!catalog?.available ? <p className="text-sm text-muted-foreground">Cloud Computer purchases are not enabled on this Console yet.</p> : <>
-          <label className="block space-y-2 text-sm"><span>Name</span><Input value={name} maxLength={100} onChange={e => { setName(e.target.value); setPurchaseKey(crypto.randomUUID()); }} /></label>
-          <label className="block space-y-2 text-sm"><span>Image</span><select aria-label="Image" className="h-9 w-full border border-input bg-background px-3" value={image} onChange={e => { setImage(e.target.value); setPurchaseKey(crypto.randomUUID()); }}>{images.map(i => <option key={i.id} value={i.id}>{i.label || i.id}</option>)}</select></label>
-          {selectedImage?.minimum_resources && <p className="text-xs text-muted-foreground">This image requires at least {selectedImage.minimum_resources.cpus ?? 1} vCPU and {(selectedImage.minimum_resources.memory_mb ?? 1024) / 1024} GB RAM. Choose a compatible plan below.</p>}
-          <fieldset className="space-y-2"><legend className="mb-2 text-sm">Monthly plan</legend>{catalog.plans.map(plan => <label key={plan.id} className="flex cursor-pointer items-center gap-3 border border-input p-3 has-checked:border-primary"><input type="radio" name="plan" value={plan.id} disabled={!fitsImage(plan)} checked={planId === plan.id} onChange={() => { setPlan(plan.id); setPurchaseKey(crypto.randomUUID()); }} /><span className="flex-1 text-sm"><span className="font-medium">{plan.name}</span><span className="mt-1 block text-xs text-muted-foreground">{plan.vcpus} vCPU · {plan.memoryMb / 1024} GB RAM · {plan.diskGb} GB</span></span><span className="text-sm">${plan.monthlyCents / 100}<span className="text-muted-foreground">/mo</span></span></label>)}</fieldset>
-          <Button className="w-full" disabled={busy !== null || !image || !name.trim() || !catalog.plans.some(p => p.id === planId && fitsImage(p))} onClick={() => void purchase()}>{busy === "new" && <Loader2 className="size-4 animate-spin" />}Continue to checkout</Button>
-          <p className="text-xs leading-relaxed text-muted-foreground">Shared CPU, RAM and included storage are covered for the paid month. Transfer and retained storage follow the subscription terms. Data retention follows the saved subscription terms.</p>
-        </>}
-      </CardContent></Card></aside>
-    </div>}
-  </main>;
+  return (
+    <div className="space-y-7">
+      <PageTitle
+        title="Plans & billing"
+        description="One subscription per Cloud Computer. Your personal computers and Mindwire account stay free."
+      />
+      {error && <ErrorNotice message={error} />}
+      {!!cloud.computers.length && (
+        <section className="space-y-4">
+          <h2 className="text-sm font-medium">Your subscriptions</h2>
+          <Card>
+            <CardContent className="divide-y divide-border p-0">
+              {cloud.computers.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex flex-wrap items-center gap-4 p-5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      to={`/computers/${c.id}`}
+                      className="text-sm font-medium hover:underline"
+                    >
+                      {c.name}
+                    </Link>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {c.plan.name} · {money(c.plan.monthlyCents)}/month ·{" "}
+                      {c.subscription?.paidThrough
+                        ? `${c.subscription.cancelAtPeriodEnd ? "Paid through" : "Renews"} ${date(c.subscription.paidThrough)}`
+                        : computerState(c)}
+                    </p>
+                  </div>
+                  {["draft", "checkout_pending", "payment_pending"].includes(
+                    c.state,
+                  ) ? (
+                    <Button
+                      size="sm"
+                      disabled={busy !== null}
+                      onClick={() => void act(c.id, "checkout")}
+                    >
+                      Continue checkout
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy !== null}
+                        onClick={() => void act(c.id, "billing-portal")}
+                      >
+                        Manage billing
+                      </Button>
+                      <ConfirmAction
+                        disabled={busy !== null}
+                        label={
+                          c.subscription?.cancelAtPeriodEnd
+                            ? "Resume renewal"
+                            : "Stop renewal"
+                        }
+                        title={
+                          c.subscription?.cancelAtPeriodEnd
+                            ? "Resume this subscription?"
+                            : "Stop the next renewal?"
+                        }
+                        description="Your current paid period and computer are preserved. This does not delete your computer or files."
+                        onConfirm={() =>
+                          act(
+                            c.id,
+                            `subscription/${c.subscription?.cancelAtPeriodEnd ? "resume" : "cancel"}`,
+                          )
+                        }
+                      />
+                    </>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+      )}
+      {!cloud.loaded ? (
+        <Loading />
+      ) : (
+        <section className="space-y-4">
+          <h2 className="text-sm font-medium">Choose a Cloud Computer</h2>
+          <PlanCards />
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Each plan includes shared CPU, RAM and storage for its paid month.
+            Transfer and retained storage follow the subscription terms.
+            Existing computers keep the plan purchased for them.
+          </p>
+        </section>
+      )}
+    </div>
+  );
 }
