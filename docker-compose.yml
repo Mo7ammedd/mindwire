@@ -58,6 +58,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-mindwire}
       POSTGRES_USER: ${POSTGRES_USER:-mindwire}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set the database password}
+      AUTH_SECRET: ${AUTH_SECRET:?set a random auth signing secret}
       SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:?set a separate encryption key}
       # Better Auth's canonical public origin. Override BASE_URL for a custom SaaS domain; it is also
       # the OAuth callback origin and is automatically included in the trusted-origin allowlist.

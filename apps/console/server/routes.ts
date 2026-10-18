@@ -5,6 +5,9 @@
 //   3. sdk proxy  — thin pass-throughs to `mw.*` for the capability surfaces (targeting the active
 //                   daemon and, via `?agent=`, the selected adapter)
 // The turn stream + control routes attach separately in `turn.ts`.
+import { ComputerStore } from "./cloud/store";
+import { computerRuntime, CloudError } from "./cloud/types";
+
 import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type {
@@ -148,7 +151,13 @@ async function validateRuntimeRequest(session: Session, body: AddDaemonRequest):
   if (body.provider === "local" && !env.allowLocal) return "Controlling the current host is disabled on this deployment.";
   if (body.provider === "ssh" && (!env.allowSsh || !(await sshAvailable()))) return "SSH is not available on this server (missing the ssh2 peer).";
   if (body.provider === "docker" && (!env.allowDocker || !(await dockerAvailable()))) return "Docker is not available on this server.";
-  if (body.provider === "oblien" && !hasOblien(session)) return "Connect your Oblien account before adding an Oblien runtime.";
+  if (body.provider === "oblien" && body.computerId !== undefined) {
+    if (typeof body.computerId !== "string") return "Choose a Cloud Computer belonging to your account.";
+    try { Object.assign(body, computerRuntime(await new ComputerStore().get(session.id, body.computerId))); }
+    catch (error) { if (error instanceof CloudError) return error.message; throw error; }
+  }
+  if (body.provider === "oblien" && env.mode === "cloud" && !body.computerId) return "Choose a monthly Cloud Computer from Computers.";
+  if (body.provider === "oblien" && !body.computerId && !hasOblien(session)) return "Connect your Oblien account before adding an Oblien runtime.";
   return undefined;
 }
 
@@ -317,7 +326,7 @@ export function registerRoutes(app: Hono): void {
       remoteTokenRequired: env.mode === "cloud",
       local: env.allowLocal,
       ssh: env.allowSsh && ssh,
-      oblien,
+      oblien: env.mode !== "cloud" && oblien,
       docker: env.allowDocker && docker,
     };
     return json(c, availability);
@@ -494,7 +503,7 @@ export function registerRoutes(app: Hono): void {
     if (rt.provider === "docker") {
       rt.containerId = undefined;
       rt.hostPort = undefined;
-    } else if (rt.provider === "oblien") {
+    } else if (rt.provider === "oblien" && !rt.computerId) {
       rt.workspaceId = undefined;
     }
     // ssh has no captured ids to clear — the tunnel is torn down by disposeDaemon above.
@@ -604,7 +613,7 @@ export function registerRoutes(app: Hono): void {
     if (rt.provider === "remote" || rt.provider === "local") {
       return c.json({ error: "This runtime doesn't provision — it's always on." }, 400);
     }
-    if (rt.provider === "oblien" && !hasOblien(session)) {
+    if (rt.provider === "oblien" && !rt.computerId && !hasOblien(session)) {
       return c.json({ error: "Connect your Oblien account to spin this up." }, 409);
     }
     const key = provisionKey(session, record);

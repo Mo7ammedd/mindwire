@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Self-hostable Mindwire console \u2014 a Vite SPA and Hono server for managing runtimes and driving coding agents.",
+  "description": "Self-hostable Mindwire console — a Vite SPA and Hono server for managing runtimes and driving coding agents.",
   "scripts": {
     "dev": "node dev.mjs",
     "dev:client": "vite",
@@ -41,7 +41,8 @@
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.4",
     "sonner": "^2.0.8",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "ws": "^8.18.3"
   },
   "optionalDependencies": {
     "dockerode": "^5.0.1",
@@ -54,6 +55,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.1.2",
     "drizzle-kit": "0.31.11",
     "tailwindcss": "^4.3.3",

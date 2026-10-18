@@ -4,7 +4,7 @@ import OblienKit
 
 @MainActor
 final class WorkspaceSignInTests: XCTestCase {
-    private let signedIn = AuthStatus(authenticated: true, user: AuthUser(id: 42, name: "Test owner"))
+    private let signedIn = AuthStatus(authenticated: true, user: AuthUser(id: "42", name: "Test owner"))
 
     private func stores() throws -> Stores {
         let suite = "workspace-sign-in-\(UUID().uuidString)"
@@ -26,7 +26,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let stores = try stores()
         var authRequests = 0
         var finishAuth: CheckedContinuation<AuthStatus, Error>?
-        let auth = OblienAuth {
+        let auth = MindwireAuth {
             authRequests += 1
             return try await withCheckedThrowingContinuation { finishAuth = $0 }
         }
@@ -60,7 +60,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let stores = try stores()
         var authRequests = 0
         let status = signedIn
-        let auth = OblienAuth {
+        let auth = MindwireAuth {
             authRequests += 1
             if authRequests == 1 { throw URLError(.notConnectedToInternet) }
             return status
@@ -86,7 +86,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let stores = try stores()
         var offline = false
         let status = signedIn
-        let auth = OblienAuth {
+        let auth = MindwireAuth {
             if offline { throw URLError(.networkConnectionLost) }
             return status
         }
@@ -96,7 +96,7 @@ final class WorkspaceSignInTests: XCTestCase {
         offline = true
         await auth.refresh()
         XCTAssertTrue(auth.authenticated)
-        XCTAssertEqual(auth.user?.id, 42)
+        XCTAssertEqual(auth.user?.id, "42")
         XCTAssertEqual(adapter.current().map(\.id), [workspace.id])
         let available = await auth.ensure()
         XCTAssertTrue(available)
@@ -105,7 +105,7 @@ final class WorkspaceSignInTests: XCTestCase {
     func testWorkspaceResponseFromPreviousAccountIsNotPublished() async throws {
         let stores = try stores()
         var status = signedIn
-        let auth = OblienAuth { status }
+        let auth = MindwireAuth { status }
         let workspace = try cloudWorkspace()
         var finishList: CheckedContinuation<[OblienKit.Workspace], Never>?
         let adapter = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
@@ -115,7 +115,7 @@ final class WorkspaceSignInTests: XCTestCase {
         for _ in 0..<100 where finishList == nil { await Task.yield() }
         XCTAssertNotNil(finishList)
         defer { finishList?.resume(returning: []) }
-        status = AuthStatus(authenticated: true, user: AuthUser(id: 84, name: "Another owner"))
+        status = AuthStatus(authenticated: true, user: AuthUser(id: "84", name: "Another owner"))
         await auth.refresh()
         finishList?.resume(returning: [workspace]); finishList = nil
         do { try await request.value; XCTFail("The old account's response must be discarded") }
@@ -131,7 +131,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let cloudProject = stores.createProject(.init(name: "Cloud project", workspaceId: "cloud-workspace", path: "/cloud"))
         let chat = stores.createChat(agentId: "cloud-agent", projectId: cloudProject.id)
         var authRequests = 0
-        let auth = OblienAuth { authRequests += 1; return AuthStatus(authenticated: false) }
+        let auth = MindwireAuth { authRequests += 1; return AuthStatus(authenticated: false) }
         var listRequests = 0
         let cloud = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
             listRequests += 1; return []
@@ -166,7 +166,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let local = stores.createWorkspace(name: "My server", runtime: .server(serverId: "local-server"))
         let project = stores.createProject(.init(name: "Cloud project", workspaceId: "cloud-workspace", path: "/cloud"))
         var status = signedIn
-        let auth = OblienAuth { status }
+        let auth = MindwireAuth { status }
         let workspace = try cloudWorkspace()
         var listRequests = 0
         let cloud = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
@@ -200,7 +200,7 @@ final class WorkspaceSignInTests: XCTestCase {
 
     func testRelaunchRestoresWorkspaceBeforeAuthAndKeepsItDuringOfflineRevalidation() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
-        let first = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults,
+        let first = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults,
             sessionToken: { "fixture-session" }) { [workspace] }
         try await first.refresh()
         let saved = try XCTUnwrap(stores.defaults.data(forKey: StorageKey.cloudWorkspaceCache))
@@ -209,7 +209,7 @@ final class WorkspaceSignInTests: XCTestCase {
         stores.createProject(.init(name: "Website", workspaceId: workspace.id, path: "/projects/site"))
 
         var finishAuth: CheckedContinuation<AuthStatus, Error>?
-        let auth = OblienAuth { try await withCheckedThrowingContinuation { finishAuth = $0 } }
+        let auth = MindwireAuth { try await withCheckedThrowingContinuation { finishAuth = $0 } }
         let restored = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
             throw URLError(.notConnectedToInternet)
         }
@@ -241,17 +241,17 @@ final class WorkspaceSignInTests: XCTestCase {
 
     func testSavedInventoryDoesNotCrossSessionOrAccountBoundaries() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
-        let auth = OblienAuth { status }
+        let auth = MindwireAuth { status }
         let first = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [workspace] }
         try await first.refresh()
 
         for token: String? in [nil, "another-session"] {
-            let cold = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { token }) {
+            let cold = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { token }) {
                 XCTFail("Reading a cache must not make a network request"); return []
             }
             XCTAssertTrue(cold.current().isEmpty)
         }
-        let otherAccount = OblienAuth { AuthStatus(authenticated: true, user: AuthUser(id: 84, name: "Another owner")) }
+        let otherAccount = MindwireAuth { AuthStatus(authenticated: true, user: AuthUser(id: "84", name: "Another owner")) }
         let restored = CloudWorkspaceAdapter(auth: otherAccount, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
             throw URLError(.notConnectedToInternet)
         }
@@ -265,19 +265,19 @@ final class WorkspaceSignInTests: XCTestCase {
     func testExplicitRefreshPersistsNewMetadataAndAnEmptyInventory() async throws {
         let stores = try stores(), status = signedIn
         var remote = [try cloudWorkspace()]
-        let adapter = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults,
+        let adapter = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults,
             sessionToken: { "fixture-session" }) { remote }
         let repository = WorkspaceRepository(stores: stores, adapters: [adapter])
         await repository.refresh()
         remote = [try JSONDecoder().decode(OblienKit.Workspace.self,
             from: Data(#"{"id":"cloud-workspace","name":"Renamed Mac","image":"macos"}"#.utf8))]
         await repository.refresh()
-        let renamed = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
+        let renamed = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
         XCTAssertEqual(renamed.current().first?.name, "Renamed Mac")
         XCTAssertEqual(renamed.current().first?.image, "macos")
         remote = []
         await repository.refresh()
-        let empty = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
+        let empty = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
         XCTAssertTrue(empty.current().isEmpty, "Removed inventory must not return on the next launch")
         XCTAssertNotNil(stores.defaults.data(forKey: StorageKey.cloudWorkspaceCache))
     }
@@ -286,7 +286,7 @@ final class WorkspaceSignInTests: XCTestCase {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
         var holdList = false
         var finishList: CheckedContinuation<[OblienKit.Workspace], Never>?
-        let adapter = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults,
+        let adapter = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults,
             sessionToken: { "fixture-session" }, removeWorkspace: { _ in }) {
             if holdList { return await withCheckedContinuation { finishList = $0 } }
             return [workspace]
@@ -301,14 +301,14 @@ final class WorkspaceSignInTests: XCTestCase {
         finishList?.resume(returning: [workspace]); finishList = nil
         try await oldRequest.value
         XCTAssertTrue(adapter.current().isEmpty)
-        let reopened = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
+        let reopened = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
         XCTAssertTrue(reopened.current().isEmpty)
     }
 
     func testAuthoritativeLookupAndNewWorkspaceAdoptionPersistAcrossLaunches() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
         var deleted = false
-        let auth = OblienAuth { status }
+        let auth = MindwireAuth { status }
         let adapter = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" },
             lookupWorkspace: { _ in
                 if deleted { throw OblienError(kind: .server, status: 404, code: "not_found", message: "Not found", details: nil) }
@@ -322,7 +322,7 @@ final class WorkspaceSignInTests: XCTestCase {
         deleted = true
         let confirmed = await adapter.confirmsDeletion(workspace.id)
         XCTAssertTrue(confirmed)
-        let removed = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
+        let removed = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [] }
         XCTAssertTrue(removed.current().isEmpty)
         let created = await removed.adopt(name: "Fresh workspace", runtime: .cloud(workspaceId: "new-workspace"), spec: nil)
         XCTAssertEqual(created?.id, "new-workspace")
@@ -332,12 +332,12 @@ final class WorkspaceSignInTests: XCTestCase {
 
     func testDeletingRestoredWorkspaceWaitsForSessionVerification() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
-        let first = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults,
+        let first = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults,
             sessionToken: { "fixture-session" }) { [workspace] }
         try await first.refresh()
         var finishAuth: CheckedContinuation<AuthStatus, Error>?
         var deleteCalls = 0
-        let auth = OblienAuth { try await withCheckedThrowingContinuation { finishAuth = $0 } }
+        let auth = MindwireAuth { try await withCheckedThrowingContinuation { finishAuth = $0 } }
         let restored = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults,
             sessionToken: { "fixture-session" }, removeWorkspace: { _ in deleteCalls += 1 }) { [] }
         XCTAssertEqual(restored.current().map(\.id), [workspace.id])
@@ -355,7 +355,7 @@ final class WorkspaceSignInTests: XCTestCase {
     func testCorruptInventoryCacheFallsBackToALiveCheck() async throws {
         let stores = try stores(), workspace = try cloudWorkspace(), status = signedIn
         stores.defaults.set(Data("broken-cache".utf8), forKey: StorageKey.cloudWorkspaceCache)
-        let adapter = CloudWorkspaceAdapter(auth: OblienAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [workspace] }
+        let adapter = CloudWorkspaceAdapter(auth: MindwireAuth { status }, defaults: stores.defaults, sessionToken: { "fixture-session" }) { [workspace] }
         XCTAssertTrue(adapter.current().isEmpty)
         try await adapter.refresh()
         XCTAssertEqual(adapter.current().map(\.id), [workspace.id])

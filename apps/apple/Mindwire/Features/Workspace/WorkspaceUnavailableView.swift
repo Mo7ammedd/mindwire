@@ -13,7 +13,7 @@ struct WorkspaceUnavailableView: View {
     var body: some View {
         Group {
             if repository.requiresSignIn(for: workspaceId) {
-                OblienSignInPrompt(bodyKey: "workspace.signIn.body") { showLogin = true }
+                MindwireSignInPrompt(bodyKey: "workspace.signIn.body") { showLogin = true }
                     .accessibilityIdentifier("workspace-sign-in-required")
             } else if !repository.hasRefreshed || repository.isRefreshing {
                 ProgressView(t("workspace.checking"))
@@ -22,7 +22,7 @@ struct WorkspaceUnavailableView: View {
                 unavailable
             }
         }
-        .oblienLoginSheet(isPresented: $showLogin) {
+        .mindwireLoginSheet(isPresented: $showLogin) {
             Task { await repository.refresh() }
         }
     }

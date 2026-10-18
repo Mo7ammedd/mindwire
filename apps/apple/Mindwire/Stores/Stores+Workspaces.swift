@@ -66,7 +66,7 @@ extension Stores {
     private func defaultWorkspaceName(for runtime: AgentRuntime) -> String {
         switch runtime {
         case .cloud:
-            return "Oblien Cloud"
+            return "Mindwire Cloud"
         case .server(let serverId), .container(let serverId, _):
             return connections.get(serverId)?.name ?? "Workspace"
         }

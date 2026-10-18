@@ -84,11 +84,16 @@ export class PushService {
     if (row.tag) data.tag = row.tag;
     const message = { title, body, data };
     if (Buffer.byteLength(JSON.stringify(message)) > 3800) throw new PushError(413, "message_too_large");
-    const devices = (await this.store.devices(row.owner_id)).filter(device => device.status === "active"
-      && (meta.device_id == null || String(meta.device_id) === String(device.id) || String(meta.device_id) === device.device_id));
+    const owned = await this.store.devices(row.owner_id);
+    // A linked account can have two rows for the same physical phone. Keep old
+    // numeric routing ids valid, but deliver using that phone's newest token.
+    const pinned = meta.device_id == null ? null : owned.find(device => String(meta.device_id) === String(device.id) || String(meta.device_id) === device.device_id);
+    const byDevice = new Map<string, DeviceRow>();
+    for (const device of owned) if (device.status === "active" && !byDevice.has(device.device_id)) byDevice.set(device.device_id, device);
+    const devices = meta.device_id == null ? [...byDevice.values()] : pinned && byDevice.has(pinned.device_id) ? [byDevice.get(pinned.device_id)!] : [];
     if (!devices.length) return { success: true, delivered: 0, failed: 0, devices: 0, detail: "no_active_devices" };
     const tokens = devices.map(device => decrypt(device.token_ciphertext));
-    const result = await this.transport.send(tokens, message);
+    const result = await this.transport.send([...new Set(tokens)], message);
     const dead = new Set(result.invalidTokens);
     for (let i = 0; i < devices.length; i++) if (dead.has(tokens[i])) await this.store.pruneDevice(devices[i]);
     await this.store.touch(row.id);

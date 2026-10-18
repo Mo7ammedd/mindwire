@@ -36,13 +36,13 @@ final class WorkspaceCreationStorage {
 
     func load(force: Bool = false) async {
         async let diskRead: Void = disks.load(force: force) {
-            try await OblienCloud.client.disks.list().map(WorkspaceManagedDisk.init)
+            try await MindwireCloud.client.disks.list().map(WorkspaceManagedDisk.init)
         }
         async let namespaceRead: Void = namespaces.load(force: force) {
             var result: [Namespace] = []
             var offset = 0
             while true {
-                let page = try await OblienCloud.client.namespaces.list(.init(limit: 100, offset: offset, status: .active))
+                let page = try await MindwireCloud.client.namespaces.list(.init(limit: 100, offset: offset, status: .active))
                 result += page.data.map { .init(id: $0.slug, name: $0.name) }
                 offset += page.data.count
                 if page.data.isEmpty || offset >= page.pagination.total { break }

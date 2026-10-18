@@ -11,9 +11,9 @@ extension Notification.Name {
 /// connected. Both take `platform:"mobile"` to deep-link (`oblien://github/connected`) back.
 /// Repo listing/clone live in `OblienGitHubService`.
 struct GitHubConnectAPI {
-    private let api: OblienAPI
+    private let api: MindwireAPI
 
-    init(api: OblienAPI = .shared) { self.api = api }
+    init(api: MindwireAPI = .shared) { self.api = api }
 
     /// Current connection (we hold a working GitHub OAuth token) for the signed-in Oblien user.
     func status() async throws -> GitHubStatus {
@@ -56,6 +56,7 @@ private struct GHInstall: Decodable { let login: String; let avatar_url: String?
 /// `GET /github/status`: `connected:false` when not linked; full GitHub user fields when connected.
 struct GitHubStatus: Decodable {
     let connected: Bool
+    var available: Bool?
     let login: String?
     let avatarUrl: String?
     enum CodingKeys: String, CodingKey {

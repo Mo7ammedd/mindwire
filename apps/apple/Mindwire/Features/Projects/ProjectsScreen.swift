@@ -84,7 +84,7 @@ struct ProjectsScreen: View {
                     }
                     if contents.allEntries.contains(where: { repository.requiresSignIn(for: $0.workspaceId) }) {
                         Section {
-                            OblienSignInRow(bodyKey: "projects.signIn.body") { showLogin = true }
+                            MindwireSignInRow(bodyKey: "projects.signIn.body") { showLogin = true }
                         }
                     }
                     if !contents.entries.isEmpty {
@@ -153,7 +153,7 @@ struct ProjectsScreen: View {
             if !projects.isEmpty { managingFolder = folder }
         }
         .sheet(item: $selectedOperation, onDismiss: reload) { ProjectOperationScreen(reference: $0, repository: repository) }
-        .oblienLoginSheet(isPresented: $showLogin) {
+        .mindwireLoginSheet(isPresented: $showLogin) {
             Task { await repository.refresh(); reload() }
         }
     }
@@ -169,7 +169,7 @@ struct ProjectsScreen: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: Spacing.lg) {
                 if contents.allEntries.contains(where: { repository.requiresSignIn(for: $0.workspaceId) }) {
-                    OblienSignInRow(bodyKey: "projects.signIn.body") { showLogin = true }
+                    MindwireSignInRow(bodyKey: "projects.signIn.body") { showLogin = true }
                 }
                 if showsFolders && !contents.folders.isEmpty {
                     cardLayout {

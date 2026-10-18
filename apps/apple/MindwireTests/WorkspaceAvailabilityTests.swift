@@ -29,8 +29,8 @@ final class WorkspaceAvailabilityTests: XCTestCase {
         let localAgent = stores.createAgent(.init(name: "Local coding", agentType: .claudeCode, workspaceId: local.id))
         let orphan = Agent(id: "old-orphan", name: "Old orphan", agentType: .codex, workspaceId: nil, createdAt: cloudAgent.createdAt)
         stores.agents.save(orphan)
-        var status = AuthStatus(authenticated: true, user: AuthUser(id: 42, name: "Owner"))
-        let auth = OblienAuth { status }
+        var status = AuthStatus(authenticated: true, user: AuthUser(id: "42", name: "Owner"))
+        let auth = MindwireAuth { status }
         await auth.refresh()
         let adapter = WorkspaceAvailabilityAdapter(workspaces: [workspace()])
         adapter.auth = auth
@@ -56,7 +56,7 @@ final class WorkspaceAvailabilityTests: XCTestCase {
         XCTAssertNotNil(stores.agents.get(cloudAgent.id))
         XCTAssertNotNil(stores.chats.get(chat.id))
 
-        status = AuthStatus(authenticated: true, user: AuthUser(id: 42, name: "Owner"))
+        status = AuthStatus(authenticated: true, user: AuthUser(id: "42", name: "Owner"))
         await auth.refresh()
         adapter.failRefresh = true
         await repository.refresh()
@@ -464,7 +464,7 @@ final class WorkspaceAvailabilityTests: XCTestCase {
         let local = stores.createWorkspace(name: "Local Mac", runtime: .server(serverId: "local-connection"))
         let localProject = stores.createProject(.init(name: "Local project", workspaceId: local.id, path: "/projects/local"))
         var status = AuthStatus(authenticated: false)
-        let auth = OblienAuth { status }
+        let auth = MindwireAuth { status }
         await auth.refresh()
         let adapter = WorkspaceAvailabilityAdapter(workspaces: [workspace()])
         adapter.auth = auth
@@ -475,7 +475,7 @@ final class WorkspaceAvailabilityTests: XCTestCase {
         let listText = try await visibleText(list, snapshot: "mindwire-projects-signed-out")
         XCTAssertTrue(listText.contains("Test project"), listText)
         XCTAssertTrue(listText.contains("Local project"), listText)
-        XCTAssertTrue(listText.contains("Sign in to Oblien"), listText)
+        XCTAssertTrue(listText.contains("Sign in to Mindwire"), listText)
         XCTAssertFalse(listText.contains("Workspace unavailable"), listText)
         listWindow.isHidden = true
 
@@ -488,22 +488,22 @@ final class WorkspaceAvailabilityTests: XCTestCase {
         let (detail, detailWindow) = host(ProjectDetailScreen(projectId: remoteProject.id, repository: repository), stores: stores)
         defer { detailWindow.isHidden = true; listWindow.isHidden = true; localWindow.isHidden = true }
         let signedOut = try await visibleText(detail, snapshot: "mindwire-project-sign-in")
-        XCTAssertTrue(signedOut.contains("Sign in to Oblien"), signedOut)
+        XCTAssertTrue(signedOut.contains("Sign in to Mindwire"), signedOut)
         XCTAssertFalse(signedOut.contains("Workspace unavailable"), signedOut)
         XCTAssertFalse(signedOut.contains(t("project.removeFromProjects")), signedOut)
         XCTAssertFalse(signedOut.contains("Source Control"), signedOut)
 
-        status = AuthStatus(authenticated: true, user: AuthUser(id: 42, name: "Test owner"))
+        status = AuthStatus(authenticated: true, user: AuthUser(id: "42", name: "Test owner"))
         await auth.refresh()
         await repository.refresh()
         let signedIn = try await visibleText(detail)
         XCTAssertTrue(signedIn.contains("Source Control"), signedIn)
-        XCTAssertFalse(signedIn.contains("Sign in to Oblien"), signedIn)
+        XCTAssertFalse(signedIn.contains("Sign in to Mindwire"), signedIn)
 
         status = AuthStatus(authenticated: false)
         await auth.refresh()
         let signedOutAgain = try await visibleText(detail)
-        XCTAssertTrue(signedOutAgain.contains("Sign in to Oblien"), signedOutAgain)
+        XCTAssertTrue(signedOutAgain.contains("Sign in to Mindwire"), signedOutAgain)
         XCTAssertFalse(signedOutAgain.contains("Source Control"), signedOutAgain)
         XCTAssertNotNil(stores.projects.get(remoteProject.id))
         XCTAssertNotNil(stores.projects.get(localProject.id))
@@ -512,7 +512,7 @@ final class WorkspaceAvailabilityTests: XCTestCase {
 
     func testSignedOutWorkspaceAndPendingProjectUseLoginRecovery() async throws {
         let stores = try stores()
-        let auth = OblienAuth { AuthStatus(authenticated: false) }
+        let auth = MindwireAuth { AuthStatus(authenticated: false) }
         let adapter = CloudWorkspaceAdapter(auth: auth, defaults: stores.defaults, sessionToken: { "fixture-session" }) {
             XCTFail("Cloud inventory must wait for sign-in"); return []
         }
@@ -521,7 +521,7 @@ final class WorkspaceAvailabilityTests: XCTestCase {
 
         let (workspaceView, workspaceWindow) = host(WorkspaceDetailScreen(workspaceId: "cloud-workspace", repository: repository), stores: stores)
         let workspaceText = try await visibleText(workspaceView)
-        XCTAssertTrue(workspaceText.contains("Sign in to Oblien"), workspaceText)
+        XCTAssertTrue(workspaceText.contains("Sign in to Mindwire"), workspaceText)
         XCTAssertFalse(workspaceText.contains("Workspace unavailable"), workspaceText)
         workspaceWindow.isHidden = true
 
@@ -529,7 +529,7 @@ final class WorkspaceAvailabilityTests: XCTestCase {
             .init(workspaceId: "cloud-workspace", operationId: "pending"), repository: repository), stores: stores)
         defer { workspaceWindow.isHidden = true; operationWindow.isHidden = true }
         let operationText = try await visibleText(operationView)
-        XCTAssertTrue(operationText.contains("Sign in to Oblien"), operationText)
+        XCTAssertTrue(operationText.contains("Sign in to Mindwire"), operationText)
         XCTAssertFalse(operationText.contains("Workspace unavailable"), operationText)
         XCTAssertFalse(operationText.contains("Reconnecting"), operationText)
         XCTAssertTrue(stores.workspaceData.projectObservationErrors.isEmpty)
@@ -992,7 +992,7 @@ private struct ServiceInfoFixtureScreen: View {
 
 /// The sync cache mirrors the production adapter; the gate simulates a slow cloud list.
 private final class WorkspaceAvailabilityAdapter: WorkspaceAdapter {
-    @MainActor var auth: OblienAuth?
+    @MainActor var auth: MindwireAuth?
     @MainActor var requiresSignIn: Bool { auth?.isSignedOut == true }
     private let lock = NSLock()
     private var cache: [Workspace]

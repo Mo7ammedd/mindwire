@@ -51,6 +51,13 @@ function socialCreds(prefix: string): { clientId: string; clientSecret: string }
 
 const isProd = process.env.NODE_ENV === "production";
 
+function authSigningSecret(): string {
+  const secret = optional("AUTH_SECRET") ?? optional("SESSION_SECRET");
+  if (secret && secret.length >= 32) return secret;
+  if (isProd) throw new Error("AUTH_SECRET must be configured with at least 32 random characters in production.");
+  return "mindwire-preview-dev-secret-change-me-please-32+";
+}
+
 function encryptionKey(): Buffer {
   const configured = optional("SECRETS_ENCRYPTION_KEY");
   if (!configured) {
@@ -166,10 +173,7 @@ export const env = {
   baseUrl,
 
   /** Better Auth signing secret. MUST be ≥32 chars and overridden in any real deployment. */
-  authSecret: str(
-    "AUTH_SECRET",
-    optional("SESSION_SECRET") ?? "mindwire-preview-dev-secret-change-me-please-32+",
-  ),
+  authSecret: authSigningSecret(),
 
   /** AES-256-GCM master key for the Console credential vault. Never exposed to the browser. */
   secretsEncryptionKey: encryptionKey(),

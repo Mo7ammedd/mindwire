@@ -15,7 +15,7 @@ actor CloudTerminalHub {
 
     private func ensureRuntime() async throws -> RuntimeClient {
         if let runtime { return runtime }
-        let rt = try await OblienCloud.client.workspace(workspaceId).runtime()
+        let rt = try await MindwireCloud.workspace(workspaceId).runtime()
         runtime = rt
         return rt
     }

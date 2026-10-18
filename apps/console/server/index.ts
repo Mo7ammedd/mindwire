@@ -13,14 +13,20 @@ import { registerRoutes } from "./routes";
 import { registerTurnRoutes } from "./turn";
 import { registerComputerDirectory, startDirectoryMaintenance } from "./computer-directory/routes";
 import { registerNotifications } from "./notifications/routes";
+import { registerCloud, startComputerReconciliation } from "./cloud/routes";
+import { runtimeHostBoundary } from "./cloud/runtime-origin";
+import { cloudWebSockets } from "./cloud/websocket";
 
 const app = new Hono();
+// Computer app hostnames never serve the account SPA or account APIs.
+app.use("*", runtimeHostBoundary);
 
 // Mount the global auth boundary first. The directory has its own key-based
 // authentication; workspace APIs continue to require a website session.
 registerAuth(app);
 registerComputerDirectory(app);
 registerNotifications(app);
+registerCloud(app);
 
 app.get("/api/ping", (c) => c.json({ ok: true, service: "console" }));
 // The only pre-auth data route: branding + sign-in options for the login gate. Secret-free by
@@ -85,7 +91,8 @@ if (env.isProd) {
 initAuth()
   .then(() => {
     startDirectoryMaintenance();
-    serve({ fetch: app.fetch, port: env.port }, (info) => {
+    startComputerReconciliation();
+    serve({ fetch: app.fetch, port: env.port, websocket: { server: cloudWebSockets } }, (info) => {
       console.log(`[console] listening on http://127.0.0.1:${info.port} (daemon: ${env.daemonUrl})`);
     });
   })

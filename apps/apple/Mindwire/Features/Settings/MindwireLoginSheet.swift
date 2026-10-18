@@ -5,9 +5,9 @@ import Observation
 /// Oblien session auth helpers. The app holds an anonymous session token; provider sign-in upgrades
 /// that same session server-side (bound by `state`), so after the in-app Safari flow we just
 /// re-check `/auth/status` — no custom URL scheme or token swap needed.
-enum OblienLogin {
+enum MindwireLogin {
     static func isSignedIn() async -> Bool {
-        (try? await OblienAPI.shared.authStatus())?.authenticated ?? false
+        (try? await MindwireAPI.shared.authStatus())?.authenticated ?? false
     }
 }
 
@@ -17,8 +17,8 @@ enum OblienLogin {
 /// just-in-time gate check (fetches once, then serves the cached flag). Self-host flows never consult it.
 @MainActor
 @Observable
-final class OblienAuth {
-    static let shared = OblienAuth()
+final class MindwireAuth {
+    static let shared = MindwireAuth()
 
     private(set) var authenticated = false
     private(set) var user: AuthUser?
@@ -30,7 +30,7 @@ final class OblienAuth {
     @ObservationIgnored private var statusRevision = 0
     @ObservationIgnored private let loadStatus: @MainActor () async throws -> AuthStatus
 
-    init(loadStatus: @escaping @MainActor () async throws -> AuthStatus = { try await OblienAPI.shared.authStatus() }) {
+    init(loadStatus: @escaping @MainActor () async throws -> AuthStatus = { try await MindwireAPI.shared.authStatus() }) {
         self.loadStatus = loadStatus
     }
 
@@ -49,7 +49,7 @@ final class OblienAuth {
             defer { if expected == statusRevision { statusTask = nil } }
             let status = try await loadStatus()
             if user?.id != (status.authenticated ? status.user?.id : nil) {
-                await OblienCloud.client.workspaces.invalidateAllRuntimes()
+                await MindwireCloud.invalidateAllRuntimes()
             }
             try Task.checkCancellation()
             guard expected == statusRevision else { throw CancellationError() }
@@ -97,7 +97,7 @@ final class OblienAuth {
         didCheck = true
         hasResolvedSession = true
         Task {
-            await OblienCloud.client.workspaces.invalidateAllRuntimes()
+            await MindwireCloud.invalidateAllRuntimes()
             await WorkspaceRepository.shared.refresh()
         }
     }
@@ -105,8 +105,8 @@ final class OblienAuth {
 
 extension View {
     /// Presents the Oblien login modal when `isPresented` flips true; `onSignedIn` runs after success.
-    func oblienLoginSheet(isPresented: Binding<Bool>, onSignedIn: @escaping () -> Void = {}) -> some View {
-        sheet(isPresented: isPresented) { OblienLoginSheet(onSignedIn: onSignedIn) }
+    func mindwireLoginSheet(isPresented: Binding<Bool>, onSignedIn: @escaping () -> Void = {}) -> some View {
+        sheet(isPresented: isPresented) { MindwireLoginSheet(onSignedIn: onSignedIn) }
     }
 }
 
@@ -138,7 +138,7 @@ struct SafariView: UIViewControllerRepresentable {
 }
 
 /// Optional cloud login, shared by account settings and cloud feature entry points.
-struct OblienLoginSheet: View {
+struct MindwireLoginSheet: View {
     var onSignedIn: () -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -168,7 +168,7 @@ struct OblienLoginSheet: View {
 }
 
 /// Gate content shown when an Oblien session isn't authenticated — a clear sign-in CTA.
-struct OblienSignInPrompt: View {
+struct MindwireSignInPrompt: View {
     var bodyKey = "auth.required.body"
     var onSignIn: () -> Void
     var body: some View {
@@ -184,7 +184,7 @@ struct OblienSignInPrompt: View {
 }
 
 /// A cloud sign-in action alongside local content, without gating the whole list.
-struct OblienSignInRow: View {
+struct MindwireSignInRow: View {
     let bodyKey: String
     var onSignIn: () -> Void
 

@@ -13,14 +13,15 @@ export function bearer(c: Context): string {
  * never trust a submitted user id or decode a JWT without verification. This bridge
  * authenticates management only: send-only daemon credentials resolve locally. */
 export async function pushOwner(c: Context): Promise<string> {
-  if (c.req.header("Cookie")) {
+  if (c.req.header("Cookie") || c.req.header("Authorization")) {
     const id = await userIdFromRequest(c);
     if (id) {
-      if (!["GET", "HEAD"].includes(c.req.method)) {
+      if (c.req.header("Cookie") && !["GET", "HEAD"].includes(c.req.method)) {
         const origin = c.req.header("Origin");
         if (!origin || !env.trustedOrigins.includes(origin)) throw new PushError(403, "untrusted_origin");
       }
-      return `console:${id}`;
+      const { legacyPushOwner } = await import("../cloud/legacy");
+      return await legacyPushOwner(id) ?? `console:${id}`;
     }
   }
   const token = bearer(c);

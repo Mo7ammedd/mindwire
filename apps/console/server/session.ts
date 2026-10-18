@@ -72,6 +72,7 @@ export type DaemonRuntime =
     }
   | {
       provider: "oblien";
+      computerId?: string;
       image: string;
       cpus?: number;
       memoryMb?: number;
@@ -308,6 +309,7 @@ export function runtimeFromRequest(req: AddDaemonRequest): DaemonRuntime {
   }
   return {
     provider: "oblien",
+    computerId: req.computerId,
     image: req.image?.trim() || DEFAULT_SANDBOX_IMAGE,
     cpus: req.cpus,
     memoryMb: req.memoryMb,
@@ -398,6 +400,7 @@ function freshRuntime(rt: DaemonRuntime): DaemonRuntime {
   // A duplicate provisions its own workspace — never reuse the source's captured/reuse id.
   return {
     provider: "oblien",
+    computerId: rt.computerId,
     image: rt.image,
     cpus: rt.cpus,
     memoryMb: rt.memoryMb,
@@ -556,6 +559,7 @@ function locationOf(rt: DaemonRuntime): DaemonLocation {
   }
   return {
     provider: "oblien",
+    computerId: rt.computerId,
     image: rt.image,
     workspaceId: rt.workspaceId,
     mode: rt.lifecycle,
@@ -563,7 +567,7 @@ function locationOf(rt: DaemonRuntime): DaemonLocation {
     memoryMb: rt.memoryMb,
     diskMb: rt.diskMb,
     secured: Boolean(rt.token),
-    summary: `Oblien · ${rt.image} · ${rt.lifecycle} · ${Math.round((rt.diskMb ?? 4_096) / 1024)} GB disk`,
+    summary: rt.computerId ? "Mindwire Cloud Computer" : `Oblien · ${rt.image} · ${rt.lifecycle} · ${Math.round((rt.diskMb ?? 4_096) / 1024)} GB disk`,
   };
 }
 

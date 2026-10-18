@@ -69,7 +69,7 @@ final class AppStoreFixture {
             remotes[workspace.id] = remote
             stores.workspaces.save(workspace)
             stores.connections.save(.ssh(RemoteHostConnection(id: workspace.id,
-                name: workspace.id == "store-cloud" ? "Oblien Cloud" : "Personal computer",
+                name: workspace.id == "store-cloud" ? "Mindwire Cloud" : "Personal computer",
                 type: .ssh, host: "demo.invalid", port: 22, username: "demo", auth: .agent,
                 createdAt: workspace.createdAt)))
             DaemonWorkCoordinator.shared.recordWorkspaceStatus(.init(power: .running), for: .init(workspaceId: workspace.id))

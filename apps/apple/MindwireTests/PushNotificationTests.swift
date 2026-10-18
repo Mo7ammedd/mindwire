@@ -37,7 +37,7 @@ final class PushNotificationTests: XCTestCase {
         registry.failOnce = true
         var provisioned = 0
         let service = LivePushService(api: registry, tokens: PushTokenFixture("current"),
-            authorization: PushPermissionFixture(), accountID: { 1 }, deviceID: { "device" },
+            authorization: PushPermissionFixture(), accountID: { "1" }, deviceID: { "device" },
             didRegister: { provisioned += 1 }, retryDelay: { _ in .milliseconds(40) })
         service.setActive(true)
         defer { service.setActive(false) }
@@ -57,7 +57,7 @@ final class PushNotificationTests: XCTestCase {
         let registry = PushRegistryFixture()
         registry.failure = APIError.transport("offline")
         let service = LivePushService(api: registry, tokens: PushTokenFixture("current"),
-            authorization: PushPermissionFixture(), accountID: { 1 }, deviceID: { "device" },
+            authorization: PushPermissionFixture(), accountID: { "1" }, deviceID: { "device" },
             retryDelay: { _ in .milliseconds(70) })
         service.setActive(true)
         await service.start()
@@ -71,7 +71,7 @@ final class PushNotificationTests: XCTestCase {
         network.update(.init(reachable: false))
         registry.failure = APIError.transport("offline")
         let service = LivePushService(api: registry, tokens: PushTokenFixture("current"),
-            authorization: PushPermissionFixture(), accountID: { 1 }, deviceID: { "device" }, network: network,
+            authorization: PushPermissionFixture(), accountID: { "1" }, deviceID: { "device" }, network: network,
             retryDelay: { _ in .seconds(300) })
         service.setActive(true)
         defer { service.setActive(false) }
@@ -86,12 +86,12 @@ final class PushNotificationTests: XCTestCase {
     func testAccountChangeDuringRegistrationDoesNotLoseTheNewAccount() async throws {
         let registry = PushRegistryFixture()
         registry.delay = true
-        var account: Int? = 1
+        var account: String? = "1"
         let service = LivePushService(api: registry, tokens: PushTokenFixture("current"),
             authorization: PushPermissionFixture(), accountID: { account }, deviceID: { "device" })
         let first = Task { await service.start() }
         while registry.tokens.isEmpty { await Task.yield() }
-        account = 2
+        account = "2"
         await service.start()
         await first.value
         XCTAssertEqual(service.state, .ready)
@@ -292,7 +292,7 @@ final class PushNotificationTests: XCTestCase {
     private func makeService(_ registry: PushRegistryFixture, _ tokens: PushTokenFixture,
                              _ permission: PushPermissionFixture? = nil) -> LivePushService {
         LivePushService(api: registry, tokens: tokens, authorization: permission ?? PushPermissionFixture(),
-                        accountID: { 1 }, deviceID: { "device" })
+                        accountID: { "1" }, deviceID: { "device" })
     }
 }
 

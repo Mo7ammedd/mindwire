@@ -23,6 +23,7 @@
     "desktops",
     "project-library",
     "project-sync",
-    "push-service"
+    "push-service",
+    "cloud-computers"
   ]
 }

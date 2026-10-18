@@ -19,7 +19,7 @@ import { ConsoleStats } from "@/components/fleet/ConsoleStats";
 import { AddDaemonDialog } from "@/components/fleet/AddDaemonDialog";
 import type { AgentSummary } from "@shared/api";
 
-const OBLIEN_URL = "https://oblien.com/dashboard";
+const COMPUTERS_URL = "/computers";
 
 export function FleetPanel() {
   const { fleet, fleetError, fleetLoading, reloadFleet, applyFleet, providers, reloadUsage } =
@@ -115,14 +115,14 @@ export function FleetPanel() {
           </section>
 
           <div className="flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
-            <span>Runtimes run wherever you deploy them — remote, Docker, or an Oblien sandbox.</span>
+            <span>Runtimes run wherever you deploy them — your computer, a server, or a Mindwire Cloud Computer.</span>
             <a
-              href={OBLIEN_URL}
+              href={COMPUTERS_URL}
               target="_blank"
               rel="noreferrer"
               className="inline-flex shrink-0 items-center gap-1 transition-colors hover:text-foreground"
             >
-              Manage on Oblien
+              Cloud Computers
               <ArrowUpRight className="size-3.5" />
             </a>
           </div>

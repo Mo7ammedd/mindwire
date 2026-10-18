@@ -50,11 +50,16 @@ struct SystemPushAuthorization: PushAuthorization {
 protocol PushService {
     /// Reconcile permission, APNs, and the signed-in account's device registration.
     func start() async
+    func refreshRegistration() async
     @discardableResult func registerIfPossible() async -> Bool
     func isRegistered() async -> Bool
     func setActive(_ active: Bool)
     /// Finish any registration and remove the device before the account session is cleared.
     func unregister() async
+}
+
+extension PushService {
+    func refreshRegistration() async { _ = await registerIfPossible() }
 }
 
 enum PushRegistrationState: Equatable {
@@ -83,7 +88,7 @@ enum DeviceID {
 @Observable
 final class LivePushService: PushService {
     static let shared = LivePushService(network: .shared,
-        refreshAccount: { await OblienAuth.shared.refresh() },
+        refreshAccount: { await MindwireAuth.shared.refresh() },
         didRegister: { await DaemonManager.shared.reconcileNotifications(force: true) })
 
     private(set) var state: PushRegistrationState = .checking
@@ -92,10 +97,10 @@ final class LivePushService: PushService {
     private let api: PushDeviceRegistry
     private let tokens: FCMTokenProvider
     private let authorization: PushAuthorization
-    private let accountID: () -> Int?
+    private let accountID: () -> String?
     private let deviceID: () -> String
-    private var registration: (id: UUID, account: Int, token: String, task: Task<Bool, Never>)?
-    private var registered: (account: Int, token: String)?
+    private var registration: (id: UUID, account: String, token: String, task: Task<Bool, Never>)?
+    private var registered: (account: String, token: String)?
     private var unregistering = false
     private var suspended = false
     @ObservationIgnored private var startup: (id: UUID, task: Task<Void, Never>)?
@@ -111,7 +116,7 @@ final class LivePushService: PushService {
     init(api: PushDeviceRegistry = NotificationsAPI(),
          tokens: FCMTokenProvider = FirebaseFCMTokenProvider(),
          authorization: PushAuthorization? = nil,
-         accountID: (() -> Int?)? = nil,
+         accountID: (() -> String?)? = nil,
          deviceID: @escaping () -> String = DeviceID.current,
          network: ComputerNetworkMonitor? = nil,
          refreshAccount: @escaping () async -> Void = {},
@@ -120,7 +125,7 @@ final class LivePushService: PushService {
         self.api = api
         self.tokens = tokens
         self.authorization = authorization ?? SystemPushAuthorization()
-        self.accountID = accountID ?? { OblienAuth.shared.authenticated ? OblienAuth.shared.user?.id : nil }
+        self.accountID = accountID ?? { MindwireAuth.shared.authenticated ? MindwireAuth.shared.user?.id : nil }
         self.deviceID = deviceID
         self.refreshAccount = refreshAccount
         self.didRegister = didRegister
@@ -171,6 +176,11 @@ final class LivePushService: PushService {
     }
 
     @discardableResult
+    func refreshRegistration() async {
+        registered = nil
+        _ = await registerIfPossible()
+    }
+
     func registerIfPossible() async -> Bool {
         defer { scheduleRetryIfNeeded() }
         guard !suspended, !unregistering else { return false }
@@ -204,7 +214,7 @@ final class LivePushService: PushService {
         return result
     }
 
-    private func register(token: String, account: Int, canRefreshToken: Bool = true) async -> Bool {
+    private func register(token: String, account: String, canRefreshToken: Bool = true) async -> Bool {
         guard accountID() == account, !suspended else { return false }
         let info = ["model": UIDevice.current.model, "os": UIDevice.current.systemVersion,
                     "app_version": AppConstants.appVersion,
@@ -239,7 +249,7 @@ final class LivePushService: PushService {
         }
     }
 
-    private func markRegistered(token: String, account: Int) -> Bool {
+    private func markRegistered(token: String, account: String) -> Bool {
         guard accountID() == account, !suspended else { return false }
         let changed = state != .ready || registered?.account != account || registered?.token != token
         registered = (account, token)

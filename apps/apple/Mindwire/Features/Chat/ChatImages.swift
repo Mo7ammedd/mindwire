@@ -288,7 +288,7 @@ enum ChatAttachmentContent {
     static func data(_ attachment: DaemonAttachment, session: DaemonSession?) async throws -> Data {
         if let data = attachment.data { return data }
         guard let session, let id = attachment.artifactId else { throw BackendError.message("This attachment is stored on the workspace. Reconnect to open it.") }
-        let key = "\(OblienAuth.shared.user?.id ?? 0):\(session.agentId):\(id)"
+        let key = "\(MindwireAuth.shared.user?.id ?? "signed-out"):\(session.agentId):\(id)"
         if let bytes = cache.object(forKey: key as NSString) { return bytes as Data }
         if let task = pending[key] { return try await task.value }
         let task = Task { try await session.call { try await $0.attachmentData(id) } }

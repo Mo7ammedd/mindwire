@@ -21,8 +21,8 @@ final class PushDeliveryLiveTests: XCTestCase {
         UIApplication.shared.isIdleTimerDisabled = true
         defer { UIApplication.shared.isIdleTimerDisabled = previousIdleTimer }
         XCTAssertEqual(FirebaseApp.app()?.options.bundleID, Bundle.main.bundleIdentifier)
-        await OblienAuth.shared.refresh()
-        guard OblienAuth.shared.authenticated else {
+        await MindwireAuth.shared.refresh()
+        guard MindwireAuth.shared.authenticated else {
             XCTFail("Sign in to Oblien in this Mindwire install before the push check.")
             return
         }

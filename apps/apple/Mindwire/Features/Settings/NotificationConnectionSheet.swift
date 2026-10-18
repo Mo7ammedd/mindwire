@@ -29,7 +29,7 @@ struct NotificationConnectionSheet: View {
                     }
                     VStack(spacing: 12) {
                         Button(action: onSignIn) {
-                            Text("Sign in to Oblien").frame(maxWidth: .infinity)
+                            Text("Sign in to Mindwire").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.glassProminent).controlSize(.large).tint(Palette.accent)
                         .accessibilityIdentifier("notification-intro-sign-in")

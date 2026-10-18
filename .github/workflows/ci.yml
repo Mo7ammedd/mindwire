@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -184,3 +183,7 @@ jobs:
         env:
           PUSH_TEST_POSTGRES_URL: postgresql://mindwire_test:local_test_only@127.0.0.1:5432/postgres
         run: bun --cwd apps/console test test/push-notifications.test.ts
+      - name: Test monthly computers and account migration with PostgreSQL
+        env:
+          CLOUD_TEST_POSTGRES_URL: postgresql://mindwire_test:local_test_only@127.0.0.1:5432/postgres
+        run: bun --cwd apps/console test test/cloud-computers.test.ts

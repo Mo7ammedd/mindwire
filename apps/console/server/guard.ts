@@ -42,6 +42,9 @@ export function registerAuth(app: Hono): void {
     if (path === DIRECTORY_PATH || path.startsWith(DIRECTORY_PATH + "/")) return next();
     // Push has its own account verifier and send-only credential boundary.
     if (path === NOTIFICATIONS_PATH || path.startsWith(NOTIFICATIONS_PATH + "/")) return next();
+    // Cloud has an independent account/owner boundary, including short-lived
+    // runtime grants. It must not hydrate a browser daemon for native requests.
+    if (path === "/api/cloud" || path.startsWith("/api/cloud/")) return next();
     if (!isGuarded(path) || isPublic(path)) return next();
 
     const userId = await userIdFromRequest(c);

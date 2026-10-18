@@ -55,3 +55,38 @@ export const pushToken = sqliteTable("push_token", {
   expiresAt: integer("expires_at"),
   revokedAt: integer("revoked_at"),
 }, t => [uniqueIndex("push_token_hash").on(t.tokenHash), uniqueIndex("push_token_owner_tag").on(t.ownerId, t.tag), index("push_token_owner_status").on(t.ownerId, t.status)]);
+
+// One immutable namespace and saved paid contract per Mindwire Cloud Computer.
+export const cloudComputer = sqliteTable("cloud_computer", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  requestKey: text("request_key").notNull(),
+  namespace: text("namespace").notNull(),
+  name: text("name").notNull(),
+  state: text("state").notNull().default("draft"),
+  contract: text("contract").notNull(),
+  workspaceId: text("workspace_id"),
+  checkoutId: text("checkout_id"),
+  checkoutUrl: text("checkout_url"),
+  error: text("error"),
+  leaseToken: text("lease_token"),
+  leaseUntil: integer("lease_until").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, t => [uniqueIndex("cloud_computer_request").on(t.ownerId, t.requestKey),
+  uniqueIndex("cloud_computer_namespace").on(t.namespace), uniqueIndex("cloud_computer_workspace").on(t.workspaceId),
+  index("cloud_computer_owner").on(t.ownerId), index("cloud_computer_due").on(t.state, t.updatedAt)]);
+
+export const cloudRuntimeGrant = sqliteTable("cloud_runtime_grant", {
+  tokenHash: text("token_hash").primaryKey(),
+  computerId: text("computer_id").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+}, t => [index("cloud_runtime_grant_expiry").on(t.expiresAt)]);
+
+export const cloudLegacyAccount = sqliteTable("cloud_legacy_account", {
+  providerId: text("provider_id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  credential: text("credential").notNull(),
+  nextRefreshAt: integer("next_refresh_at").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+}, t => [uniqueIndex("cloud_legacy_account_owner").on(t.ownerId), index("cloud_legacy_account_refresh").on(t.nextRefreshAt)]);

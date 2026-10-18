@@ -3,6 +3,8 @@ import OblienKit
 
 /// Catalog defaults and storage choices travel together to the SDK boundary.
 struct CloudProvisioningOptions: Sendable {
+    var planId: String = "essential"
+    var catalogImageId: String?
     var image: String = "node:22"
     var preset: String?
     var namespace: String?
@@ -38,9 +40,14 @@ final class CloudProvisioner: RuntimeProvisioner {
     }
 
     func provision(_ spec: WorkspaceSpec, onStage: ((ProvisionStageKey) -> Void)?) async throws -> AgentRuntime {
+        guard options.rootDiskId == nil && options.disks.isEmpty else {
+            throw BackendError.message("Keep using this retained storage with its existing computer. A new monthly computer starts with its own included storage.")
+        }
         onStage?(.creating)
-        let workspace = try await OblienCloud.client.workspaces.create(options.request(name: name, spec: spec))
+        guard let imageId = options.catalogImageId else { throw BackendError.message("Choose an image from the Mindwire Cloud catalog.") }
+        let computer = try await CloudComputers.purchase(name: name, planId: options.planId, imageId: imageId, key: options.idempotencyKey)
+        guard let workspaceId = computer.workspaceId else { throw CloudCheckoutRequired(computer: computer) }
         onStage?(.booting)
-        return .cloud(workspaceId: workspace.id)
+        return .cloud(workspaceId: workspaceId)
     }
 }

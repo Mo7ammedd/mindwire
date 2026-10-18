@@ -18,9 +18,9 @@ final class CloudSourceControlLiveTests: XCTestCase {
         let oldIdle = UIApplication.shared.isIdleTimerDisabled
         UIApplication.shared.isIdleTimerDisabled = true
         defer { UIApplication.shared.isIdleTimerDisabled = oldIdle }
-        await OblienAuth.shared.refresh()
-        XCTAssertTrue(OblienAuth.shared.authenticated)
-        let handle = OblienCloud.client.workspace(id)
+        await MindwireAuth.shared.refresh()
+        XCTAssertTrue(MindwireAuth.shared.authenticated)
+        let handle = MindwireCloud.client.workspace(id)
         let info = try await handle.get()
         XCTAssertTrue(info.isRunning)
         let service = CloudWorkspaceService(workspaceId: id)
@@ -94,10 +94,10 @@ final class CloudSourceControlLiveTests: XCTestCase {
         let wasIdleDisabled = UIApplication.shared.isIdleTimerDisabled
         UIApplication.shared.isIdleTimerDisabled = true
         defer { UIApplication.shared.isIdleTimerDisabled = wasIdleDisabled }
-        await OblienAuth.shared.refresh()
-        XCTAssertTrue(OblienAuth.shared.authenticated)
+        await MindwireAuth.shared.refresh()
+        XCTAssertTrue(MindwireAuth.shared.authenticated)
         for id in selected.split(separator: ",").map(String.init) {
-            let live = try await OblienCloud.client.workspaces.get(id)
+            let live = try await MindwireCloud.client.workspaces.get(id)
             XCTAssertTrue(live.isRunning)
             let workspace = Workspace(id: id, name: live.name ?? "Cloud workspace",
                 runtime: .cloud(workspaceId: id), createdAt: isoNow())

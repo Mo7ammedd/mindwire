@@ -29,6 +29,13 @@
       "when": 1792321329888,
       "tag": "0003_push_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792331242872,
+      "tag": "0004_cloud_computers",
+      "breakpoints": true
     }
   ]
 }

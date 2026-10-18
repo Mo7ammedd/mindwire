@@ -247,6 +247,7 @@ export interface DaemonLocation {
   attached?: boolean;
 
   // oblien
+  computerId?: string;
   workspaceId?: string;
   mode?: SandboxLifecycle;
   cpus?: number;
@@ -355,6 +356,7 @@ export type AddDaemonRequest =
     }
   | {
       provider: "oblien";
+      computerId?: string;
       label?: string;
       image?: string;
       cpus?: number;

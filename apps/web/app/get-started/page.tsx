@@ -16,7 +16,7 @@ import { cloudDashboardUrl, iosApp } from "@/lib/product";
 export const metadata: Metadata = {
   title: "Get started — Mindwire",
   description:
-    "Set up Mindwire on your iPhone and connect your computer with a QR code. Bring a server over SSH or choose an Oblien cloud workspace.",
+    "Set up Mindwire on your iPhone and connect your computer with a QR code. Bring a server over SSH or choose a Mindwire Cloud Computer.",
   alternates: { canonical: "/get-started/" },
 };
 
@@ -148,8 +148,8 @@ export default function GetStarted() {
             <Cloud size={27} strokeWidth={1.5} />
             <h2 id="cloud-setup-title">Prefer a cloud workspace?</h2>
             <p>
-              Choose <strong>Oblien Cloud</strong> in the app. Sign in to your
-              Oblien account, create a workspace, and give your agent an online
+              Choose <strong>Mindwire Cloud</strong> in the app. Sign in to your
+              Mindwire account, choose a monthly computer, and give your agent an online
               home. You can manage its resources and lifecycle from your phone.
             </p>
             <div className={styles.actions}>
@@ -157,7 +157,7 @@ export default function GetStarted() {
                 Workspace pricing <ArrowRight size={15} />
               </Link>
               <a href={cloudDashboardUrl} className={styles.textButton}>
-                Open Oblien <ArrowUpRight size={15} />{" "}
+                Open Mindwire Console <ArrowUpRight size={15} />{" "}
               </a>
             </div>
           </section>

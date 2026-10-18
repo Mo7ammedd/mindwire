@@ -55,7 +55,7 @@ export function TopNav({
         onClick={onHome}
         aria-label="Home"
       >
-        <OblienMark />
+        <OblienMark showWord={false} />
       </button>
       <Separator orientation="vertical" className="h-5" />
       <span className="text-sm font-medium tracking-tight">
@@ -70,6 +70,7 @@ export function TopNav({
       </div>
 
       <div className="flex items-center gap-1">
+        <Button asChild variant="ghost" size="sm"><a href="/computers">Cloud Computers</a></Button>
         <Separator orientation="vertical" className="mx-1 h-5" />
         <a
           href={DOCS_URL}
