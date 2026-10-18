@@ -23,6 +23,16 @@ type Preferences interface {
 	NotificationsMuted(chatID string) (bool, error)
 }
 
+// BotIdentity is the saved sender, independent of the engine used by a turn.
+type BotIdentity struct {
+	ID, Name, Icon, WorkspaceID string
+}
+
+// IdentityResolver is optional for legacy notification sources.
+type IdentityResolver interface {
+	NotificationIdentity(chatID string) (BotIdentity, error)
+}
+
 // Noop drops notifications (used in tests / when delivery is intentionally off).
 type Noop struct{}
 

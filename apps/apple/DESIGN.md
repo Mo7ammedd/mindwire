@@ -1,9 +1,123 @@
 # Mindwire — iOS 26 Design Language (v2, from scratch)
 
-This is the single source of truth for the UI. The old React-Native-derived look
+General onboarding and setup have their own presentation, updated October 17, 2026:
+use `AssistantPage`, `AssistantHeading`, `AssistantOption`, and `AssistantPrimaryButton`.
+These are designed pages with generous typography, quiet monochrome surfaces, rounded choices,
+and a fixed primary action. They deliberately do not use settings-style Forms or grouped Lists.
+Keep semantic light/dark colors, Dynamic Type, scrollable content, and bundled PNG icons.
+General setup pushes the existing computer, cloud, and AI screens through one navigation stack;
+the same pairing, authentication, provisioning, and billing code owns every operation.
+Chat, its composer, message rendering, attachments, tools, and caches are shared and unchanged.
+Keep shared chat behavior intact. Mac uses the desktop presentation described below.
+
+Use short action titles and only instructions needed for the current step; avoid marketing copy.
+Start by asking which computer to use, with two compact, outlined choices: Your computer and
+Cloud computer. Use simple bundled icons, useful descriptions, and no decorative gradient or device collage.
+Explain that a personal computer must stay on, while a cloud computer is billed separately. Show saved
+computers only inside their matching destination. Cloud sign-in and inventory belong inside
+Cloud computer; pricing is loaded only after choosing Create. Keep Back within the chosen branch.
+General history opens in a leading-edge drawer. Put the logo and search
+in the conversation list's scrolling header. New chat is one plus icon beside the search field.
+Use plain conversation rows with a subtle active highlight. Settings and Account are actions in the
+header's trailing ellipsis menu; there is no New chat row or bottom Settings/account control.
+Omit per-row dates, elapsed time and project metadata. Reuse the shared history data and context actions,
+and keep ChatScreen mounted at its full width. Opening the drawer slides the chat body aside;
+dragging it closed moves both surfaces together using fixed screen coordinates and stable view bounds.
+A dim, viewport-anchored overlay covers the exposed chat edge. Tapping it or using VoiceOver escape
+also dismisses the drawer; there is no visible close button.
+Keep keyboard dismissal, VoiceOver escape, Reduce Motion, and chat drafts intact.
+General sidebar chrome uses native SF Symbols and buttons. Hide the chat's menu control while the
+drawer is visible and keep New chat out of the chat's top toolbar.
+Use native horizontal pans to open it from the chat body and close it from the drawer. Preserve text
+editing, selection and horizontal code scrolling. The exposed chat has a
+charcoal (#222) tint that stays distinct from the dark background. Keep the logo/wordmark clear,
+use a quiet native Chats section header and native icon-only header actions. There is no pinned
+account avatar, name, material bar, or footer.
+The sidebar logo is the plain monochrome mark without a tile or background; the wordmark uses light weight.
+Search has a capsule surface. New chat uses a dark plus on a white circle beside Search.
+Selected conversations use a quiet surface with 18-point corners.
+Confirmed deletion of the active chat clears the thread immediately and returns to the start view,
+while leaving the drawer available to choose another chat. Deleting another chat preserves the active draft.
+Fit the bundled logo's actual artwork bounds; the General empty state uses a modest 36-point mark.
+
+General groups conversations under native collapsible bot rows, with Mindwire as the default bot.
+Give each bot a compact colored vector character beside its name: a soft asymmetric shape and two
+dark eyes. Choose from 24 characters in ten colors (240 combinations). Save the selected
+`icon` with the daemon profile; the automatic default derives from its ID and retains its identity.
+Reuse it in saved-bot tool cards and the bot's empty state. Settings → Bot icons lists bots with
+a dots menu for Change icon; the same picker is available from each bot's context menu. User message
+bubbles and Send use the bot's pastel color with charcoal text. Every palette pair meets 4.5:1 contrast. Avatars are decorative and static; keep
+the sidebar's Mindwire brand mark plain. Chat children retain their quieter indented text rows.
+Show at most five recent matching chats per bot. View more opens that bot's complete history in the
+shared searchable chat-list modal, including the existing chat actions. Closing it returns to the
+drawer; opening a conversation dismisses both surfaces. Sidebar search also finds older hidden chats.
+Search matches bot names and chat titles and temporarily reveals matching chats. Preserve collapse
+state and separate drafts. The header + starts a chat in the current bot; Create a bot in the menu
+opens a fresh Mindwire conversation with a creation draft. Bot context menus offer New chat, About,
+Edit with Mindwire, and Archive. Archive retains history and can be restored from the header menu.
+About shows the real saved purpose, instructions, memory and knowledge. Tool acknowledgements link
+to real synced bot/chat IDs. Creating or editing through conversation updates the daemon's registry;
+no bot state is inferred from assistant prose. Both modes list user-created bots; base connections belong in developer configuration.
+
+General AI setup presents **Continue with Claude** and **Continue with ChatGPT** as direct actions.
+Use `AssistantAIService` for consumer names throughout selection, preparation and authentication;
+never rename persisted harness IDs or duplicate the daemon's authentication. Other providers and
+xAI API keys live under **Other ways to connect**. Reuse an existing profile when available, verify
+its live readiness, and present the requested sign-in method once. Cancelling sign-in must not
+immediately reopen it. Keep provider instructions available, including exact external setting names.
+General setup has no agent management or terminal menu. Back returns to AI choice before computer
+choice. Preserve the shared chat, composer and draft/session stores.
+
+The iOS rules below apply to mobile Developer screens and existing shared tools. The old React-Native-derived look
 (orange chrome, colored status text, flat black screens, custom
-Card/Field components) is **retired**. Build every screen from stock iOS 26 SwiftUI so the
+Card/Field components) is **retired**. Build those screens from stock iOS 26 SwiftUI so the
 app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
+
+## Mac desktop
+
+General and Developer share the same desktop messenger, bot identities, sidebar styling, chat
+renderer, composer, drafts, and connection services. Developer adds Agents, Projects, and Computers
+to that sidebar. Settings opens in its own native window.
+
+Developer's Computers tab is the shared inventory for local machines, saved SSH hosts, and cloud
+computers. Saved hosts already represented by a workspace expose Connection settings on that
+workspace instead of a duplicate row. Settings contains preferences and AI setup, not a second
+computer manager. Keep persisted workspace IDs and navigation keys stable when changing these labels.
+
+General exposes AI connections in Settings and from the chat's tools. Use the ChatGPT, Claude,
+Grok and OpenCode marks for connections; bot rows still use the user's bot avatar. Account
+management reuses AgentAuthenticationScreen, DaemonSession and the adapter's auth schemas.
+Opening management must not start login or logout, change the selected assistant, or create a
+new profile. A changed account affects other bots using that computer's native account. Models
+reuse the existing schema-driven picker and daemon cache; General shows model and reasoning controls.
+
+Computers has Your computers and Mindwire Cloud collections. The plus button opens the shared
+Add computer flow directly; it must not repeat that flow's connection choices in another menu.
+Personal computer setup does not wait for a cloud inventory refresh. Cloud billing and account
+ownership use the shared cloud adapter; the Mindwire account migration is maintained in PR #49.
+
+Connect your phone opens a dedicated Mac window with a QR code, explicit device approval and the
+CLI's saved phones. The desktop executes the installed CLI's standard JSON commands through the
+small setup script. Do not bundle another CLI or implement separate provider, pairing, device or
+startup state in Swift. The launcher installs missing tools in the user's home directory; closing
+the pairing window leaves the background service and tunnel running.
+
+Opening a project enters a two-column workspace. The left column starts with an explicit Back to
+Projects control, a native project-switching menu, and Chats / Files / Changes / Terminal controls.
+The selected tool owns the rest of that column: conversations, the file tree, changed files, or
+terminal sessions. The right column displays the selected conversation, file, diff, or terminal.
+Do not nest an inset navigation sidebar inside the main sidebar or keep a second project list
+beside the file tree. Keep file search and actions above the tree; use compact desktop row sizes.
+
+The sidebar can collapse and reopen with its header button or Control–Command–S. Back remains
+available while collapsed. Preserve navigation hosts and visited tool state during these transitions;
+open files, unsaved buffers, and terminal sessions must survive switching panels. Leaving the project
+or changing app modes protects unsaved edits. Reuse the shared file, Git, terminal, and chat services;
+platform conditions change presentation rather than duplicating their behavior.
+
+Use the General desktop surface colors and restrained selection fills. Desktop navigation uses
+12–14-point labels, consistent 52-point headers, and native menus/buttons. The global accent is warm
+orange; bot avatars and conversation accents retain each bot’s chosen identity.
 
 ## Principles
 
@@ -18,11 +132,14 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
    occupies the center). Detail/pushed screens use the entity name as an **inline** title
    (no mark). The mark is always monochrome (`.primary`), never orange.
 
-3. **Calm, monochrome chrome — orange is rare.** The brand orange (`Palette.accent`,
-   `#E25D3E`) is the global `.tint`, so genuine controls (toggles, pickers, selected tab,
+3. **Calm chrome with a warm orange accent.** The shared orange (`Palette.accent`,
+   deeper `#B75A24` in light mode, soft `#EB9257` in dark mode) is the global `.tint`, so genuine controls (toggles, pickers, selected tab,
    in-content links) and the primary CTA carry it. But **chrome is monochrome**:
    - Toolbar / nav-bar buttons: `.tint(.primary)` locally (a clean monochrome glyph).
      Never an orange toolbar button.
+   - Native menu actions keep primary text and icon colors (white in dark mode),
+     with destructive actions in system red. `AppMenu` applies the neutral tint to both
+     its trigger and actions; `appContextMenu` applies it to its actions.
    - Status is **never** colored orange/green (see #4).
    - Secondary buttons: `.buttonStyle(.glass)`. Primary CTA only: `.buttonStyle(.glassProminent)`.
 
@@ -59,8 +176,7 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
    without harness logos. Loading, previews, commands, and voice keep this same identity.
    Provider identities belong in subscription setup and developer configuration. App-owned
    navigation and action icons use the shared `AppIcon` PNG catalog and `AppMenu` wrappers.
-   Mac currently uses the shared mobile screens and navigation. Dedicated Mac interface work is
-   deferred; do not add a desktop shell or platform-specific chat styling without a new request.
+   Mac shares these services and controls, with its own sidebar and workspace presentation.
 
 7. **Glass for floating chrome only.** Chat composer, terminal bars, FABs →
    `.glassEffect` / `GlassEffectContainer` / `.buttonStyle(.glass)`. Never put glass behind
@@ -245,14 +361,14 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
   Send to Agent flow used by Files: pick a workspace agent, then add a comment in the chat draft.
   Diff selections retain addition/deletion markers when handed to the chat.
 - **Mobile modes**: fresh installs choose General or Developer; upgrades keep Developer. Settings
-  can switch at any time. General opens the shared chat directly with a flat searchable history.
+  can switch at any time. General opens the shared chat directly with searchable bot groups.
   Developer owns the existing four tabs. Keep one chat, composer, draft store, history component,
   pairing flow, authentication flow and cloud provisioner. General hides coding configuration,
   terminal and Git shortcuts while retaining attachments, voice, files and downloads. Its setup
   prepares `~/.mindwire-workspace` through the authoritative workspace project registry, and only
   persists IDs for the default profile/project. Existing chats never change computers when the
   default changes. Restore the General conversation per window alongside Developer navigation.
-  Mac stays on the shared Developer shell until its interface work is explicitly resumed.
+  Mac General and Developer share the desktop chat shell. Developer adds Projects and Computers.
 - **File downloads**: files expose Download in every browser layout's context menu and the viewer's
   actions. Unsupported and failed previews offer Download directly. Use the same on-demand transfer
   with native progress, cancel/retry, and Save to Files for all entry points. Preserve original bytes
@@ -262,7 +378,7 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
 - **Confirmations**: centered native `.alert` with explicit Cancel and a named action
   (Sign out, Delete, Stop, etc.). Destructive actions use `.destructive` and system red,
   including their icons. Use `DestructiveButton` for labeled rows and menu items so symbols
-  cannot inherit the orange accent. Swipe actions retain native white labels on red fills.
+  cannot inherit the app accent. Swipe actions retain native white labels on red fills.
   Do not use bottom action sheets (`.confirmationDialog` or
   `UIAlertController.Style.actionSheet`) anywhere. Use native `Menu` for action choices
   such as selecting a project or agent; sheets remain for forms and full screens.
@@ -274,7 +390,7 @@ app reads as a modern, calm, Liquid-Glass-native app — not a themed port.
 
 ## Color reference (`Palette`, all system-backed)
 
-`accent` = Oblien orange (global tint, used sparingly). `text`/`textDim`/`textFaint` =
+`accent` = adaptive orange (global tint, used sparingly). `text`/`textDim`/`textFaint` =
 `.primary`/`.secondary`/`.tertiaryLabel`. Backgrounds = system grouped (never set manually).
 `danger` = system red (destructive + error only). Avoid `success`/`warning` as status text.
 

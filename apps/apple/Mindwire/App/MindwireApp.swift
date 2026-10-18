@@ -27,10 +27,35 @@ struct MindwireApp: App {
             appWindow
             #endif
         }
+        #if targetEnvironment(macCatalyst)
+        .defaultSize(width: 1280, height: 820)
+        .commands { DesktopSettingsCommands() }
+        #endif
+
+        #if targetEnvironment(macCatalyst)
+        WindowGroup("Settings", id: DesktopSettingsNavigation.windowID, for: String.self) { _ in
+            DesktopSettingsWindow(stores: stores)
+        } defaultValue: {
+            DesktopSettingsNavigation.windowID
+        }
+        .defaultSize(width: 800, height: 520)
+        .windowResizability(.contentMinSize)
+        .commands { DesktopSettingsCommands() }
+
+        WindowGroup("Connect your phone", id: DesktopPhoneConnectionScreen.windowID, for: String.self) { _ in
+            DesktopPhoneConnectionScreen()
+        } defaultValue: {
+            DesktopPhoneConnectionScreen.windowID
+        }
+        .defaultSize(width: 520, height: 700)
+        .windowResizability(.contentMinSize)
+        .commands { DesktopSettingsCommands() }
+        #endif
     }
 
     private var appWindow: some View {
         MindwireWindow(stores: stores, lifecycle: lifecycle)
+            .tint(Palette.accent)
             // Brief system overlays are still foreground work. Only backgrounding every
             // window stops the shared synchronization loop.
             .onChange(of: AppActivityContext(active: appPhase != .background,
@@ -90,7 +115,7 @@ private struct MindwireWindow: View {
             .sheet(item: $sheet, onDismiss: rootSheetDismissed) { item in
                 switch item {
                 case .computerPairing(let code):
-                    AddServerScreen(presetType: .local, pairingCode: code) { connection in
+                    AddServerScreen(presetType: .local, pairingCode: code, assistantSetup: app.usesAssistant) { connection in
                         if let workspace = stores.workspaces(forServerId: connection.id).first {
                             if app.usesAssistant { stores.experience.pendingWorkspaceID = workspace.id }
                             else { app.openWorkspace(workspace.id) }

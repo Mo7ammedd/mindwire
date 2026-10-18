@@ -1,5 +1,109 @@
 import SwiftUI
 
+private struct DesktopMessengerKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var desktopMessenger: Bool {
+        get { self[DesktopMessengerKey.self] }
+        set { self[DesktopMessengerKey.self] = newValue }
+    }
+}
+
+/// Keep identity outside Menu: Catalyst can collapse a composite menu label to plain text.
+/// The header receives presentation state only; all actions still belong to the shared chat.
+struct DesktopChatHeader<Actions: View>: View {
+    @Environment(AppModel.self) private var app
+    let bot: AssistantBot?
+    let title: String
+    let computerName: String?
+    let status: String?
+    let canOpenComputer: Bool
+    let openHistory: () -> Void
+    let openComputer: () -> Void
+    @ViewBuilder let actions: () -> Actions
+    private var leadingNavigationVisible: Bool { app.desktopNavigationVisible || app.desktopBotRailVisible }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if !leadingNavigationVisible {
+                DesktopNavigationToggle()
+                if app.desktopProjectIsOpen {
+                    Button { app.showProjects() } label: { Image(systemName: "chevron.left") }
+                        .buttonStyle(AssistantDesktopButtonStyle()).help("Back to Projects")
+                        .accessibilityLabel("Back to Projects").accessibilityIdentifier("desktop.project.back")
+                }
+            }
+            if let bot {
+                AssistantBotAvatar(botId: bot.id, icon: bot.icon, size: 28)
+            } else {
+                AssistantBrandMark(size: 24).frame(width: 28, height: 28)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 15, weight: .semibold)).lineLimit(1)
+                    .accessibilityIdentifier("chat-title")
+                if computerName != nil || status != nil {
+                    HStack(spacing: 5) {
+                        if status != nil { ProgressView().controlSize(.mini).tint(Palette.accent) }
+                        Text([computerName, status].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                            .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 6) {
+                if canOpenComputer {
+                    Button(action: openComputer) { actionIcon(.monitor) }
+                        .help(computerName ?? t("assistant.computer"))
+                        .accessibilityLabel(computerName ?? t("assistant.computer"))
+                }
+                AppMenu {
+                    Button(action: openHistory) { Label(t("assistant.history"), icon: .history) }
+                    Divider()
+                    actions()
+                } label: { actionIcon(.more) }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                    .help(t("assistant.sidebar.options"))
+                    .accessibilityLabel(t("assistant.sidebar.options"))
+            }
+            .buttonStyle(AssistantDesktopButtonStyle())
+        }
+        .tint(.primary)
+        .padding(.horizontal, AssistantDesktopStyle.gutter)
+        .padding(.leading, leadingNavigationVisible ? 0 : 76)
+        .frame(maxWidth: .infinity)
+        .frame(height: AssistantDesktopStyle.headerHeight)
+        .background(AssistantDesktopStyle.canvas)
+        .overlay(alignment: .bottom) { Rectangle().fill(AssistantDesktopStyle.separator).frame(height: 0.5) }
+    }
+
+    private func actionIcon(_ icon: AppIconName) -> some View {
+        AppIcon(icon, size: 17).foregroundStyle(.secondary)
+            .frame(width: 34, height: 34)
+            .contentShape(.rect(cornerRadius: 11, style: .continuous))
+    }
+}
+
+/// Presentation-only styling; the same markdown, selection and native tool views render inside.
+struct ChatAssistantBubble: ViewModifier {
+    @Environment(\.desktopMessenger) private var desktop
+
+    func body(content: Content) -> some View {
+        if desktop {
+            content
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .background(AssistantDesktopStyle.surface,
+                            in: .rect(cornerRadius: AssistantDesktopStyle.messageRadius, style: .continuous))
+                // Cap the layout after painting the content, so a short reply has a short bubble.
+                .frame(maxWidth: 732, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.trailing, 56)
+        } else { content }
+    }
+}
+
 enum ChatContentStyle {
     static let partSpacing = Spacing.sm - 1
     static let iconSize: CGFloat = 18
@@ -80,6 +184,8 @@ struct ChatUserBubble: View {
     var joinsAbove = false
     var joinsBelow = false
     var attachments: [DaemonAttachment] = []
+    @Environment(\.chatBotColor) private var botColor
+    @Environment(\.desktopMessenger) private var desktop
 
     var body: some View {
         HStack(spacing: 0) {
@@ -103,15 +209,23 @@ struct ChatUserBubble: View {
                     }
                 }
                 if !text.isEmpty {
-                    MessageContentView(text: text, onAccent: true).equatable()
-                        .padding(.horizontal, Spacing.md + 2)
-                        .padding(.vertical, Spacing.sm + 2)
-                        .padding(.trailing, 6)
-                        .background(Palette.accent, in: OutgoingBubbleShape(joinsAbove: joinsAbove, joinsBelow: joinsBelow))
+                    if desktop {
+                        MessageContentView(text: text, onAccent: true).equatable()
+                            .padding(.horizontal, 16).padding(.vertical, 10)
+                            .background(AssistantDesktopStyle.outgoing,
+                                        in: .rect(cornerRadius: AssistantDesktopStyle.messageRadius, style: .continuous))
+                    } else {
+                        MessageContentView(text: text, onAccent: true).equatable()
+                            .padding(.horizontal, Spacing.md + 2)
+                            .padding(.vertical, Spacing.sm + 2)
+                            .padding(.trailing, 6)
+                            .background((botColor ?? .brand).fill, in: OutgoingBubbleShape(joinsAbove: joinsAbove, joinsBelow: joinsBelow))
+                    }
                 }
             }
             .containerRelativeFrame(.horizontal, alignment: .trailing) { width, _ in
-                (width - Spacing.lg * 2) * 0.78
+                desktop ? min(560, max(0, width - AssistantDesktopStyle.gutter * 2) * 0.72)
+                    : (width - Spacing.lg * 2) * 0.78
             }
         }
     }

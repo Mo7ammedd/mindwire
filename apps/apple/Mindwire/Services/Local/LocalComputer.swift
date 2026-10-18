@@ -8,18 +8,17 @@ final class LocalComputer {
     static let shared = LocalComputer()
     private(set) var preparing = true
     private(set) var workspaceId: String?
-    private(set) var projectId: String?
     private(set) var error: String?
     private var task: Task<Void, Never>?
 
     func prepare(stores: Stores, repository: WorkspaceRepository) async {
         if let task { await task.value; return }
-        if let workspaceId, let projectId, repository.get(workspaceId) != nil,
-           stores.projects.get(projectId)?.workspaceId == workspaceId { return }
+        if let workspaceId, repository.get(workspaceId) != nil,
+           error == nil, stores.workspaceData.errors[workspaceId] == nil { return }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--app-store-preview") {
             let project = stores.projects.list().first
-            workspaceId = project?.workspaceId; projectId = project?.id; preparing = false
+            workspaceId = project?.workspaceId; preparing = false
             return
         }
         #endif
@@ -35,18 +34,11 @@ final class LocalComputer {
                 }
                 workspaceId = workspace.id
                 await stores.workspaceData.refresh(workspace)
-                // Register a personal context in the same workspace registry used by
-                // the phone. This references the existing home; it creates no folder.
-                let existing = stores.projects.list().first {
-                    $0.workspaceId == workspace.id && $0.path == endpoint.home
+                if let failure = stores.workspaceData.errors[workspace.id] {
+                    throw BackendError.message(failure)
                 }
-                let project: Project
-                if let existing { project = existing }
-                else {
-                    project = try await stores.workspaceData.createProject(
-                        .init(name: "Personal", workspaceId: workspace.id, path: endpoint.home))
-                }
-                projectId = project.id
+                // General prepares its shared hidden context after choosing an AI.
+                // Opening the desktop never creates an unrelated project at home.
             } catch { self.error = error.localizedDescription }
         }
         self.task = task

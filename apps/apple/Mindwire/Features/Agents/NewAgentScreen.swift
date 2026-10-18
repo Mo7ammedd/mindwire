@@ -3,7 +3,12 @@ import SwiftUI
 /// Saves a workspace profile and immediately prepares its CLI through the shared installation job.
 struct NewAgentScreen: View {
     private let projectName: String?
+    private let embedded: Bool
     private let assistantSetup: Bool
+    private let requiresBotSupport: Bool
+    private let assistantWorkspace: Workspace?
+    private let existingAgents: [Agent]
+    private let onSelected: ((Agent) -> Void)?
     private let onFinished: ((Agent?) -> Void)?
     private let repository: WorkspaceRepository
     @Environment(\.stores) private var stores
@@ -13,6 +18,7 @@ struct NewAgentScreen: View {
     @State private var model: NewAgentModel
     @State private var activeSheet: AgentCreationSheet?
     @State private var actions = WorkspaceActions()
+    @State private var existingAgent: Agent?
 
     private enum AgentCreationSheet: Int, Identifiable {
         case workspaces, newWorkspace
@@ -20,10 +26,17 @@ struct NewAgentScreen: View {
     }
 
     init(workspaceId: String? = nil, agentType: AgentID = .claudeCode, releaseCatalog: ReleaseCatalog = .shared,
-         repository: WorkspaceRepository? = nil, projectName: String? = nil, assistantSetup: Bool = false,
+         repository: WorkspaceRepository? = nil, projectName: String? = nil, assistantSetup: Bool = false, embedded: Bool = false,
+         assistantWorkspace: Workspace? = nil, existingAgents: [Agent] = [], requiresBotSupport: Bool = true,
+         onSelected: ((Agent) -> Void)? = nil,
          onFinished: ((Agent?) -> Void)? = nil) {
         self.projectName = projectName
+        self.embedded = embedded
         self.assistantSetup = assistantSetup
+        self.requiresBotSupport = requiresBotSupport
+        self.assistantWorkspace = assistantWorkspace
+        self.existingAgents = existingAgents
+        self.onSelected = onSelected
         self.onFinished = onFinished
         self.repository = repository ?? .shared
         let model = NewAgentModel(workspaceId: workspaceId, agentType: agentType, releaseCatalog: releaseCatalog)
@@ -32,8 +45,8 @@ struct NewAgentScreen: View {
     }
 
     var body: some View {
-        NavigationStack {
-            if let agent = model.createdAgent {
+        SetupNavigation(embedded: embedded) {
+            if let agent = existingAgent ?? model.createdAgent {
                 AgentSetupScreen(agent: agent, onRemoved: close) {
                     if let onFinished { onFinished(stores.agents.get(agent.id)) }
                     else {
@@ -42,16 +55,23 @@ struct NewAgentScreen: View {
                     }
                 }
                 .toolbar {
-                    AppToolbarItem(placement: .cancellationAction) {
-                        Button(t("agentAuth.setup.close"), action: close).tint(.primary)
+                    if !embedded {
+                        AppToolbarItem(placement: .cancellationAction) {
+                            Button(t("agentAuth.setup.close"), action: close).tint(.primary)
+                        }
                     }
                 }
+            } else if assistantSetup {
+                assistantStep
             } else {
                 agentStep
             }
         }
         .task { await reloadWorkspaces() }
         .task { await model.loadCatalog() }
+        .task(id: model.workspaceId) {
+            if assistantSetup && requiresBotSupport { await model.loadBotCatalog(stores: stores) }
+        }
         .onChange(of: repository.revision) { reconcileWorkspace() }
         .workspaceActionAlerts(actions)
         .interactiveDismissDisabled(actions.running)
@@ -81,7 +101,7 @@ struct NewAgentScreen: View {
                     footer: t("newAgent.workspace.help"), accessibilityIdentifier: "newAgent.workspace",
                     onChoose: { activeSheet = .workspaces }, onCreate: { activeSheet = .newWorkspace })
             }
-            if projectName == nil && !assistantSetup { nameSection }
+            if projectName == nil { nameSection }
             Section {
                 if model.loadingCatalog && model.catalog.isEmpty {
                     HStack { Spacer(); ProgressView(); Spacer() }
@@ -99,24 +119,20 @@ struct NewAgentScreen: View {
                     Button(t("common.retry")) { Task { await model.loadCatalog() } }
                 }
             } header: {
-                if assistantSetup {
-                    Text(t("assistant.setup.ai.body"))
-                        .font(.subheadline).fontWeight(.regular).textCase(nil)
-                } else if let projectName {
+                if let projectName {
                     Text(t("newProject.agent.body", ["name": projectName]))
                         .font(.subheadline).fontWeight(.regular).textCase(nil)
                 } else {
                     Text(t("newAgent.section.agent"))
                 }
             } footer: {
-                if assistantSetup { Text(t("assistant.setup.ai.cost")) }
-                else if projectName != nil { Text(t("newProject.agent.workspaceHint")) }
+                if projectName != nil { Text(t("newProject.agent.workspaceHint")) }
             }
-            if projectName != nil && !assistantSetup { nameSection }
+            if projectName != nil { nameSection }
         }
         .contentMargins(.top, projectName == nil ? nil : Spacing.sm, for: .scrollContent)
         .disabled(actions.running)
-        .navigationTitle(t(assistantSetup ? "assistant.setup.connectAI" : projectName == nil ? "newAgent.title" : "newProject.agent.title"))
+        .navigationTitle(t(projectName == nil ? "newAgent.title" : "newProject.agent.title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if activeSheet == nil {
@@ -128,12 +144,91 @@ struct NewAgentScreen: View {
                     if actions.running {
                         ProgressView().accessibilityLabel(t("workspace.sync.loading"))
                     } else {
-                        Button(t(assistantSetup || projectName != nil ? "common.continue" : "newAgent.create"), action: create)
+                        Button(t(projectName != nil ? "common.continue" : "newAgent.create"), action: create)
                             .tint(.primary)
                             .disabled(model.workspaceId == nil || model.catalog.isEmpty || model.loadingCatalog)
                     }
                 }
             }
+        }
+    }
+
+    private var availableServices: [AssistantAIService] {
+        let available = Set((requiresBotSupport ? model.botEngines(existingAgents: existingAgents) : model.catalog).map(\.id))
+        return AssistantAIService.allCases.filter { available.contains($0.agentType) }
+    }
+
+    private var assistantStep: some View {
+        Group {
+            if ApplePlatform.isDesktop {
+                AssistantDesktopSetupPanel {
+                    AssistantBotAvatar(botId: "mindwire", size: 72)
+                    VStack(spacing: 10) {
+                        Text(t("assistant.setup.ai")).font(.system(size: 28, weight: .semibold))
+                        Text(t("assistant.setup.ai.body")).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    assistantChoices
+                }
+            } else {
+                AssistantPage {
+                    AssistantSetupProgress(step: 1)
+                    AssistantHeading(title: t("assistant.setup.ai"), detail: t("assistant.setup.ai.body"))
+                    if let workspace = assistantWorkspace {
+                        AssistantConnectionSummary(name: workspace.name, isCloud: workspace.isCloud)
+                    }
+                    assistantChoices
+                } footer: {
+                    Text(t("assistant.setup.ai.cost")).font(.footnote).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+        }
+        .disabled(actions.running)
+        .navigationTitle("Mindwire")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(actions.running)
+        .toolbar {
+            if !embedded {
+                AppToolbarItem(placement: .cancellationAction) {
+                    Button(t("common.cancel"), action: close).tint(.primary).disabled(actions.running)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var assistantChoices: some View {
+        VStack(spacing: 14) {
+            ForEach(availableServices) { service in
+                AssistantServiceButton(service: service,
+                                       busy: actions.running && model.agentType == service.agentType) {
+                    connect(service)
+                }
+            }
+        }
+        if model.loadingCatalog && availableServices.isEmpty { ProgressView(t("assistant.setup.checking")) }
+        if let error = model.catalogError {
+            Text(error).font(.subheadline).foregroundStyle(.secondary)
+            Button(t("common.retry")) { Task { await model.loadCatalog() } }.tint(.primary)
+        }
+        if !model.loadingCatalog && availableServices.isEmpty && model.catalogError == nil {
+            Text(t("assistant.ai.unavailable")).font(.subheadline).foregroundStyle(.secondary)
+            Button(t("common.retry")) { Task { await model.loadCatalog() } }.tint(.primary)
+        }
+    }
+
+    private func connect(_ service: AssistantAIService) {
+        guard !actions.running, model.workspaceId != nil, availableServices.contains(service) else { return }
+        model.agentType = service.agentType
+        // Reuse the workspace's profile, then let the same readiness gate verify its live auth.
+        if let saved = existingAgents.first(where: { $0.agentType == service.agentType }),
+           let agent = stores.agents.get(saved.id), agent.workspaceId == model.workspaceId {
+            if let onSelected { onSelected(agent) }
+            else {
+                stores.experience.pendingAgentID = agent.id
+                existingAgent = agent
+            }
+        } else {
+            create()
         }
     }
 
@@ -151,7 +246,11 @@ struct NewAgentScreen: View {
 
     private func create() {
         actions.run {
-            _ = try await model.create(stores: stores)
+            let agent = try await model.create(stores: stores)
+            if assistantSetup {
+                if let onSelected { onSelected(agent) }
+                else { stores.experience.pendingAgentID = agent.id }
+            }
         }
     }
 

@@ -16,19 +16,26 @@ enum AppPrefs {
     }
 }
 
-/// User-selectable chat text size (drives the markdown body + user bubble). Medium reads like a
-/// comfortable message size — deliberately NOT the shrunken 15pt experiment, and not oversized.
-/// Block spacing in the renderer scales off this, so the whole layout breathes at every size.
+/// Shared size preference for message text, markdown and desktop input. Desktop has a denser
+/// reading scale; phone sizes and the user's Small/Medium/Large choice remain independent of it.
 enum ChatTextSize: String, CaseIterable, Identifiable {
     case small, medium, large
     var id: String { rawValue }
 
     var points: CGFloat {
+        #if targetEnvironment(macCatalyst)
+        switch self {
+        case .small: return 14
+        case .medium: return 15
+        case .large: return 17
+        }
+        #else
         switch self {
         case .small:  return 15
         case .medium: return 16.5
         case .large:  return 18.5
         }
+        #endif
     }
 
     var label: String {

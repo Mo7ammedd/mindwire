@@ -1,4 +1,5 @@
 import type { Mindwire } from "./client.js";
+import type { Bot } from "./bots.js";
 import { readSSE } from "./sse.js";
 import { ProjectSyncApi } from "./project-sync.js";
 import { ConversationsApi } from "./conversations.js";
@@ -224,6 +225,7 @@ export interface ProjectIcon {
 
 /** Chat membership; transcript content continues to come from /chats/:id/messages. */
 export interface WorkspaceChat extends WorkspaceRecord {
+  botId?: string;
   /** Logical conversation identity; the local id remains unique per workspace. */
   syncId?: string;
   agentId: string;
@@ -246,6 +248,7 @@ export type WorkspaceInput<T extends WorkspaceRecord> = Omit<T, "id" | "workspac
 
 /** Additive migration. Existing records and deletion tombstones always win over these values. */
 export interface WorkspaceImport {
+  bots?: Bot[];
   agents?: (WorkspaceInput<WorkspaceAgent> & { id: string })[];
   projects?: (WorkspaceInput<WorkspaceProject> & { id: string })[];
   chats?: (WorkspaceInput<WorkspaceChat> & { id: string })[];
@@ -275,6 +278,7 @@ export interface ProjectLibraryEdit {
 }
 
 export interface WorkspaceSnapshot {
+  bots?: Bot[];
   version: number;
   workspaceId: string;
   revision: number;

@@ -54,11 +54,12 @@ There is no third-party address registry: if every saved route changes while the
 phone is away, a temporary tunnel needs another QR scan. A named Cloudflare tunnel,
 stable ngrok hostname, custom stable WSS endpoint or VPN avoids this limitation.
 
-`mindwire connect` uses one flow. If an approved phone is actually connected it reports
-that connection; otherwise it shows an expiring connection QR, even when the computer
-has old approvals. `mindwire reconnect` and `mindwire connect pair` explicitly show a QR.
-The legacy `mindwire connect resume` command follows the same automatic flow. A saved
-approval alone is never reported as a resumed phone.
+`mindwire connect` and `mindwire reconnect` reuse saved connections when an approved phone
+is connected or has a recoverable address. Otherwise they show an expiring pairing QR.
+`mindwire connect pair` always shows a QR, including when phones are already paired.
+The interactive `mindwire` dashboard puts **Show QR code** first and returns to its full
+menu after each action. The legacy `mindwire connect resume` follows the automatic flow.
+A saved approval alone is never reported as a connected phone.
 If a saved phone connects while its code is open, the CLI detects that authenticated
 connection and closes the unused invitation. Closing an unused code cannot discard a
 request submitted concurrently by another phone.

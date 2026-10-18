@@ -7,6 +7,7 @@
  */
 
 export { Mindwire, AuthApi, PromptsApi, McpApi, ProvidersApi, NotifyApi } from "./client.js";
+export * from "./bots.js";
 export type { MindwireOptions, AgentScoped } from "./client.js";
 
 export { Run } from "./run.js";

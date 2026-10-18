@@ -82,6 +82,19 @@ func (s *Server) Handle(raw net.Conn) {
 		return &ssh.Permissions{Extensions: map[string]string{"mode": "pair", "offer": id}}, nil
 	}
 	config.PublicKeyCallback = func(meta ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+		if strings.HasPrefix(meta.User(), "bot-peer:") {
+			bridge := s.peerBridge()
+			if bridge == nil {
+				return nil, errors.New("bot peer denied")
+			}
+			id, allowed := bridge.PeerAuthorize(meta.User(), key)
+			if !allowed || id == "" {
+				return nil, errors.New("bot peer denied")
+			}
+			return &ssh.Permissions{Extensions: map[string]string{
+				"mode": "bot-peer", "peer": id, "peer-key": string(ssh.MarshalAuthorizedKey(key)),
+			}}, nil
+		}
 		id := keyID(key)
 		s.mu.Lock()
 		device, exists := s.state.Devices[id]
@@ -115,7 +128,13 @@ func (s *Server) Handle(raw net.Conn) {
 		s.mu.Unlock()
 		return
 	}
-	s.connections[conn] = deviceID
+	connectionID := deviceID
+	if conn.Permissions.Extensions["mode"] == "bot-peer" {
+		// Keep peers in the shared shutdown bookkeeping, outside the phone ID
+		// namespace. Peer keys and revocation remain owned by the bot service.
+		connectionID = "bot-peer:" + conn.Permissions.Extensions["peer"]
+	}
+	s.connections[conn] = connectionID
 	s.mu.Unlock()
 	defer func() { s.mu.Lock(); delete(s.connections, conn); s.mu.Unlock() }()
 	go func() {
@@ -137,6 +156,30 @@ func (s *Server) Handle(raw net.Conn) {
 }
 
 func (s *Server) forward(conn *ssh.ServerConn, incoming ssh.NewChannel) {
+	if conn.Permissions.Extensions["mode"] == "bot-peer" {
+		// This must precede direct-tcpip handling: a peer is not an approved
+		// phone and must never reach the daemon API or a phone's port grants.
+		bridge := s.peerBridge()
+		peerID := conn.Permissions.Extensions["peer"]
+		if bridge == nil || peerID == "" || incoming.ChannelType() != "mindwire-bots" {
+			_ = incoming.Reject(ssh.Prohibited, "bot channel required")
+			return
+		}
+		// Key rotation must invalidate an already-established SSH carrier too.
+		// Re-check the authenticated key for every operation before accepting it.
+		key, _, _, rest, err := ssh.ParseAuthorizedKey([]byte(conn.Permissions.Extensions["peer-key"]))
+		if err != nil || len(rest) != 0 {
+			_ = incoming.Reject(ssh.Prohibited, "bot peer denied")
+			return
+		}
+		authorizedID, allowed := bridge.PeerAuthorize(conn.User(), key)
+		if !allowed || authorizedID != peerID {
+			_ = incoming.Reject(ssh.Prohibited, "bot peer denied")
+			return
+		}
+		bridge.ServePeerChannel(peerID, incoming)
+		return
+	}
 	if incoming.ChannelType() != "direct-tcpip" {
 		_ = incoming.Reject(ssh.UnknownChannelType, "use the workspace API")
 		return

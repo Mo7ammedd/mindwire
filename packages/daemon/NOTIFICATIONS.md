@@ -42,14 +42,31 @@ Body — the unified `Notification`:
 ```jsonc
 {
   "condition": "finished",            // finished | error | waiting_approval | waiting_feedback | waiting_input
-  "title":     "Claude finished",
+  "title":     "Sales Outbound finished",
   "body":      "Refactored auth module…",
   "agent":     "claude-code",
+  "botId":     "bot-sales",
+  "botName":   "Sales Outbound",
+  "botIcon":   "amber-pebble",
+  "workspaceId": "workspace-identity",
   "chatId":    "c_1",
   "runId":     "r_1",
   "actions":   [ { "id": "approve", "label": "Approve" }, { "id": "reject", "label": "Reject" } ]
 }
 ```
+
+Named bots own their notification preferences. Set `notificationsMuted` through `PATCH /bots/{id}`
+with the current `expectedRevision`. A muted chat or its muted bot suppresses delivery; muting a
+base engine no longer affects other bots sharing it. Engine preferences still apply to unassigned
+Developer chats. Upgrade migration preserves existing choices. This requires `botsVersion >= 4`
+and `notificationPreferencesVersion >= 2`.
+
+For bot conversations, the daemon resolves the saved bot name and icon at delivery time.
+The `agent` field still identifies the underlying engine so existing notification routing
+rules keep working. Preserve `botId`, `botName`, `botIcon`, and `workspaceId` in push data;
+the Apple notification extension uses the same avatar renderer as the bot list. Set
+`aps.mutable-content` to `1` to let the extension apply that sender identity. Legacy
+conversations without a bot retain their engine identity. Taps still open `chatId`.
 
 Your receiver should return **2xx** to acknowledge; any non-2xx (or a transport error) is
 surfaced back on the run's event stream as `status.meta.notify` so a client can see the send

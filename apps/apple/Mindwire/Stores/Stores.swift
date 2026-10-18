@@ -29,6 +29,7 @@ final class Stores {
     let workspaces: JSONListStore<Workspace>
     let projects: JSONListStore<Project>
     let chats: JSONListStore<Chat>
+    let bots: JSONListStore<AssistantBot>
     let github: JSONListStore<GitHubAccount>
 
     init(defaults: UserDefaults = .standard) {
@@ -42,6 +43,7 @@ final class Stores {
         workspaces = JSONListStore(key: StorageKey.workspaces, defaults: defaults)
         projects = JSONListStore(key: StorageKey.projects, defaults: defaults)
         chats = JSONListStore(key: StorageKey.chats, defaults: defaults)
+        bots = JSONListStore(key: StorageKey.bots, defaults: defaults)
         github = JSONListStore(key: StorageKey.github, defaults: defaults)
     }
 }

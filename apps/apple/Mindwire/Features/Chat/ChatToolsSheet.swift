@@ -25,10 +25,11 @@ struct ChatToolsSheet: View {
     @State private var showingTerminal = false
 
     private enum Destination: Identifiable {
-        case settings, tool(ProjectTool)
+        case settings, authentication, tool(ProjectTool)
         var id: String {
             switch self {
             case .settings: "settings"
+            case .authentication: "authentication"
             case .tool(let tool): tool.id
             }
         }
@@ -37,8 +38,20 @@ struct ChatToolsSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if experienceMode == .developer { modelSection }
-                else { Section { attachmentButtons } }
+                modelSection
+                if experienceMode == .general {
+                    Section { attachmentButtons }
+                    if let agent, let service = AssistantAIService(agentType: agent.agentType) {
+                        Section {
+                            Button { destination = .authentication } label: {
+                                Label { Text("\(service.name) connection") } icon: {
+                                    AssistantServiceMark(service: service, size: 22)
+                                }
+                            }
+                            .tint(.primary).accessibilityIdentifier("chat.aiConnection")
+                        }
+                    }
+                }
                 if experienceMode == .developer, session?.capabilities?.commands == true {
                     Section {
                         Button(action: showCommands) {
@@ -93,10 +106,24 @@ struct ChatToolsSheet: View {
         .observeWorkspaceCache(resolveProject)
         .sheet(item: $destination) { selected in
             switch selected {
+            case .authentication:
+                if let agent {
+                    NavigationStack {
+                        AgentAuthenticationScreen(agentId: agent.id, session: session)
+                            .toolbar {
+                                AppToolbarItem(placement: .confirmationAction) {
+                                    Button(t("common.done")) { destination = nil }.tint(.primary)
+                                }
+                            }
+                    }
+                }
             case .settings:
                 if let settings {
                     AgentQuickSettingsSheet(settings: settings, session: session,
-                                            livePermissions: livePermissions, apply: applySettings)
+                                            livePermissions: livePermissions,
+                                            title: experienceMode == .general ? "Models" : nil,
+                                            settingCanons: experienceMode == .general ? ["model", "reasoningEffort"] : nil,
+                                            apply: applySettings)
                 }
             case .tool(let tool):
                 if let project {

@@ -10,14 +10,25 @@ services, and connections. Supported subscriptions power the agent through the u
 ## First use
 
 1. Fresh installs choose General or Developer. Existing installations keep Developer mode.
-2. General setup explains why Mindwire needs a computer, then offers My computer, Mindwire Cloud,
-   and already connected computers. Existing pairing and cloud services own these operations.
-3. Reuse an available AI connection or connect supported AI access through the shared installation
-   and authentication screens. The selected computer and profile survive interrupted setup.
+2. General setup asks which computer to use, with Your computer and Cloud computer as simple,
+   outlined choices. Explain the existing files/apps, the need to keep a personal computer on, and
+   separate cloud billing. Saved personal computers and pairing live under Your computer. Cloud sign-in
+   and saved cloud computers appear only under Cloud computer; prices and provisioning load after Create.
+   Back from AI choice returns to that same destination. Keep action titles and instructions short.
+   Existing pairing and cloud services own these operations.
+3. Offer Continue with Claude and Continue with ChatGPT directly. Other ways to connect contains
+   provider API keys and xAI. Reuse an available profile, then verify readiness and open the matching
+   live authentication method once. The selected computer and profile survive interrupted setup;
+   Back returns to account choice without discarding the computer. Harness names remain in Developer
+   mode. Authentication protocols, credential storage and installation jobs stay shared.
 4. After authentication, prepare `~/.mindwire-workspace` on that computer and register it through
    the shared project API. Repeated setup reuses its directory and project; no existing files move.
    This is a working directory, not an OS permission boundary or a sandbox.
-5. Start chatting using the existing ChatScreen and composer. History is a flat, searchable list.
+5. Start chatting with Mindwire using the existing ChatScreen and composer. General history groups
+   chats under collapsible bots. Mindwire creates and improves bots through conversation, using
+   daemon-owned tools for their purpose, instructions, memory and knowledge. The scrolling sidebar
+   header keeps Search and + together; its menu contains Create a bot, Settings and Account.
+   Chat state, drafts, transcript rendering and native drawer gestures remain shared.
 
 AI access and computer access are separate connections. Connecting a subscription alone does not
 provide a computer on which the agent can execute tasks.
@@ -64,9 +75,30 @@ default computer/profile affects new conversations; existing chats keep their or
 Cloud setup uses a default configuration and requires a live credit estimate, balance and quota
 before enabling creation. It keeps the existing Oblien login and provisioning implementation.
 
-Computer pairing still uses the current CLI installation and QR flow. A graphical companion
-installer, a funded free offering, and further consumer-friendly activity/result presentation are
-separate follow-up work. No new provider authentication mechanism was added.
+General onboarding, computer choice, pairing, AI selection and cloud review now use shared designed
+pages instead of settings-style forms. Setup uses one navigation stack; the existing chat, composer,
+tools and session state are unchanged. Developer setup retains its original presentation.
+
+The intended computer journey is download Mindwire on the computer, open its pairing code, and
+scan it with the phone. The mobile flow reuses the existing QR scanner and pairing operation.
+A desktop-app installer has not been published in the checked releases. Until a real
+`MINDWIRE_DESKTOP_DOWNLOAD_URL` is supplied, General shows `mindwire connect pair` for computers
+already using the terminal app. The terminal dashboard puts **Show QR code** first, including
+when phones are already paired. A graphical companion installer and pairing-code
+display, a funded free offering, and further activity/result presentation remain follow-up work.
+No new provider authentication mechanism was added.
+
+Desktop now starts on **This Mac**. It adopts the existing local runtime or starts the bundled
+helper, prepares `~/.mindwire-workspace`, and reuses an available AI account. Account setup appears
+inline only when needed. Remote computers and cloud workspaces are additional destinations.
+The desktop messenger uses a persistent rounded bot sidebar and the shared transcript, composer,
+drafts and session lifecycle. It restores the current conversation instead of creating one at launch.
+
+General and Developer share named bots with a selected base engine, optional instructions,
+memory and knowledge. The master can manage and delegate across authenticated computer links.
+Codex, Claude Code and OpenCode support reusable bots; the daemon advertises this explicitly.
+Grok remains available for ordinary Developer chats because its native protocol cannot refresh
+saved bot instructions on resumed conversations. iPhone installation is outside the current scope.
 
 The computer companion's setup is part of the consumer experience. Simplifying the mobile screens
 alone will not make terminal-based installation accessible to ordinary users.

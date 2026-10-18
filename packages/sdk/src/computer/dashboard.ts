@@ -10,8 +10,8 @@ export async function computerDashboard(directory: string, run: (args: string[])
     const saved = state.devices.filter(device => !device.revoked);
     const running = state.service === "running";
     const action = await chooseTerminal([...inspectionText(state).split("\n"), "", "Manage this computer"], [
-      { value: "reconnect", label: running ? "Reconnect" : "Start connection" },
-      { value: "pair", label: "Pair or repair a phone" },
+      { value: "pair", label: "Show QR code · connect a phone" },
+      { value: "reconnect", label: running ? "Retry saved connections" : "Start connection" },
       { value: "devices", label: `Phones${saved.length ? ` · ${saved.length} paired` : ""}` },
       { value: "startup", label: `Start at login · ${state.startup.enabled ? state.startup.running ? "On" : "Needs repair" : "Off"}` },
       { value: "connection", label: "Connection provider" },
@@ -31,7 +31,7 @@ export async function computerDashboard(directory: string, run: (args: string[])
         case "desktop": await run(["desktop"]); break;
         case "inspect": await run(["inspect"]); break;
         case "devices": {
-          if (!saved.length) { process.stdout.write("No paired phones. Choose Pair or repair a phone to connect one.\n"); break; }
+          if (!saved.length) { process.stdout.write("No paired phones. Choose Show QR code to connect one.\n"); break; }
           const id = await chooseTerminal("Paired phones", saved.map(device => ({ value: device.id, label: deviceSummary([device], true).trim() })));
           const device = saved.find(value => value.id === id);
           if (!device) break;
@@ -90,6 +90,7 @@ export async function computerDashboard(directory: string, run: (args: string[])
     } catch (error) {
       process.stderr.write(`Mindwire: ${terminalText(error instanceof Error ? error.message : String(error))}\n`);
     }
-    if (!await chooseTerminal("", [{ value: "continue", label: "Back to Mindwire" }])) return;
+    // Return directly to the full menu. A one-item Back prompt hid pairing after
+    // reconnecting, exactly when a phone with a missing key needs a new QR code.
   }
 }

@@ -1,14 +1,18 @@
 import SwiftUI
 
-/// Apple-native semantic palette. Backgrounds, text, and separators map onto system
-/// colors — automatic light + dark, no hard black. The *only* brand color is the
-/// Oblien orange accent; everything else is neutral system, so screens read as modern
-/// stock iOS rather than a themed RN port.
+/// Semantic surfaces with a warm orange accent. Text accents deepen
+/// in light mode; pastel fills retain charcoal text in either appearance.
 enum Palette {
     // MARK: Brand (the single accent)
-    static let accent = Color("Accent")              // Oblien orange #E25D3E
-    static let accentSoft = Color("Accent").opacity(0.15)
-    static let onAccent = Color.white                // content on top of the accent fill
+    static let accent = Color("Accent")
+    static let accentSoft = Color("AccentSoft")
+    static let onAccent = Color("OnAccent")
+
+    /// Editors and terminal themes choose their own appearance independently of the window.
+    static func accentColor(for style: UIUserInterfaceStyle) -> UIColor {
+        (UIColor(named: "Accent") ?? .systemOrange)
+            .resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
+    }
 
     // MARK: Backgrounds — let grouped system fills show; never a hard black screen.
     static let bg = Color(.systemGroupedBackground)
@@ -28,7 +32,10 @@ enum Palette {
     // MARK: Semantic (system colors — tasteful, not the old lime green)
     static let success = Color.green
     static let danger = Color.red
-    static let warning = Color.orange
+    static let warning = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(BotColor.amber.fill)
+            : UIColor(red: 0.50, green: 0.34, blue: 0.08, alpha: 1)
+    })
 
     /// Per-agent tint — brand accent for Claude, neutral label for the rest.
     static func agentColor(_ id: AgentID) -> Color { id == .claudeCode ? accent : .primary }
@@ -40,7 +47,7 @@ enum Palette {
         case .ready:           return .green
         case .running:         return accent
         case .provisioning:    return .blue
-        case .awaitingInput:   return .orange
+        case .awaitingInput:   return warning
         case .error:           return .red
         case .idle, .archived: return .secondary
         }

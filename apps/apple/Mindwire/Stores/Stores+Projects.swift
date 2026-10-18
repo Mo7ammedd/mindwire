@@ -67,6 +67,7 @@ extension Stores {
     /// Remove this device's cached project/chat links after authoritative workspace removal.
     @MainActor func forgetProject(_ id: String) {
         deleteChats(forProjectId: id)
+        bots.replaceAll(bots.list().filter { $0.projectId != id })
         projects.remove(id)
     }
 

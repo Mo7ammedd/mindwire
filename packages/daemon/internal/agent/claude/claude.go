@@ -61,6 +61,7 @@ func (adapter) Capabilities() agent.Capabilities {
 		// Turn-option support: claude honors a full system-prompt override (--system-prompt), appending to
 		// the default (--append-system-prompt), and per-turn MCP servers (--mcp-config).
 		SystemPrompt:       true,
+		BotProfiles:        true,
 		AppendSystemPrompt: true,
 		MCPServers:         true,
 		// Per-turn subagents (--agents, inline JSON) and a settings/hooks bundle (--settings, a temp
@@ -300,7 +301,11 @@ func buildCommand(in agent.TurnInput, files materialized, tr transport) string {
 		if s.skipFlag {
 			continue // permission-mode / system-prompt handled explicitly below
 		}
-		if v := strings.TrimSpace(in.Config[s.key]); v != "" {
+		v := strings.TrimSpace(in.Config[s.key])
+		if s.key == "append-system-prompt" && in.Options.ContextInstructions != "" {
+			v = strings.TrimSpace(v + "\n\n" + in.Options.ContextInstructions)
+		}
+		if v != "" {
 			cli += " " + s.flag + " " + agent.ShellQuote(v)
 		}
 	}

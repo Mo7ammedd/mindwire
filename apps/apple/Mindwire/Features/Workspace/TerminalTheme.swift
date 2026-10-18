@@ -55,7 +55,7 @@ private func tc(_ hex: UInt32) -> SwiftTerm.Color {
 extension TerminalTheme {
     static let oblienDark = TerminalTheme(
         id: "oblien-dark", name: "Oblien Dark",
-        background: ui(0x0B0B0F), foreground: ui(0xE6E6E6), caret: ui(0xE25D3E),
+        background: ui(0x0B0B0F), foreground: ui(0xE6E6E6), caret: Palette.accentColor(for: .dark),
         ansi: [
             tc(0x1C1C1E), tc(0xFF5C57), tc(0x5AF78E), tc(0xF3F99D),
             tc(0x57C7FF), tc(0xFF6AC1), tc(0x9AEDFE), tc(0xE6E6E6),
@@ -88,7 +88,7 @@ extension TerminalTheme {
 
     static let snazzyLight = TerminalTheme(
         id: "light", name: "Light",
-        background: ui(0xFBF7F1), foreground: ui(0x2B2B2B), caret: ui(0xE25D3E),
+        background: ui(0xFBF7F1), foreground: ui(0x2B2B2B), caret: Palette.accentColor(for: .light),
         ansi: [
             tc(0x2B2B2B), tc(0xD7401F), tc(0x36802D), tc(0x9A7400),
             tc(0x2D6FB8), tc(0xA3308E), tc(0x1F8C8C), tc(0xE6E6E6),

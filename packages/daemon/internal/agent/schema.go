@@ -75,9 +75,10 @@ type SettingsSchema struct {
 
 // CatalogEntry is the minimum the create-screen picker needs (no schema).
 type CatalogEntry struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Tagline string `json:"tagline"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Tagline     string `json:"tagline"`
+	BotProfiles bool   `json:"botProfiles"`
 }
 
 // Step is one ensure-or-install in an agent's toolchain. Check runs first

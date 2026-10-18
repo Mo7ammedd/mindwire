@@ -246,9 +246,19 @@ func (s *Server) prepareDiscoveryLocked(now time.Time) (*discoveryState, error) 
 	}
 	devices := []Device{}
 	if d.Enabled {
+		seen := map[string]bool{}
 		for _, device := range s.state.Devices {
 			if !device.Revoked {
 				devices = append(devices, device)
+				seen[device.ID] = true
+			}
+		}
+		// Peer readers exist only in this publication snapshot. Never persist
+		// them as Devices: Devices authorize the owner's workspace API.
+		for _, peer := range s.peerDirectoryReadersLocked() {
+			if !seen[peer.ID] {
+				devices = append(devices, Device{ID: peer.ID, PublicKey: peer.PublicKey})
+				seen[peer.ID] = true
 			}
 		}
 	}

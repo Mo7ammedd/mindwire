@@ -17,6 +17,7 @@ import (
 
 	"github.com/oblien/mindwire/packages/daemon/internal/agent"
 	"github.com/oblien/mindwire/packages/daemon/internal/artifact"
+	botservice "github.com/oblien/mindwire/packages/daemon/internal/bots"
 	"github.com/oblien/mindwire/packages/daemon/internal/conversations"
 	"github.com/oblien/mindwire/packages/daemon/internal/inventory"
 	"github.com/oblien/mindwire/packages/daemon/internal/notify"
@@ -106,6 +107,7 @@ type Client struct {
 	Providers *Providers
 	// Workspace owns saved workspace metadata shared across all harness views.
 	Workspace *Workspace
+	Bots      *Bots
 	Surfaces  *Surfaces
 	Execution *WorkspaceExecution
 }
@@ -166,6 +168,7 @@ func New(opts Options) (*Client, error) {
 		execution: workspaceexec.New(opts.CWD),
 	}
 	co.conversations = conversations.New(workspaceRegistry, store, agent.All(), &co.registryMu, sup.Busy)
+	sup.SetBots(botservice.New(workspaceRegistry, store, &co.registryMu))
 	co.agents = inventory.NewAgents(workspaceRegistry, agent.All(), &co.registryMu)
 	co.execution.SetMutationGuard(&co.registryMu, workspaceRegistry.CheckSyncPath)
 	co.projectSync, err = projectsync.New(workspaceRegistry, store, co, &co.registryMu, agent.All(), co.discoverForSync)
@@ -181,6 +184,7 @@ func New(opts Options) (*Client, error) {
 	c.MCP = &MCP{c: c}
 	c.Providers = &Providers{c: c}
 	c.Workspace = newWorkspace(c)
+	c.Bots = &Bots{c: c}
 	c.Surfaces = &Surfaces{c: c}
 	c.Execution = co.execution
 	return c, nil
@@ -196,6 +200,7 @@ func (c *Client) WithAgent(agentType string) *Client {
 	view.MCP = &MCP{c: view}
 	view.Providers = &Providers{c: view}
 	view.Workspace = newWorkspace(view)
+	view.Bots = &Bots{c: view}
 	view.Surfaces = &Surfaces{c: view}
 	view.Execution = c.core.execution
 	return view
@@ -221,6 +226,9 @@ func (c *Client) Close() error {
 	}
 	c.core.mu.Unlock()
 
+	if service := c.core.sup.BotService(); service != nil {
+		service.Close()
+	}
 	for _, id := range ids {
 		c.core.sup.Cancel(id) // no-op/false for already-finished runs
 	}
@@ -271,6 +279,7 @@ type Health struct {
 	Agent                          string `json:"agent"`
 	Version                        string `json:"version"`
 	WorkspaceMetadataVersion       int    `json:"workspaceMetadataVersion"`
+	BotsVersion                    int    `json:"botsVersion"`
 	AgentDiscoveryVersion          int    `json:"agentDiscoveryVersion"`
 	ProjectLibraryVersion          int    `json:"projectLibraryVersion"`
 	ProjectOperationsVersion       int    `json:"projectOperationsVersion"`
@@ -299,7 +308,7 @@ func (c *Client) Health() Health {
 	if runtime.GOOS == "darwin" && os.Geteuid() != 0 {
 		localDesktopVersion = surface.LocalDesktopVersion
 	}
-	return Health{OK: true, NativeAuthSource: true, Agent: c.core.sup.Default(), Version: agent.Version, WorkspaceMetadataVersion: registry.Version, AgentDiscoveryVersion: registry.AgentDiscoveryVersion, ProjectLibraryVersion: registry.ProjectLibraryVersion, ProjectOperationsVersion: registry.ProjectOperationsVersion, ProjectIconsVersion: projecticon.Version, ProjectSyncVersion: projectsync.ProtocolVersion(), ConversationBrowserVersion: conversations.BrowserVersion, SurfaceProtocolVersion: surface.Version, LocalDesktopVersion: localDesktopVersion, NotificationPreferencesVersion: registry.NotificationPreferencesVersion, HarnessPolicyVersion: toolchain.PolicyVersion, WorkspaceIsolationVersion: agent.WorkspaceIsolationVersion, WorkspaceIsolation: agent.WorkspaceIsolation(), WorkspaceExecutionVersion: workspaceexec.Version, TerminalProtocolVersion: workspaceexec.TerminalVersion, TurnRequestVersion: orchestrator.TurnRequestVersion, QueuedInputVersion: orchestrator.QueuedInputVersion, NativeSessionVersion: agent.NativeSessionVersion, ChatForkVersion: agent.ChatForkVersion, ImageAttachmentsVersion: agent.ImageAttachmentsVersion, AttachmentUploadVersion: artifact.UploadVersion}
+	return Health{OK: true, NativeAuthSource: true, Agent: c.core.sup.Default(), Version: agent.Version, WorkspaceMetadataVersion: registry.Version, BotsVersion: registry.BotsVersion, AgentDiscoveryVersion: registry.AgentDiscoveryVersion, ProjectLibraryVersion: registry.ProjectLibraryVersion, ProjectOperationsVersion: registry.ProjectOperationsVersion, ProjectIconsVersion: projecticon.Version, ProjectSyncVersion: projectsync.ProtocolVersion(), ConversationBrowserVersion: conversations.BrowserVersion, SurfaceProtocolVersion: surface.Version, LocalDesktopVersion: localDesktopVersion, NotificationPreferencesVersion: registry.NotificationPreferencesVersion, HarnessPolicyVersion: toolchain.PolicyVersion, WorkspaceIsolationVersion: agent.WorkspaceIsolationVersion, WorkspaceIsolation: agent.WorkspaceIsolation(), WorkspaceExecutionVersion: workspaceexec.Version, TerminalProtocolVersion: workspaceexec.TerminalVersion, TurnRequestVersion: orchestrator.TurnRequestVersion, QueuedInputVersion: orchestrator.QueuedInputVersion, NativeSessionVersion: agent.NativeSessionVersion, ChatForkVersion: agent.ChatForkVersion, ImageAttachmentsVersion: agent.ImageAttachmentsVersion, AttachmentUploadVersion: artifact.UploadVersion}
 }
 
 // processStarted anchors the daemon-process uptime the /stats snapshot reports; set once at package

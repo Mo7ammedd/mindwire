@@ -95,7 +95,7 @@ struct WorkspaceResourcesView: View {
                  caption: memoryCaption(s, r), tint: .blue)
             ring(t("workspace.disk"), fill: s.map { $0.diskPercent / 100 },
                  center: s.map { "\(Int($0.diskPercent))%" } ?? "—",
-                 caption: r.map { gb($0.diskMb) } ?? "—", tint: .orange)
+                 caption: r.map { gb($0.diskMb) } ?? "—", tint: BotColor.amber.fill)
             ring(t("workspace.traffic"), fill: trafficFill,
                  center: trafficCenter, caption: t("workspace.traffic.caption"), tint: .purple)
         }

@@ -69,6 +69,8 @@ struct ProjectToolDestination: View {
     var files: WorkspaceService? = nil
     var fileLink: WorkspaceFileLink? = nil
     var repository: WorkspaceRepository = .shared
+    var embedded = false
+    var onDirtyChange: ((Bool) -> Void)? = nil
 
     @Environment(\.stores) private var stores
     @Environment(\.dismiss) private var dismiss
@@ -82,7 +84,7 @@ struct ProjectToolDestination: View {
             if let workspace, !repository.requiresSignIn(for: project.workspaceId) {
                 switch tool {
                 case .sourceControl:
-                    SourceControlScreen(workspaceId: project.workspaceId, path: project.path)
+                    SourceControlScreen(workspaceId: project.workspaceId, path: project.path, embedded: embedded)
                 case .files:
                     if let service = files ?? ownedBackend?.workspace {
                         Group {
@@ -90,22 +92,26 @@ struct ProjectToolDestination: View {
                                 WorkspaceFileLinkView(workspace: service, link: fileLink, project: project)
                             } else {
                                 FilesSheet(workspace: service, basePath: project.path, title: project.name,
-                                           projectId: project.id)
+                                           projectId: project.id, embedded: embedded, onDirtyChange: onDirtyChange)
                             }
                         }.id(workspace.runtime)
                     } else {
                         ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 case .terminal:
-                    TerminalScreen(title: project.name) {
+                    TerminalScreen(title: project.name, embedded: embedded) {
                         TerminalSessionFactory.provider(for: workspace, stores: stores, workdir: project.path)
                     }
                 case .desktop:
-                    if workspace.isCloud {
-                        DesktopSessionsScreen(workspaceId: workspace.id, project: project, repository: repository)
-                    } else {
-                        DesktopScreen(workspaceId: workspace.id, repository: repository)
-                    }
+                    if embedded && ApplePlatform.isDesktop {
+                        DesktopToolSplitView {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label(workspace.name, systemImage: "desktopcomputer").font(.system(size: 13))
+                                Text("Remote desktop").font(.system(size: 12)).foregroundStyle(.secondary)
+                                Spacer()
+                            }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                        } detail: { desktop(workspace) }
+                    } else { desktop(workspace) }
                 }
             } else {
                 NavigationStack {
@@ -130,6 +136,14 @@ struct ProjectToolDestination: View {
             ownedBackend = backend
             resources.cleanup = { await backend?.dispose() }
             if let previous { await previous.dispose() }
+        }
+    }
+
+    @ViewBuilder private func desktop(_ workspace: Workspace) -> some View {
+        if workspace.isCloud {
+            DesktopSessionsScreen(workspaceId: workspace.id, project: project, repository: repository)
+        } else {
+            DesktopScreen(workspaceId: workspace.id, repository: repository)
         }
     }
 }

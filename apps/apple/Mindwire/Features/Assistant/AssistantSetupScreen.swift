@@ -12,166 +12,194 @@ struct AssistantSetupScreen: View {
     @State private var selectedAgent: Agent?
     @State private var readyAgent: Agent?
     @State private var preparedProject: Project?
-    @State private var sheet: SetupSheet?
-    @State private var refreshing = false
+    @State private var path: [SetupStep] = []
     @State private var error: String?
     @State private var attempt = 0
     @State private var restored = false
+    @State private var preparingLocalComputer = ApplePlatform.isDesktop
 
-    private enum SetupSheet: String, Identifiable {
-        case computer, cloud, subscription
-        var id: String { rawValue }
+    private enum SetupStep: String, Hashable {
+        case computer, pairComputer, cloud, createCloud, account
     }
 
     private var workspace: Workspace? { workspaceID.flatMap(repository.get) }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let readyAgent {
-                    preparation(agent: readyAgent)
-                } else if let selectedAgent {
-                    AgentSetupScreen(agent: selectedAgent, onRemoved: { self.selectedAgent = nil }) {
-                        readyAgent = selectedAgent
-                    }
-                } else if let workspace {
-                    connections(workspace)
-                } else {
-                    computers
-                }
-            }
-            .navigationTitle(t(readyAgent != nil ? "assistant.setup.finish" : selectedAgent != nil || workspace != nil
-                               ? "assistant.setup.ai" : "assistant.setup.computer"))
+        NavigationStack(path: $path) {
+            computers
+            .navigationTitle("Mindwire")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                AppToolbarItem(placement: .cancellationAction) {
-                    Button(t("common.cancel")) { dismiss() }.tint(.primary)
-                }
-                if workspaceID != nil {
-                    AppToolbarItem(placement: .topBarTrailing) {
-                        Button(t("common.back")) { goBack() }.tint(.primary)
+                if path.isEmpty {
+                    AppToolbarItem(placement: .cancellationAction) {
+                        Button { dismiss() } label: { AppIcon(.close) }
+                            .tint(.primary).accessibilityLabel(t("common.cancel"))
                     }
+                }
+            }
+            .navigationDestination(for: SetupStep.self) { step in
+                switch step {
+                case .computer:
+                    if repository.all.contains(where: AssistantComputerDestination.computer.includes) {
+                        AssistantComputerPicker(destination: .computer, repository: repository, onChoose: choose) {
+                            path.append(.pairComputer)
+                        }
+                    } else { pairComputer }
+                case .pairComputer:
+                    pairComputer
+                case .cloud:
+                    AssistantComputerPicker(destination: .cloud, repository: repository, onChoose: choose) {
+                        path.append(.createCloud)
+                    }
+                case .createCloud:
+                    NewWorkspaceScreen(assistantCloud: true, embedded: true) { choose($0) }
+                case .account:
+                    account
                 }
             }
         }
         .task {
+            defer { preparingLocalComputer = false }
             if !restored {
                 restored = true
-                workspaceID = stores.experience.pendingWorkspaceID
-                selectedAgent = stores.experience.pendingAgentID.flatMap(stores.agents.get)
-                if selectedAgent?.workspaceId != workspaceID { selectedAgent = nil }
+                let pending = stores.experience.pendingWorkspaceID.flatMap(repository.get)
+                if let pending {
+                    let pendingAgent = stores.experience.pendingAgentID.flatMap(stores.agents.get)
+                    choose(pending)
+                    if let pendingAgent, pendingAgent.workspaceId == workspaceID { select(pendingAgent) }
+                } else {
+                    #if targetEnvironment(macCatalyst)
+                    await useThisMac()
+                    #endif
+                }
             }
-            await repository.refreshIfNeeded()
         }
         .task(id: workspaceID) { await refreshAgents() }
         .onChange(of: stores.experience.pendingWorkspaceID) { _, id in
             // A pairing deep link may finish in the window's shared pairing sheet.
             if id != workspaceID, let id {
-                workspaceID = id
-                selectedAgent = nil; readyAgent = nil; preparedProject = nil; error = nil
+                if let workspace = repository.get(id) { choose(workspace) }
             }
+        }
+        .onChange(of: path) { _, path in
+            if !path.contains(.account), workspaceID != nil { clearSelection() }
         }
         .observeWorkspaceCache(reloadAgents)
-        .sheet(item: $sheet) { item in
-            switch item {
-            case .computer:
-                AddServerScreen(presetType: .local) { connection in
-                    if let workspace = stores.workspaces(forServerId: connection.id).first {
-                        choose(workspace)
-                    }
-                }
-            case .cloud:
-                NewWorkspaceScreen(assistantCloud: true) { choose($0) }
-            case .subscription:
-                if let workspaceID {
-                    NewAgentScreen(workspaceId: workspaceID, assistantSetup: true) { agent in
-                        if let agent { select(agent); readyAgent = agent }
-                        sheet = nil
-                    }
-                }
-            }
-        }
     }
 
     private var computers: some View {
-        List {
-            Section {
-                Text(t("assistant.setup.computer.body"))
-                    .foregroundStyle(.secondary)
-                    .listRowBackground(Color.clear)
+        AssistantPage {
+            AssistantSetupProgress(step: 0)
+            AssistantHeading(title: t("assistant.setup.computer"), detail: t("assistant.setup.computer.body"))
+            VStack(spacing: 14) {
+                #if targetEnvironment(macCatalyst)
+                AssistantOption(title: "This Mac", detail: LocalComputer.shared.error ?? "", icon: .laptop) {
+                    Task { await useThisMac() }
+                }
+                .disabled(preparingLocalComputer)
+                if preparingLocalComputer { ProgressView() }
+                #else
+                AssistantDestinationCard(destination: .computer) { path.append(.computer) }
+                #endif
+                AssistantDestinationCard(destination: .cloud) { path.append(.cloud) }
             }
-            Section {
-                option(t("assistant.setup.own"), detail: t("assistant.setup.own.body"), icon: .monitor) { sheet = .computer }
-                option(t("assistant.setup.cloud"), detail: t("assistant.setup.cloud.body"), icon: .cloud) { sheet = .cloud }
-            }
-            if !repository.all.isEmpty {
-                Section(t("assistant.setup.saved")) {
-                    ForEach(repository.all) { workspace in
-                        option(workspace.name,
-                               detail: t(workspace.isCloud ? "assistant.setup.cloud" : "assistant.setup.own"),
-                               icon: workspace.isCloud ? .cloud : .monitor) { choose(workspace) }
+            Text(t("assistant.setup.computer.hint"))
+                .font(.footnote).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity).multilineTextAlignment(.center)
+        }
+    }
+
+    #if targetEnvironment(macCatalyst)
+    private func useThisMac() async {
+        preparingLocalComputer = true
+        defer { preparingLocalComputer = false }
+        await LocalComputer.shared.prepare(stores: stores, repository: repository)
+        guard !Task.isCancelled, path.isEmpty, workspaceID == nil, let id = LocalComputer.shared.workspaceId,
+              let workspace = repository.get(id) else { return }
+        choose(workspace)
+    }
+    #endif
+
+    private var pairComputer: some View {
+        AddServerScreen(presetType: .local, assistantSetup: true, embedded: true) { connection in
+            if let workspace = stores.workspaces(forServerId: connection.id).first { choose(workspace) }
+        }
+    }
+
+    private var account: some View {
+        Group {
+            if workspace == nil {
+                AssistantPage {
+                    AssistantHeading(title: t("assistant.setup.missingComputer"))
+                } footer: {
+                    AssistantPrimaryButton(title: t("common.back"), icon: .chevronLeft) {
+                        if path.last == .account { path.removeLast() }
                     }
+                }
+            } else if let readyAgent {
+                preparation(agent: readyAgent)
+            } else if let selectedAgent {
+                AgentSetupScreen(agent: selectedAgent, onRemoved: backToAccounts) {
+                    guard workspaceID == selectedAgent.workspaceId, path.last == .account else { return }
+                    readyAgent = selectedAgent
+                }
+            } else if let workspace {
+                connections(workspace)
+            }
+        }
+        .navigationBarBackButtonHidden(selectedAgent != nil)
+        .toolbar {
+            if selectedAgent != nil {
+                AppToolbarItem(placement: .topBarLeading) {
+                    Button(action: backToAccounts) { AppIcon(.chevronLeft) }
+                        .tint(.primary).accessibilityLabel(t("common.back"))
                 }
             }
         }
-        .refreshable { await repository.refresh() }
     }
 
     private func connections(_ workspace: Workspace) -> some View {
-        List {
-            Section {
-                LabeledContent(t("assistant.computer"), value: workspace.name)
-                Text(t("assistant.setup.ai.body")).foregroundStyle(.secondary)
-            }
-            if !agents.isEmpty {
-                Section(t("assistant.setup.existing")) {
-                    ForEach(agents) { agent in
-                        Button { select(agent) } label: {
-                            Label(agent.typeDisplayName, icon: .plug)
-                        }
-                        .tint(.primary)
-                    }
-                }
-            }
-            Section {
-                Button { sheet = .subscription } label: {
-                    Label(t("assistant.setup.connectAI"), icon: .plus)
-                }
-                .tint(.primary)
-                if refreshing { ProgressView(t("assistant.setup.checking")) }
-                if let message = stores.workspaceData.errors[workspace.id] {
-                    Text(message).font(.footnote).foregroundStyle(.secondary)
-                    Button(t("common.retry")) { Task { await refreshAgents(force: true) } }
-                }
-            } footer: {
-                Text(t("assistant.setup.ai.cost"))
-            }
+        NewAgentScreen(workspaceId: workspace.id, repository: repository, assistantSetup: true,
+                       embedded: true, assistantWorkspace: workspace, existingAgents: agents, onSelected: select) { agent in
+            if let agent, workspaceID == agent.workspaceId, path.last == .account { select(agent); readyAgent = agent }
         }
+        .id(workspace.id)
     }
 
     private func preparation(agent: Agent) -> some View {
-        VStack(spacing: Spacing.lg) {
-            AppLogo(size: 48)
+        AssistantPage {
+            AssistantSetupProgress(step: 2)
+            AssistantArtwork()
+            AssistantHeading(title: t(preparedProject == nil ? "assistant.setup.preparing" : "assistant.setup.ready"))
+            if let workspace {
+                VStack(spacing: 14) {
+                    AssistantConnectionSummary(name: workspace.name, isCloud: workspace.isCloud)
+                    if let service = AssistantAIService(agentType: agent.agentType) {
+                        HStack(spacing: 12) {
+                            AssistantServiceMark(service: service, size: 20)
+                            Text(service.name).font(.subheadline)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+            }
+            if let error {
+                Text(error).font(.subheadline).foregroundStyle(.secondary)
+            } else if preparedProject == nil {
+                ProgressView().accessibilityLabel(t("assistant.setup.preparing"))
+            }
+        } footer: {
             if let preparedProject {
-                Text(t("assistant.setup.ready")).font(.title2.bold())
-                Text(t("assistant.setup.folder")).foregroundStyle(.secondary)
-                Button(t("assistant.start")) {
+                AssistantPrimaryButton(title: t("assistant.start")) {
                     stores.experience.use(agent: agent, project: preparedProject)
                     onReady()
                     dismiss()
                 }
-                .buttonStyle(.glassProminent).controlSize(.large).tint(Palette.accent)
-            } else if let error {
-                Text(error).foregroundStyle(.secondary)
-                Button(t("common.retry")) { attempt += 1 }.buttonStyle(.glass)
-            } else {
-                ProgressView()
-                Text(t("assistant.setup.preparing")).foregroundStyle(.secondary)
+            } else if error != nil {
+                AssistantPrimaryButton(title: t("common.retry"), icon: .refresh) { attempt += 1 }
             }
         }
-        .multilineTextAlignment(.center)
-        .padding(Spacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: "\(agent.id):\(attempt)") {
             guard preparedProject == nil else { return }
             error = nil
@@ -185,42 +213,33 @@ struct AssistantSetupScreen: View {
         }
     }
 
-    private func option(_ title: String, detail: String, icon: AppIconName, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(alignment: .top, spacing: Spacing.md) {
-                AppIcon(icon, size: 24).padding(.top, 2)
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(title).font(.headline)
-                    Text(detail).font(.subheadline).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                AppIcon(.chevronRight).foregroundStyle(.tertiary)
-            }
-            .padding(.vertical, Spacing.sm)
-        }
-        .tint(.primary)
-    }
-
     private func choose(_ workspace: Workspace) {
         workspaceID = workspace.id
         stores.experience.pendingWorkspaceID = workspace.id
         stores.experience.pendingAgentID = nil
         selectedAgent = nil; readyAgent = nil; preparedProject = nil; error = nil
+        // Returning from account choice lands in the same computer branch, including after
+        // adding a computer. Pairing/creation does not remain underneath as an unfinished form.
+        if ApplePlatform.isDesktop && workspace.runtime.isLocal { path = [.account] }
+        else { path = [workspace.isCloud ? .cloud : .computer, .account] }
     }
 
     private func select(_ agent: Agent) {
+        guard workspaceID == agent.workspaceId, path.last == .account else { return }
         stores.experience.pendingAgentID = agent.id
         selectedAgent = agent
     }
 
-    private func goBack() {
-        if selectedAgent != nil {
-            selectedAgent = nil; readyAgent = nil; preparedProject = nil; error = nil
-            stores.experience.pendingAgentID = nil
-        } else {
-            workspaceID = nil
-            stores.experience.pendingWorkspaceID = nil
-        }
+    private func backToAccounts() {
+        selectedAgent = nil; readyAgent = nil; preparedProject = nil; error = nil
+        stores.experience.pendingAgentID = nil
+    }
+
+    private func clearSelection() {
+        backToAccounts()
+        workspaceID = nil
+        stores.experience.pendingWorkspaceID = nil
+        agents = []
     }
 
     private func reloadAgents() {
@@ -230,8 +249,6 @@ struct AssistantSetupScreen: View {
     private func refreshAgents(force: Bool = false) async {
         reloadAgents()
         guard let workspace else { return }
-        refreshing = true
-        defer { refreshing = false }
         if force { await stores.workspaceData.refresh(workspace) }
         else { await stores.workspaceData.refreshIfNeeded(workspace) }
         guard !Task.isCancelled else { return }

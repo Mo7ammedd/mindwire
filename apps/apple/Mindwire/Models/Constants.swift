@@ -22,6 +22,7 @@ enum StorageKey {
     static let legacySandboxes = "mindwire:sandboxes"
     static let projects = "mindwire:projects"
     static let chats = "mindwire:chats"
+    static let bots = "mindwire:bots"
     static let github = "mindwire:github"
     static let themeMode = "mindwire:theme"
     static let locale = "mindwire:locale"

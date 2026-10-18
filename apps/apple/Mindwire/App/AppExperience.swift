@@ -27,20 +27,30 @@ final class AppExperience {
         didSet { defaults.set(pendingAgentID, forKey: "mindwire.assistant.setup.agent") }
     }
     private(set) var projectIDs: [String: String]
+    var collapsedBotIDs: Set<String> {
+        didSet { defaults.set(Array(collapsedBotIDs).sorted(), forKey: "mindwire.assistant.collapsedBots") }
+    }
     private static let modeKey = "mindwire.experience.mode"
 
     init(defaults: UserDefaults, hasExistingData: Bool) {
         self.defaults = defaults
         let savedMode = defaults.string(forKey: Self.modeKey).flatMap(AppExperienceMode.init(rawValue:))
+        #if targetEnvironment(macCatalyst)
+        // Desktop begins with the local personal assistant. Keep an existing explicit
+        // mode preference; switching remains available in the shared Settings screen.
+        mode = savedMode ?? .general
+        #else
         mode = savedMode ?? (hasExistingData ? .developer : nil)
         // Upgrades retain the familiar interface. Fresh installations choose explicitly.
         if savedMode == nil, hasExistingData {
             defaults.set(AppExperienceMode.developer.rawValue, forKey: Self.modeKey)
         }
+        #endif
         assistantAgentID = defaults.string(forKey: "mindwire.assistant.agent")
         pendingWorkspaceID = defaults.string(forKey: "mindwire.assistant.setup.workspace")
         pendingAgentID = defaults.string(forKey: "mindwire.assistant.setup.agent")
         projectIDs = defaults.dictionary(forKey: "mindwire.assistant.projects") as? [String: String] ?? [:]
+        collapsedBotIDs = Set(defaults.stringArray(forKey: "mindwire.assistant.collapsedBots") ?? [])
     }
 
     func use(agent: Agent, project: Project) {

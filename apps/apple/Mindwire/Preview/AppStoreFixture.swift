@@ -172,6 +172,7 @@ private struct StorePushAuthorization: PushAuthorization {
 private final class StoreRegistryRemote: WorkspaceRegistryRemote {
     let channel: StoreDaemonChannel
     let supportsProjectOperations = true
+    let supportsBots = true
     var current = WorkspaceMetadata(version: 1, workspaceId: "store", revision: 1, full: true,
                                     agents: [], projects: [], chats: [], deleted: [])
     init(channel: StoreDaemonChannel) { self.channel = channel }
@@ -179,12 +180,82 @@ private final class StoreRegistryRemote: WorkspaceRegistryRemote {
     func snapshot() async throws -> WorkspaceMetadata { current }
     func changes(since: Int64, identity: String) async throws -> WorkspaceMetadata { current }
     func importLegacy(_ records: WorkspaceLegacyImport) async throws -> WorkspaceMetadata { current }
-    func put(kind: String, id: String, record: Data, revision: Int64?) async throws -> WorkspaceMetadata { throw URLError(.unsupportedURL) }
+    func put(kind: String, id: String, record: Data, revision: Int64?) async throws -> WorkspaceMetadata {
+        guard kind == "chats" else { throw URLError(.unsupportedURL) }
+        var chat = try JSONDecoder().decode(Chat.self, from: record)
+        current = nextRevision()
+        chat.revision = current.revision
+        current.chats.removeAll { $0.id == id }
+        current.chats.append(chat)
+        return current
+    }
     func delete(kind: String, id: String, revision: Int64?) async throws -> WorkspaceMetadata { throw URLError(.unsupportedURL) }
     func projectSyncHTTP() async throws -> DaemonHTTP { .init(channel: channel, agentType: "") }
     func desktopHTTP() async throws -> DaemonHTTP { .init(channel: channel, agentType: "") }
     func projectOperations() async throws -> [ProjectOperation] { [] }
     func dispose() async { }
+
+    private func nextRevision() -> WorkspaceMetadata {
+        var snapshot = WorkspaceMetadata(version: current.version, workspaceId: current.workspaceId,
+            revision: current.revision + 1, full: true, agents: current.agents, projects: current.projects,
+            chats: current.chats, deleted: current.deleted)
+        snapshot.bots = current.bots
+        return snapshot
+    }
+
+    func ensureBots(agentId: String, projectId: String) async throws -> AssistantBotMutation {
+        if let master = current.bots?.first(where: { $0.isMaster && $0.projectId == projectId }) {
+            return .init(bot: master, snapshot: current)
+        }
+        current = nextRevision()
+        let master = AssistantBot(id: "store-mindwire-" + projectId, workspaceId: current.workspaceId,
+            agentId: agentId, projectId: projectId, name: "Mindwire", purpose: "Your main assistant and bot manager",
+            instructions: "Help the user and manage their bots.", memory: "", knowledge: [], isMaster: true,
+            archived: false, createdAt: "2026-10-01T09:00:00Z", revision: current.revision)
+        current.bots = (current.bots ?? []) + [master]
+        for index in current.chats.indices where current.chats[index].projectId == projectId && current.chats[index].botId == nil {
+            current.chats[index].botId = master.id
+            current.chats[index].revision = current.revision
+        }
+        for index in 0..<10 {
+            current.chats.append(Chat(id: "store-general-extra-\(index)", agentId: agentId, projectId: projectId,
+                title: "Earlier conversation \(index + 1)", createdAt: "2026-09-20T09:00:00Z", revision: current.revision, botId: master.id))
+        }
+        if ProcessInfo.processInfo.environment["MINDWIRE_CHAT_TEST_CONTENT"]?.hasPrefix("bots") == true {
+            let bot = AssistantBot(id: "store-bot-writing", workspaceId: current.workspaceId,
+                agentId: agentId, projectId: projectId, name: "Writing Partner", purpose: "Clear writing for your audience",
+                instructions: "Ask about the audience. Use clear, active prose.", memory: "The user prefers short paragraphs.",
+                knowledge: [.init(id: "style", title: "Style guide", content: "Use active voice and concrete examples.")],
+                isMaster: false, archived: false, createdAt: "2026-10-01T10:00:00Z", revision: current.revision)
+            current.bots?.append(bot)
+            current.chats.append(Chat(id: "store-writing-chat", agentId: agentId, projectId: projectId,
+                title: "My first article", createdAt: "2026-10-01T10:01:00Z", revision: current.revision, botId: bot.id))
+            if ProcessInfo.processInfo.environment["MINDWIRE_CHAT_TEST_CONTENT"] == "bots-history" {
+                for index in 0..<8 {
+                    current.chats.append(Chat(id: "store-writing-earlier-\(index)", agentId: agentId, projectId: projectId,
+                        title: "Earlier article \(index + 1)", createdAt: String(format: "2026-09-%02dT09:00:00Z", 20 - index),
+                        revision: current.revision, botId: bot.id))
+                }
+            }
+        }
+        return .init(bot: master, snapshot: current)
+    }
+
+    func editBot(_ id: String, edit: AssistantBotEdit) async throws -> AssistantBotMutation {
+        guard let index = current.bots?.firstIndex(where: { $0.id == id }), var bot = current.bots?[index],
+              bot.revision == edit.expectedRevision else { throw URLError(.cannotParseResponse) }
+        current = nextRevision()
+        if let value = edit.name { bot.name = value }
+        if let value = edit.icon { bot.icon = value }
+        if let value = edit.purpose { bot.purpose = value }
+        if let value = edit.instructions { bot.instructions = value }
+        if let value = edit.memory { bot.memory = value }
+        if let value = edit.knowledge { bot.knowledge = value }
+        if let value = edit.archived { bot.archived = value }
+        bot.revision = current.revision
+        current.bots?[index] = bot
+        return .init(bot: bot, snapshot: current)
+    }
 }
 
 @MainActor
@@ -327,6 +398,9 @@ actor StoreDaemonChannel: StreamingDaemonChannel {
         }
         if endpoint == "/config" { return (200, #"{"model":"gpt-6-astra","model_reasoning_effort":"high"}"#) }
         if endpoint == "/models" || endpoint == "/chats" { return (200, "[]") }
+        if method == "DELETE", endpoint.hasPrefix("/chats/"), endpoint.split(separator: "/").count == 2 {
+            return (200, #"{"deleted":true}"#)
+        }
         if endpoint.hasSuffix("/run") { return (204, "") }
         if endpoint == "/turns", ProcessInfo.processInfo.environment["MINDWIRE_CHAT_TEST_CONTENT"] == "send-error" {
             let error = try JSONEncoder().encode(["error": "This conversation is open in another client. Close it there, then try again.\n" + Self.longError])

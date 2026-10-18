@@ -92,6 +92,7 @@ struct DaemonHealth: Codable, Hashable {
     var version: String?
     var projectLibraryVersion: Int? = nil
     var workspaceMetadataVersion: Int? = nil
+    var botsVersion: Int? = nil
     var agentDiscoveryVersion: Int? = nil
     var projectOperationsVersion: Int? = nil
     var projectIconsVersion: Int? = nil
@@ -188,6 +189,7 @@ struct DaemonCapabilities: Codable, Hashable {
     var setPermissionMode: Bool?
     var systemPrompt: Bool?
     var appendSystemPrompt: Bool?
+    var botProfiles: Bool? = nil
     var mcpServers: Bool?
     var subagents: Bool?
     var claudeSettings: Bool?
@@ -203,7 +205,7 @@ struct DaemonCapabilities: Codable, Hashable {
         case output, history, sessions, resume, fork, toolEvents, cancel, persistent, models, imageInput, audioInput, voice
         case respond, input, queuedInput, interrupt, setModel, setPermissionMode, systemPrompt, appendSystemPrompt
         case mcpServers, subagents, claudeSettings, memory, promptTemplates, subagentDefs, mcpConfig
-        case customProviders, compactNow, authLogout, commands
+        case customProviders, compactNow, authLogout, commands, botProfiles
     }
 }
 

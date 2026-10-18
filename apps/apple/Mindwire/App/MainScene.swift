@@ -6,18 +6,21 @@ struct MainScene: View {
     @Environment(\.stores) private var stores
 
     var body: some View {
-        #if targetEnvironment(macCatalyst)
-        DeveloperScene(repository: repository)
-            .task { await LocalComputer.shared.prepare(stores: stores, repository: repository) }
-        #else
         Group {
             switch stores.experience.mode {
             case .none: ExperienceOnboardingScreen()
             case .general: AssistantScene(repository: repository)
-            case .developer: DeveloperScene(repository: repository)
+            case .developer:
+                #if targetEnvironment(macCatalyst)
+                AssistantScene(repository: repository)
+                #else
+                DeveloperScene(repository: repository)
+                #endif
             }
         }
         .environment(\.appExperienceMode, stores.experience.mode ?? .general)
+        #if targetEnvironment(macCatalyst)
+        .task { await LocalComputer.shared.prepare(stores: stores, repository: repository) }
         #endif
     }
 }
@@ -47,7 +50,7 @@ struct DeveloperScene: View {
             Tab(value: AppTab.workspaces) {
                 WorkspacesTab(repository: repository)
             } label: {
-                Label { Text(t("tabs.workspaces")) } icon: { AppIcon(Icon.workspace, size: 24, decorative: true) }
+                Label { Text(t("tabs.workspaces")) } icon: { AppIcon(Icon.computer, size: 24, decorative: true) }
                     .accessibilityLabel(t("tabs.workspaces"))
             }
             Tab(value: AppTab.settings) {

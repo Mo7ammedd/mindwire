@@ -169,6 +169,13 @@ func shape(t agent.NotifyChannelType, n agent.Notification) ([]byte, error) {
 		if n.Agent != "" {
 			data["agent"] = n.Agent
 		}
+		for key, value := range map[string]string{
+			"botId": n.BotID, "botName": n.BotName, "botIcon": n.BotIcon, "workspaceId": n.WorkspaceID,
+		} {
+			if value != "" {
+				data[key] = value
+			}
+		}
 		if n.ChatID != "" {
 			data["chatId"], data["target_type"], data["target_id"] = n.ChatID, "chat", n.ChatID
 		}

@@ -14,6 +14,7 @@ enum Icon {
     static let chat: AppIconName = .message
     static let agents: AppIconName = .brain
     static let workspace: AppIconName = .layers
+    static let computer: AppIconName = .monitor
     static let cloud: AppIconName = .cloud
     static let edit: AppIconName = .edit
     static let trash: AppIconName = .trash

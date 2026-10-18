@@ -11,6 +11,7 @@ struct ChatListRow: View {
     var subtitle: String? = nil
     var snapshot: ChatListRowSnapshot? = nil
     var compact = false
+    var sidebar = false
     var onOpen: (() -> Void)? = nil
     var onChanged: () -> Void = {}
 
@@ -76,18 +77,25 @@ struct ChatListRow: View {
         } message: { Text(error ?? "") }
     }
 
-    private var label: some View {
-        HStack {
-            ChatRowLabel(title: title, subtitle: subtitle, compact: compact,
-                         status: activity.status(chat.id),
-                         date: compact ? nil : activity.lastActivity(savedChat),
-                         runStartedAt: activity.runStartedAt(chat.id),
-                         loading: stores.chatSessions.cached(chat.id)?.isLoadingConversation == true)
-            if notificationsMuted {
-                AppIcon(.bellOff).font(.caption).foregroundStyle(.secondary)
-                    .accessibilityLabel(t("notifications.muted"))
+    @ViewBuilder private var label: some View {
+        if sidebar {
+            AssistantConversationLabel(title: title, selected: app.assistantChatID == chat.id,
+                                       status: activity.status(chat.id),
+                                       busy: busy || stores.chatSessions.cached(chat.id)?.isLoadingConversation == true,
+                                       muted: notificationsMuted)
+        } else {
+            HStack {
+                ChatRowLabel(title: title, subtitle: subtitle, compact: compact,
+                             status: activity.status(chat.id),
+                             date: compact ? nil : activity.lastActivity(savedChat),
+                             runStartedAt: activity.runStartedAt(chat.id),
+                             loading: stores.chatSessions.cached(chat.id)?.isLoadingConversation == true)
+                if notificationsMuted {
+                    AppIcon(.bellOff).font(.caption).foregroundStyle(.secondary)
+                        .accessibilityLabel(t("notifications.muted"))
+                }
+                if busy { ProgressView().controlSize(.mini) }
             }
-            if busy { ProgressView().controlSize(.mini) }
         }
     }
 

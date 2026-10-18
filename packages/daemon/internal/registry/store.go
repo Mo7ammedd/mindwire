@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/oblien/mindwire/packages/daemon/internal/gitaccess"
@@ -25,9 +26,9 @@ import (
 )
 
 const Version = 1
-const NotificationPreferencesVersion = 1
+const NotificationPreferencesVersion = 2
 const AgentDiscoveryVersion = 1
-const schemaVersion = 7
+const schemaVersion = 9
 
 var (
 	ErrConflict = errors.New("record changed on another client; refresh and try again")
@@ -68,6 +69,7 @@ type Chat struct {
 	Record
 	SyncID         string `json:"syncId,omitempty"`
 	AgentID        string `json:"agentId"`
+	BotID          string `json:"botId,omitempty"` // General-mode profile; empty for Developer chats
 	ProjectID      string `json:"projectId"`
 	Title          string `json:"title"`
 	NativeTitle    string `json:"nativeTitle,omitempty"` // cached harness title, retained underneath a user's override
@@ -88,6 +90,7 @@ type Import struct {
 	Agents   []Agent   `json:"agents"`
 	Projects []Project `json:"projects"`
 	Chats    []Chat    `json:"chats"`
+	Bots     []Bot     `json:"bots"`
 }
 
 type Snapshot struct {
@@ -103,9 +106,10 @@ type Snapshot struct {
 }
 
 type Store struct {
-	db       *sql.DB
-	identity string
-	path     string
+	db         *sql.DB
+	identity   string
+	path       string
+	botEngines atomic.Pointer[map[string]bool]
 }
 
 func Open(path string) (*Store, error) {
@@ -189,7 +193,8 @@ CREATE TABLE IF NOT EXISTS project_sync_records (kind TEXT NOT NULL, id TEXT NOT
  PRIMARY KEY(kind,id));
 CREATE TABLE IF NOT EXISTS project_library (id INTEGER PRIMARY KEY CHECK(id=1), data BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS project_folder_deletions (id TEXT PRIMARY KEY);
-PRAGMA user_version=7;`); err != nil {
+CREATE TABLE IF NOT EXISTS bots (id TEXT PRIMARY KEY, data BLOB NOT NULL, revision INTEGER NOT NULL);
+PRAGMA user_version=9;`); err != nil {
 		return err
 	}
 	identity := make([]byte, 16)
@@ -198,6 +203,11 @@ PRAGMA user_version=7;`); err != nil {
 	}
 	if _, err = tx.Exec("INSERT OR IGNORE INTO meta VALUES (1,?,0)", hex.EncodeToString(identity)); err != nil {
 		return err
+	}
+	if version < 9 {
+		if err = migrateBotNotifications(tx); err != nil {
+			return err
+		}
 	}
 	if err = tx.QueryRow("SELECT identity FROM meta WHERE id=1").Scan(&st.identity); err != nil {
 		return err
@@ -402,7 +412,7 @@ func (st *Store) Put(kind, id string, data []byte, expected *int64) error {
 			if kind == "chats" {
 				// Native references/activity are daemon-owned. A client's rename or
 				// notification edit must not clear them or roll them back.
-				for _, key := range []string{"sessionId", "updatedAt", "nativeTitle"} {
+				for _, key := range []string{"sessionId", "updatedAt", "nativeTitle", "botId"} {
 					if v, exists := previous[key]; exists {
 						incoming[key] = v
 					}
@@ -463,6 +473,13 @@ func (st *Store) Put(kind, id string, data []byte, expected *int64) error {
 				return false, err
 			} else if other != nil && oldPath != canonical {
 				return false, fmt.Errorf("%w: directory already belongs to project %s", ErrConflict, other.ID)
+			}
+		}
+		if kind == "chats" {
+			var chat Chat
+			_ = json.Unmarshal(value, &chat)
+			if err := validateBotChat(tx, chat); err != nil {
+				return false, err
 			}
 		}
 		if kind == "chats" {
@@ -561,7 +578,30 @@ func (st *Store) Import(batch Import) error {
 				return false, err
 			}
 		}
+		for _, row := range batch.Bots {
+			if _, err := readBot(tx, row.ID); err == nil {
+				continue
+			} else if !errors.Is(err, ErrNotFound) {
+				return false, err
+			}
+			if _, _, err := botParents(tx, row.AgentID, row.ProjectID); err != nil {
+				return false, err
+			}
+			row.WorkspaceID, row.Revision = st.identity, revision
+			var err error
+			row, err = normalizeBot(row)
+			if err != nil {
+				return false, err
+			}
+			if err := saveBot(tx, row, revision); err != nil {
+				return false, err
+			}
+			changed = true
+		}
 		for _, row := range batch.Chats {
+			if err := validateBotChat(tx, row); err != nil {
+				return false, err
+			}
 			if err := insert("chats", row.ID, row); err != nil {
 				return false, err
 			}
@@ -746,6 +786,10 @@ func (st *Store) Snapshot(since *int64) (Snapshot, error) {
 	}
 	if library.Revision > minimum {
 		s.ProjectLibrary = &library
+	}
+	s.Bots, err = readBots(tx, minimum)
+	if err != nil {
+		return s, err
 	}
 	return s, tx.Commit()
 }

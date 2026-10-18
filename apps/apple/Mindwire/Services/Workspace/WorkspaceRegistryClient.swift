@@ -13,6 +13,7 @@ enum WorkspaceRegistryError: LocalizedError {
     case gitIdentityUnavailable
     case gitRestoreUnavailable
     case missing
+    case botsUnavailable
     case workspaceNotRunning(WorkspacePower)
     var errorDescription: String? {
         switch self {
@@ -28,6 +29,7 @@ enum WorkspaceRegistryError: LocalizedError {
         case .gitIdentityUnavailable: return t("git.identity.updateRequired")
         case .gitRestoreUnavailable: return t("git.restore.updateRequired")
         case .missing: return t("workspace.missing.body")
+        case .botsUnavailable: return t("assistant.bots.updateRequired")
         case .workspaceNotRunning(let power):
             return t(power == .stopped ? "workspace.power.stoppedBody" : "workspace.power.startingBody")
         }
@@ -43,6 +45,15 @@ enum WorkspaceRegistryError: LocalizedError {
 /// A workspace connection, independent of any saved agent or installed CLI.
 @MainActor
 protocol WorkspaceRegistryRemote: AnyObject {
+    var supportsBots: Bool { get }
+    func catalog() async throws -> DaemonCatalog
+    func createBot(_ input: AssistantBotCreate) async throws -> AssistantBotMutation
+    func botPeerEndpoint() async throws -> BotPeerEndpoint
+    func registerBotPeer(_ id: String, registration: BotPeerRegistration) async throws
+    func revokeBotPeer(_ id: String) async throws
+    func checkBotPeer(_ id: String) async throws -> BotPeerCheck
+    func ensureBots(agentId: String, projectId: String) async throws -> AssistantBotMutation
+    func editBot(_ id: String, edit: AssistantBotEdit) async throws -> AssistantBotMutation
     var supportsAgentDiscovery: Bool { get }
     func ensureAgent(type: AgentID, name: String) async throws -> WorkspaceEnsureAgentResult
     var supportsProjectLibrary: Bool { get }
@@ -88,6 +99,15 @@ protocol WorkspaceRegistryRemote: AnyObject {
 }
 
 extension WorkspaceRegistryRemote {
+    var supportsBots: Bool { false }
+    func catalog() async throws -> DaemonCatalog { throw WorkspaceRegistryError.updateRequired }
+    func createBot(_ input: AssistantBotCreate) async throws -> AssistantBotMutation { throw WorkspaceRegistryError.botsUnavailable }
+    func botPeerEndpoint() async throws -> BotPeerEndpoint { throw WorkspaceRegistryError.botsUnavailable }
+    func registerBotPeer(_ id: String, registration: BotPeerRegistration) async throws { throw WorkspaceRegistryError.botsUnavailable }
+    func revokeBotPeer(_ id: String) async throws { throw WorkspaceRegistryError.botsUnavailable }
+    func checkBotPeer(_ id: String) async throws -> BotPeerCheck { throw WorkspaceRegistryError.botsUnavailable }
+    func ensureBots(agentId: String, projectId: String) async throws -> AssistantBotMutation { throw WorkspaceRegistryError.botsUnavailable }
+    func editBot(_ id: String, edit: AssistantBotEdit) async throws -> AssistantBotMutation { throw WorkspaceRegistryError.botsUnavailable }
     var supportsAgentDiscovery: Bool { false }
     func ensureAgent(type: AgentID, name: String) async throws -> WorkspaceEnsureAgentResult {
         throw WorkspaceRegistryError.updateRequired
@@ -139,6 +159,10 @@ extension WorkspaceRegistryRemote {
 
 @MainActor
 final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
+    private(set) var supportsBots = false
+    private var botIconsSupported = false
+    private var botProfilesVersion = 0
+    private var botNotificationsSupported = false
     var supportsProjectLibrary: Bool { projectLibraryVersion >= 1 }
     func projectLibrary() async throws -> DaemonProjectLibrary {
         guard projectLibraryVersion >= 1 else { throw WorkspaceRegistryError.projectLibraryUnavailable }
@@ -152,6 +176,7 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
     }
     private(set) var supportsGitAccess = false
     private(set) var supportsGitOperations = false
+    private var botCreationSupported = false
     private var gitOperationsVersion = 0
     private var gitIdentityVersion = 0
     private var projectSyncVersion = 0
@@ -189,6 +214,11 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
     }
 
     func prepare(allowInstall: Bool) async throws {
+        supportsBots = false
+        botCreationSupported = false
+        botIconsSupported = false
+        botProfilesVersion = 0
+        botNotificationsSupported = false
         supportsGitAccess = false
         supportsGitOperations = false
         gitOperationsVersion = 0
@@ -238,6 +268,11 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
             supportsProjectOperations = (health.projectOperationsVersion ?? 0) >= 1
             supportsNotificationPreferences = (health.notificationPreferencesVersion ?? 0) >= 1
             supportsAgentDiscovery = (health.agentDiscoveryVersion ?? 0) >= 1
+            supportsBots = (health.botsVersion ?? 0) >= 1
+            botCreationSupported = (health.botsVersion ?? 0) >= 3
+            botIconsSupported = (health.botsVersion ?? 0) >= 2
+            botProfilesVersion = health.botsVersion ?? 0
+            botNotificationsSupported = botProfilesVersion >= 4 && (health.notificationPreferencesVersion ?? 0) >= 2
             supportsGitAccess = (health.gitAccessVersion ?? 0) >= 1
             supportsGitOperations = (health.gitOperationsVersion ?? 0) >= 1
             gitOperationsVersion = health.gitOperationsVersion ?? 0
@@ -567,6 +602,99 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
         guard supportsAgentDiscovery else { throw WorkspaceRegistryError.updateRequired }
         return try await requiredHTTP.decode("POST", "/workspace/agents/ensure",
             json: ["agentType": type.rawValue, "name": name])
+    }
+
+    func catalog() async throws -> DaemonCatalog {
+        try await requiredHTTP.decode("GET", "/catalog", quiet: true)
+    }
+
+    func ensureBots(agentId: String, projectId: String) async throws -> AssistantBotMutation {
+        guard supportsBots else { throw WorkspaceRegistryError.botsUnavailable }
+        return try await requiredHTTP.decode("POST", "/bots/ensure", json: ["agentId": agentId, "projectId": projectId])
+    }
+
+    func createBot(_ input: AssistantBotCreate) async throws -> AssistantBotMutation {
+        guard botCreationSupported, botProfilesVersion >= AssistantBotIcon.minimumVersion(for: input.icon) else {
+            throw WorkspaceRegistryError.botsUnavailable
+        }
+        return try await requiredHTTP.decode("POST", "/bots", json: object(input))
+    }
+
+    func botPeerEndpoint() async throws -> BotPeerEndpoint {
+        guard botCreationSupported else { throw WorkspaceRegistryError.botsUnavailable }
+        let http = try requiredHTTP
+        var identity: BotPeerIdentity = try await http.decode("GET", "/bots/peers/identity", quiet: true)
+        if let routes = identity.routes, !routes.isEmpty, routes.allSatisfy(\.isValid) {
+            return .init(identity: identity, routes: Array(routes.prefix(8)))
+        }
+        do {
+        // Only the key-pinned, bot-only listener is made reachable. The daemon's owner API
+        // and the workspace runtime/SSH credentials are never published to another bot.
+        guard workspace.isCloud || (workspace.runtime.sandbox == nil && backend.server?.remote != nil) else {
+            throw BackendError.message(t("bots.connections.noRoute"))
+        }
+        identity = try await http.decode("POST", "/bots/peers/listener", json: [:], quiet: true)
+        if let remote = backend.server?.remote, !workspace.isCloud,
+           let port = identity.sshPort, (1...65535).contains(port), port != remote.port, port != AppConstants.daemonPort {
+            let route = ComputerRoute(kind: "ssh", host: remote.host, port: port)
+            guard route.isValid else { throw BackendError.message(t("bots.connections.invalidRoute")) }
+            return .init(identity: identity, routes: [route])
+        }
+        guard workspace.isCloud else { throw BackendError.message(t("bots.connections.noRoute")) }
+        guard let port = identity.port, (1...65535).contains(port), port != AppConstants.daemonPort else {
+            throw BackendError.message(t("bots.connections.invalidRoute"))
+        }
+        let existing = try await backend.workspace.listPorts().first { $0.port == port }
+        let exposed: ExposedPort
+        if let existing { exposed = existing }
+        else { exposed = try await backend.workspace.exposePort(.init(port: port, label: "Mindwire bots")) }
+        guard var url = URLComponents(string: exposed.url), url.scheme == "https", url.host != nil,
+              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil else {
+            throw BackendError.message(t("bots.connections.invalidRoute"))
+        }
+        url.scheme = "wss"
+        url.path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        url.path = url.path.isEmpty ? "/ssh" : "/" + url.path + "/ssh"
+        guard let value = url.string else { throw BackendError.message(t("bots.connections.invalidRoute")) }
+        let route = ComputerRoute(kind: "websocket", url: value)
+        guard route.isValid else { throw BackendError.message(t("bots.connections.invalidRoute")) }
+        return .init(identity: identity, routes: [route])
+        } catch {
+            if error.isRequestCancellation { throw error }
+            // A controller can initiate to another computer without accepting inbound
+            // connections itself. Keep its public identity for reciprocal authorization.
+            return .init(identity: identity, routes: [], routingIssue: error.localizedDescription)
+        }
+    }
+
+    func registerBotPeer(_ id: String, registration: BotPeerRegistration) async throws {
+        guard botCreationSupported else { throw WorkspaceRegistryError.botsUnavailable }
+        let http = try requiredHTTP
+        _ = try await http.run("PUT", "/bots/peers/\(http.encQuery(id))", json: object(registration), quiet: true)
+    }
+
+    func revokeBotPeer(_ id: String) async throws {
+        guard botCreationSupported else { throw WorkspaceRegistryError.botsUnavailable }
+        let http = try requiredHTTP
+        _ = try await http.run("DELETE", "/bots/peers/\(http.encQuery(id))", json: nil, quiet: true, missingIsEmpty: true)
+    }
+
+    func checkBotPeer(_ id: String) async throws -> BotPeerCheck {
+        guard botCreationSupported else { throw WorkspaceRegistryError.botsUnavailable }
+        let http = try requiredHTTP
+        return try await http.decode("POST", "/bots/peers/\(http.encQuery(id))/check", json: [:], quiet: true)
+    }
+
+    func editBot(_ id: String, edit: AssistantBotEdit) async throws -> AssistantBotMutation {
+        guard supportsBots else { throw WorkspaceRegistryError.botsUnavailable }
+        guard edit.icon == nil || (botIconsSupported && botProfilesVersion >= AssistantBotIcon.minimumVersion(for: edit.icon)) else {
+            throw WorkspaceRegistryError.botsUnavailable
+        }
+        guard edit.notificationsMuted == nil || botNotificationsSupported else {
+            throw WorkspaceRegistryError.notificationPreferencesUnavailable
+        }
+        let http = try requiredHTTP
+        return try await http.decode("PATCH", "/bots/\(http.encQuery(id))", json: object(edit))
     }
 
     func put(kind: String, id: String, record: Data, revision: Int64?) async throws -> WorkspaceMetadata {

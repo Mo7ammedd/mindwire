@@ -5,15 +5,73 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
-    var selectedTab: AppTab = .projects { didSet { navigationDidChange?() } }
+    var computerCollection: ComputerCollection = .personal
+    var selectedTab: AppTab = ApplePlatform.isDesktop ? .agents : .projects { didSet { navigationDidChange?() } }
     var assistantChatID: String? { didSet { navigationDidChange?() } }
+    var assistantBotID: String? { didSet { navigationDidChange?() } }
 
     var usesAssistant: Bool {
-        #if targetEnvironment(macCatalyst)
-        false
-        #else
         stores.experience.mode == .general
-        #endif
+    }
+
+    /// Desktop modes share the same conversation surface; Developer adds workspace navigation.
+    var usesChatShell: Bool { usesAssistant || ApplePlatform.isDesktop }
+    var desktopProjectID: String? { didSet { navigationDidChange?() } }
+    var desktopWorkspaceID: String? { didSet { navigationDidChange?() } }
+    var desktopSidebarVisible = true
+    var desktopToolSidebarVisible = true
+    var desktopBrowserWidth: CGFloat = 300
+    var desktopProjectIsOpen: Bool {
+        ApplePlatform.isDesktop && !usesAssistant && selectedTab == .projects
+            && desktopProjectID != nil
+    }
+    var desktopNavigationVisible: Bool {
+        desktopProjectIsOpen ? desktopToolSidebarVisible : desktopSidebarVisible
+    }
+    var desktopBotRailVisible: Bool {
+        ApplePlatform.isDesktop && !desktopSidebarVisible && !desktopProjectIsOpen
+            && (usesAssistant || selectedTab == .agents)
+    }
+
+    func showDesktopTool(_ tool: ProjectTool?) {
+        if desktopProjectIsOpen { desktopToolSidebarVisible = true; return }
+        if tool == .files || tool == .sourceControl {
+            desktopSidebarVisible = false
+            desktopToolSidebarVisible = true
+        } else if tool == nil {
+            desktopSidebarVisible = true
+        }
+    }
+
+    func toggleDesktopSidebar() {
+        if desktopProjectIsOpen { desktopToolSidebarVisible.toggle(); return }
+        desktopSidebarVisible.toggle()
+        if !desktopSidebarVisible { desktopToolSidebarVisible = false }
+    }
+
+    var desktopHasUnsavedFileEdits = false
+    var pendingDesktopNavigation: (() -> Void)?
+
+    /// Inline file editing gets the same discard protection as the shared file sheet.
+    @discardableResult func navigateDesktop(_ action: @escaping () -> Void) -> Bool {
+        if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
+            pendingDesktopNavigation = action
+            return false
+        }
+        action()
+        return true
+    }
+
+    func confirmDesktopNavigation() {
+        let action = pendingDesktopNavigation
+        pendingDesktopNavigation = nil
+        desktopHasUnsavedFileEdits = false
+        action?()
+    }
+
+    func selectDesktopSection(_ tab: AppTab) {
+        guard selectedTab != tab else { return }
+        navigateDesktop { self.selectedTab = tab }
     }
 
     private func enterDeveloper() {
@@ -43,20 +101,41 @@ final class AppModel {
     // intentionally switch tabs and land on the entity's canonical tab. In-app drill-down does NOT
     // use these — it pushes within the current stack via `NavigationLink(value: AppRoute…)`.
     func openAgent(_ id: String) {
+        if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
+            pendingDesktopNavigation = { self.openAgent(id) }; return
+        }
         enterDeveloper()
         selectedTab = .agents
         agentsPath.append(AppRoute.agentDetail(agentId: id))
     }
 
     func openChat(_ chatId: String) {
-        if usesAssistant { assistantChatID = chatId; return }
+        if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
+            pendingDesktopNavigation = { self.openChat(chatId) }; return
+        }
+        if usesChatShell {
+            if ApplePlatform.isDesktop { selectedTab = .agents; agentsPath = NavigationPath() }
+            assistantBotID = stores.chats.get(chatId)?.botId
+            assistantChatID = chatId
+            return
+        }
         selectedTab = .agents
         agentsPath.append(AppRoute.chat(chatId: chatId))
         rememberChatLocation(chatId)
     }
 
+    func openBot(_ botId: String) {
+        if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
+            pendingDesktopNavigation = { self.openBot(botId) }; return
+        }
+        guard usesChatShell, let bot = stores.bots.get(botId), !bot.archived else { return }
+        if ApplePlatform.isDesktop { selectedTab = .agents; agentsPath = NavigationPath() }
+        assistantBotID = botId
+        assistantChatID = stores.chatsByRecency().first { $0.botId == botId }?.id
+    }
+
     func rememberChatLocation(_ chatId: String) {
-        if usesAssistant { return }
+        if usesChatShell { return }
         let path = path(in: selectedTab)
         guard chatLocations[selectedTab]?.id != chatId
                 || chatLocations[selectedTab]?.path.hasSameDestinations(as: path) != true else { return }
@@ -80,7 +159,8 @@ final class AppModel {
             let chat = chatLocations[tab].flatMap { $0.path.hasSameDestinations(as: path) && !path.isEmpty ? $0.id : nil }
             return .init(tab: tab, path: representation, sidebar: sidebarPaths[tab]?.codable,
                          sidebarHidden: hiddenSidebars.contains(tab), chatId: representation == nil ? nil : chat)
-        }, assistantChatID: assistantChatID)
+        }, assistantChatID: assistantChatID, assistantBotID: assistantBotID,
+           desktopProjectID: desktopProjectID, desktopWorkspaceID: desktopWorkspaceID)
     }
 
     /// Applied once before the window starts normal routing. A notification may then replace
@@ -88,6 +168,9 @@ final class AppModel {
     func restoreNavigation(_ snapshot: AppNavigationSnapshot) {
         guard snapshot.version == AppNavigationSnapshot.currentVersion else { return }
         assistantChatID = snapshot.assistantChatID
+        assistantBotID = snapshot.assistantBotID
+        desktopProjectID = snapshot.desktopProjectID
+        desktopWorkspaceID = snapshot.desktopWorkspaceID
         chatLocations.removeAll()
         sidebarPaths.removeAll()
         hiddenSidebars.removeAll()
@@ -104,11 +187,15 @@ final class AppModel {
             if let id = state.chatId, !path.isEmpty { chatLocations[state.tab] = (id, path) }
         }
         selectedTab = snapshot.selectedTab
+        if ApplePlatform.isDesktop, assistantChatID == nil,
+           let chat = chatLocations[selectedTab]?.id {
+            openChat(chat)
+        }
     }
 
     private func openNotifiedChat(_ chatId: String, notificationID: String?) {
         stores.chatSessions.model(for: chatId).openFromNotification(id: notificationID)
-        if usesAssistant { assistantChatID = chatId; return }
+        if usesChatShell { openChat(chatId); return }
         for tab in [selectedTab, .agents, .projects, .workspaces, .settings] {
             if let location = chatLocations[tab], location.id == chatId,
                location.path.hasSameDestinations(as: path(in: tab)) {
@@ -121,6 +208,14 @@ final class AppModel {
 
     /// Context-menu actions follow the same stack as a row's NavigationLink.
     func push(_ route: AppRoute) {
+        if ApplePlatform.isDesktop {
+            if case .projectDetail(let id) = route { openProject(id); return }
+            if case .workspaceDetail(let id) = route { openWorkspace(id); return }
+        }
+        if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
+            pendingDesktopNavigation = { self.push(route) }; return
+        }
+        if usesChatShell, case .chat(let id) = route { openChat(id); return }
         if usesAssistant {
             if case .chat(let id) = route { assistantChatID = id; return }
             enterDeveloper()
@@ -134,12 +229,29 @@ final class AppModel {
     }
 
     func openProject(_ id: String) {
+        if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
+            pendingDesktopNavigation = { self.openProject(id) }; return
+        }
         enterDeveloper()
         selectedTab = .projects
+        if ApplePlatform.isDesktop {
+            desktopProjectID = id
+            desktopToolSidebarVisible = true
+            projectsPath = NavigationPath()
+            return
+        }
         projectsPath.append(AppRoute.projectDetail(id: id))
     }
 
     func replaceTop(_ route: AppRoute) {
+        if ApplePlatform.isDesktop {
+            if case .projectDetail(let id) = route { openProject(id); return }
+            if case .workspaceDetail(let id) = route { openWorkspace(id); return }
+        }
+        if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
+            pendingDesktopNavigation = { self.replaceTop(route) }; return
+        }
+        if usesChatShell, case .chat(let id) = route { openChat(id); return }
         if usesAssistant {
             if case .chat(let id) = route { assistantChatID = id; return }
             enterDeveloper()
@@ -153,14 +265,39 @@ final class AppModel {
     }
 
     func showProjects() {
+        if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
+            pendingDesktopNavigation = { self.showProjects() }; return
+        }
         enterDeveloper()
         selectedTab = .projects
+        desktopProjectID = nil
+        desktopSidebarVisible = true
         projectsPath = NavigationPath()
     }
 
+    func showComputers() {
+        navigateDesktop {
+            self.selectedTab = .workspaces
+            self.desktopWorkspaceID = nil
+            self.desktopSidebarVisible = true
+            self.workspacesPath = NavigationPath()
+        }
+    }
+
     func openWorkspace(_ id: String) {
+        if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
+            pendingDesktopNavigation = { self.openWorkspace(id) }; return
+        }
         enterDeveloper()
         selectedTab = .workspaces
+        if let computer = WorkspaceRepository.shared.get(id) {
+            computerCollection = computer.isCloud ? .cloud : .personal
+        }
+        if ApplePlatform.isDesktop {
+            desktopWorkspaceID = id
+            workspacesPath = NavigationPath()
+            return
+        }
         workspacesPath.append(AppRoute.workspaceDetail(id: id))
     }
 

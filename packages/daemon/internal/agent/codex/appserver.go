@@ -60,33 +60,34 @@ var errTransportClosed = errors.New("codex app-server transport closed")
 // these fields (mirroring how buildExecCommand resolves the exec flags) so the driver only builds the
 // typed JSON-RPC params. Model credentials use env references; prompt/MCP config stays in private RPCs.
 type appServer struct {
-	command        string            // shell command to launch the server (assembled by RunStream)
-	env            map[string]string // auth/runtime env (from AuthModule.EnvForRun via in.Env)
-	message        string            // the user's turn message
-	model          string            // "" ⇒ omit (CLI default)
-	effort         string            // reasoning effort; "" ⇒ omit
-	summary        string
-	sandbox        string // sandbox posture (enum)
-	reviewer       string
-	collaboration  string
-	approval       string // approval policy (enum)
-	cwd            string // working directory for the thread
-	resumeID       string // thread id to resume; "" ⇒ start a fresh thread
-	fork           bool
-	forkAt         string // last native turn to retain, inclusive
-	compact        bool   // on-demand compaction: after resume, send thread/compact/start instead of turn/start
-	provider       string
-	config         map[string]any
-	instructions   string
-	images         []string
-	audio          []agent.Attachment
-	files          []agent.Attachment
-	nativeAudio    bool
-	outputSchema   json.RawMessage
-	continueLatest bool
-	voice          *agent.VoiceBridge
-	voiceOptions   *agent.VoiceOptions
-	skill          *agent.Command
+	command               string            // shell command to launch the server (assembled by RunStream)
+	env                   map[string]string // auth/runtime env (from AuthModule.EnvForRun via in.Env)
+	message               string            // the user's turn message
+	model                 string            // "" ⇒ omit (CLI default)
+	effort                string            // reasoning effort; "" ⇒ omit
+	summary               string
+	sandbox               string // sandbox posture (enum)
+	reviewer              string
+	collaboration         string
+	approval              string // approval policy (enum)
+	cwd                   string // working directory for the thread
+	resumeID              string // thread id to resume; "" ⇒ start a fresh thread
+	fork                  bool
+	forkAt                string // last native turn to retain, inclusive
+	compact               bool   // on-demand compaction: after resume, send thread/compact/start instead of turn/start
+	provider              string
+	config                map[string]any
+	instructions          string
+	developerInstructions string
+	images                []string
+	audio                 []agent.Attachment
+	files                 []agent.Attachment
+	nativeAudio           bool
+	outputSchema          json.RawMessage
+	continueLatest        bool
+	voice                 *agent.VoiceBridge
+	voiceOptions          *agent.VoiceOptions
+	skill                 *agent.Command
 }
 
 // Run spawns the app-server process, drives one turn over its stdio, and returns the terminal result.
@@ -884,6 +885,27 @@ func (a appServer) converse(ctx context.Context, w io.Writer, r io.Reader, inbou
 	if err := writeJSON(rpcNotification{Method: "initialized"}); err != nil {
 		return agent.TurnResult{Text: err.Error()}, false
 	}
+	// Preserve native user/project developer instructions when adding the bot's
+	// current context. Built-in model instructions remain owned by Codex.
+	var nativeConfig nativeInstructionConfig
+	if a.developerInstructions != "" {
+		ch, err = call("config/read", map[string]any{"includeLayers": false, "cwd": a.cwd})
+		if err != nil {
+			return startupFailure("read native instructions", err)
+		}
+		data, err := awaitStartup(ch)
+		if err != nil {
+			return startupFailure("read native instructions", err)
+		}
+		var result struct {
+			Config nativeInstructionConfig `json:"config"`
+		}
+		if err := json.Unmarshal(data, &result); err != nil {
+			return startupFailure("read native instructions", err)
+		}
+		nativeConfig = result.Config
+		a.developerInstructions = strings.TrimSpace(nativeConfig.Developer + "\n\n" + a.developerInstructions)
+	}
 
 	// 3. start or resume the thread, capturing its id (needed for turn/start).
 	if a.continueLatest {
@@ -911,6 +933,9 @@ func (a appServer) converse(ctx context.Context, w io.Writer, r io.Reader, inbou
 			return agent.TurnResult{Text: "No Codex conversation to continue in this directory.", IsError: true}, false
 		}
 		a.resumeID = list.Data[0].ID
+	}
+	if err := a.restoreBotBaseInstructions(ctx, nativeConfig); err != nil {
+		return startupFailure("restore native instructions", err)
 	}
 	if a.resumeID != "" && a.fork {
 		params := a.resumeParams()
@@ -998,6 +1023,7 @@ func (a appServer) converse(ctx context.Context, w io.Writer, r io.Reader, inbou
 	// sessionId is the live tree's root; a fork can share it with its source.
 	// Resumption and history must always use the distinct thread ID.
 	sid := tid
+
 	if a.fork && a.resumeID != "" {
 		if tid == "" || tid == a.resumeID {
 			return agent.TurnResult{Text: "Codex did not create a new thread; the original chat was kept.", IsError: true}, false
@@ -1027,6 +1053,22 @@ func (a appServer) converse(ctx context.Context, w io.Writer, r io.Reader, inbou
 	}
 	if err := ctx.Err(); err != nil {
 		return agent.TurnResult{Text: err.Error(), SessionID: sid, IsError: true}, false
+	}
+
+	if a.resumeID != "" && botContextNeedsUpdate(tid, a.developerInstructions) {
+		response, err := call("thread/inject_items", map[string]any{
+			"threadId": tid,
+			"items": []any{map[string]any{
+				"type": "message", "role": "developer",
+				"content": []any{map[string]any{"type": "input_text", "text": a.developerInstructions}},
+			}},
+		})
+		if err != nil {
+			return startupFailure("refresh bot context", err)
+		}
+		if _, err := awaitStartup(response); err != nil {
+			return startupFailure("refresh bot context", err)
+		}
 	}
 
 	// 4. Kick off the work. In compact mode: thread/compact/start, whose immediate {} response is a mere
@@ -1342,6 +1384,9 @@ func (a appServer) threadOptions(p map[string]any) {
 	}
 	if a.instructions != "" {
 		p["baseInstructions"] = a.instructions
+	}
+	if a.developerInstructions != "" {
+		p["developerInstructions"] = a.developerInstructions
 	}
 }
 

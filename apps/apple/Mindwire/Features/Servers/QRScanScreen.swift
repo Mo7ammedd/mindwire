@@ -80,7 +80,7 @@ struct QRScanScreen: View {
             }
             .navigationTitle("Pair a computer")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.image]) { result in
                 switch result {

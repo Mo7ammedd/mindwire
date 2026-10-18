@@ -198,7 +198,7 @@ struct DesktopScreen: View {
                     if pointerMode == .screen { pointerMode = .touchpad; fullscreenStick = true }
                     else { fullscreenStick.toggle() }
                 } label: { AppIcon(.pointer) }
-                    .tint(fullscreenStick ? Color.orange : Color.primary)
+                    .tint(fullscreenStick ? Palette.accent : Color.primary)
                     .accessibilityLabel(fullscreenStick ? "Hide mouse stick" : "Show mouse stick")
                     .disabled(!model.controlsDesktop)
                 Button { showKeys.toggle() } label: { AppIcon(.chevronsUpDown) }

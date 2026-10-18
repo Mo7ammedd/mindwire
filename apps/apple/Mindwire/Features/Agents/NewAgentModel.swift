@@ -18,6 +18,8 @@ final class NewAgentModel {
     var pickedWorkspaceId: String?
     private let releaseCatalog: ReleaseCatalog
     private var fetchingCatalog = false
+    private var botCatalog: [AgentDescriptor]?
+    private var botCatalogWorkspaceID: String?
 
     init(workspaceId: String? = nil, agentType: AgentID = .claudeCode, releaseCatalog: ReleaseCatalog = .shared) {
         self.fixedWorkspaceId = workspaceId
@@ -56,6 +58,30 @@ final class NewAgentModel {
             guard !Task.isCancelled else { return }
             catalogError = error.localizedDescription
         }
+    }
+
+    /// The selected computer is authoritative about bot support. The release catalog still
+    /// drives normal Developer engine setup and remains a conservative offline fallback.
+    func loadBotCatalog(stores: Stores) async {
+        guard let workspaceId else { return }
+        if botCatalogWorkspaceID != workspaceId {
+            botCatalog = nil
+            botCatalogWorkspaceID = workspaceId
+        }
+        guard let response = try? await stores.workspaceData.agentCatalog(workspaceId: workspaceId),
+              !Task.isCancelled, self.workspaceId == workspaceId else { return }
+        botCatalog = response.agents
+    }
+
+    func botEngines(existingAgents: [Agent]) -> [AgentDescriptor] {
+        let live = botCatalogWorkspaceID == workspaceId ? botCatalog : nil
+        var choices = live ?? catalog
+        if live == nil {
+            for agent in existingAgents where !choices.contains(where: { $0.id == agent.agentType }) {
+                choices.append(.init(id: agent.agentType, name: agent.typeDisplayName, tagline: ""))
+            }
+        }
+        return choices.filter { BotEngineSupport.supports($0.id, catalog: choices) }
     }
 
     private func use(_ value: DaemonCatalog) {

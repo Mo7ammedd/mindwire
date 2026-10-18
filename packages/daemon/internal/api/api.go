@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/oblien/mindwire/packages/daemon/internal/agent"
+	"github.com/oblien/mindwire/packages/daemon/internal/bots"
 	"github.com/oblien/mindwire/packages/daemon/internal/conversations"
 	"github.com/oblien/mindwire/packages/daemon/internal/gitaccess"
 	"github.com/oblien/mindwire/packages/daemon/internal/gitauthor"
@@ -80,6 +81,7 @@ func New(store *session.Store, hub *stream.Hub, sup *orchestrator.Supervisor, re
 	if len(registries) > 0 {
 		a.registry = registries[0]
 		if a.registry != nil {
+			sup.SetBots(bots.New(a.registry, store, &a.registryMu))
 			a.execution.SetMutationGuard(&a.registryMu, a.registry.CheckSyncPath)
 			a.conversations = conversations.New(a.registry, store, agent.All(), &a.registryMu, sup.Busy)
 			a.agents = inventory.NewAgents(a.registry, agent.All(), &a.registryMu)
@@ -110,6 +112,11 @@ func New(store *session.Store, hub *stream.Hub, sup *orchestrator.Supervisor, re
 
 func (a *API) InitError() error { return a.initError }
 func (a *API) Close() {
+	if a.sup != nil {
+		if service := a.sup.BotService(); service != nil {
+			service.Close()
+		}
+	}
 	if a.sup != nil {
 		a.sup.NativeSessions().Close()
 	}
@@ -192,6 +199,25 @@ func (a *API) Routes() []Route {
 		{"POST", "/chats/{id}/native/actions", a.nativeSessionAction},
 
 		{"GET", "/workspace", a.workspaceSnapshot},
+		{"GET", "/bots", a.botsList},
+		{"POST", "/bots", a.botCreate},
+		{"POST", "/bots/ensure", a.botsEnsure},
+		{"GET", "/bots/{id}", a.botGet},
+		{"PATCH", "/bots/{id}", a.botUpdate},
+		{"GET", "/bots/{id}/chats", a.botChats},
+		{"POST", "/bots/{id}/chats", a.botChatCreate},
+		{"GET", "/bots/agents", a.botAgents},
+		{"GET", "/bots/peers/identity", a.botPeerIdentity},
+		{"POST", "/bots/peers/listener", a.botPeerListener},
+		{"GET", "/bots/peers", a.botPeers},
+		{"POST", "/bots/peers/{workspaceId}/check", a.botPeerCheck},
+		{"PUT", "/bots/peers/{workspaceId}", a.botPeerPut},
+		{"DELETE", "/bots/peers/{workspaceId}", a.botPeerDelete},
+		{"GET", "/bots/{id}/tasks", a.botTasks},
+		{"POST", "/bots/{id}/tasks", a.botTaskCreate},
+		{"GET", "/bots/{id}/tasks/{runId}", a.botTaskGet},
+		{"POST", "/bots/{id}/tasks/{runId}/input", a.botTaskInput},
+		{"POST", "/bots/{id}/tasks/{runId}/cancel", a.botTaskCancel},
 		{"GET", "/workspace/changes", a.workspaceSnapshot},
 		{"GET", "/workspace/conversations", a.conversationsBrowse},
 		{"POST", "/workspace/conversations/open", a.conversationsOpen},

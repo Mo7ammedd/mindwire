@@ -12,8 +12,10 @@ enum GitReviewMode: String, CaseIterable, Identifiable {
 struct SourceControlScreen: View {
     let workspaceId: String
     var path: String? = nil
+    var embedded = false
 
     @Environment(\.stores) private var stores
+    @State private var columns: NavigationSplitViewVisibility = .automatic
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -41,11 +43,13 @@ struct SourceControlScreen: View {
     @State private var preferredColumn: NavigationSplitViewColumn = .sidebar
     @State private var viewportHeight: CGFloat = 0
     @State private var scrollBreadcrumb = GitScrollBreadcrumb()
+    private var desktopEmbedded: Bool { embedded && ApplePlatform.isDesktop }
 
     init(workspaceId: String, path: String? = nil, model: GitModel? = nil, mode: GitReviewMode = .files,
-         selection: GitDiffRoute? = nil) {
+         selection: GitDiffRoute? = nil, embedded: Bool = false) {
         self.workspaceId = workspaceId
         self.path = path
+        self.embedded = embedded
         _model = State(initialValue: model)
         _mode = State(initialValue: mode)
         _selectedDiff = State(initialValue: selection)
@@ -53,32 +57,18 @@ struct SourceControlScreen: View {
     }
 
     var body: some View {
-        NavigationSplitView(preferredCompactColumn: $preferredColumn) {
-            repositoryNavigation
-                .navigationSplitViewColumnWidth(min: 320, ideal: 360, max: 440)
-        } detail: {
-            NavigationStack(path: $detailPath) {
-                Group {
-                    if let model, let selectedDiff {
-                        GitDiffScreen(model: model, change: selectedDiff.change, staged: selectedDiff.staged,
-                                      commit: selectedDiff.commit, comparison: selectedDiff.comparison,
-                                      onReviewFinished: reviewFinished, onOpenChat: { id, draft in
-                            detailPath.append(ChatDraftRoute(chatId: id, draft: draft))
-                        })
-                        .id(selectedDiff.selectionID)
-                    } else {
-                        ContentUnavailableView("Choose a change", icon: .code,
-                                               description: Text("Review a file while keeping your changes in view."))
-                            .navigationTitle(t("git.sourceControl"))
-                            .navigationBarTitleDisplayMode(.inline)
-                    }
-                }
-                .navigationDestination(for: ChatDraftRoute.self) { route in
-                    ChatScreen(chatId: route.chatId, draft: route.draft)
-                }
+        Group {
+            if embedded && ApplePlatform.isDesktop {
+                DesktopToolSplitView(browser: { repositoryNavigation }, detail: { diffNavigation },
+                                     showsDetailHeader: selectedDiff == nil || !detailPath.isEmpty)
+            } else {
+                NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $preferredColumn) {
+                    repositoryNavigation.navigationSplitViewColumnWidth(min: 320, ideal: 360, max: 440)
+                } detail: { diffNavigation }
+                .navigationSplitViewStyle(.balanced)
             }
         }
-        .navigationSplitViewStyle(.balanced)
+        .environment(\.embeddedWorkspaceTool, embedded)
         .workspaceToolPresentation()
         .serviceUpdatePresentation()
         .onAppear(perform: ensureModel)
@@ -89,9 +79,34 @@ struct SourceControlScreen: View {
         .sheet(isPresented: $showingTreeSettings) { FileTreeSettingsSheet() }
     }
 
+    private var diffNavigation: some View {
+            NavigationStack(path: $detailPath) {
+                Group {
+                    if let model, let selectedDiff {
+                        GitDiffScreen(model: model, change: selectedDiff.change, staged: selectedDiff.staged,
+                                      commit: selectedDiff.commit, comparison: selectedDiff.comparison,
+                                      onReviewFinished: reviewFinished, onOpenChat: { id, draft in
+                            detailPath.append(ChatDraftRoute(chatId: id, draft: draft))
+                        }, desktopInline: true)
+                        .id(selectedDiff.selectionID)
+                    } else {
+                        ContentUnavailableView("Choose a change", icon: .code,
+                                               description: Text("Review a file while keeping your changes in view."))
+                            .navigationTitle(embedded ? "" : t("git.sourceControl"))
+                            .navigationBarTitleDisplayMode(.inline)
+                            .toolbar(embedded ? .hidden : .visible, for: .navigationBar)
+                    }
+                }
+                .navigationDestination(for: ChatDraftRoute.self) { route in
+                    ChatScreen(chatId: route.chatId, draft: route.draft)
+                }
+            }
+    }
+
     private var repositoryNavigation: some View {
         NavigationStack(path: $navigationPath) {
-            Group {
+            VStack(spacing: 0) {
+                if desktopEmbedded, navigationPath.isEmpty { desktopRepositoryToolbar }
                 if let model { content(model) }
                 else if workspaceMissing {
                     ContentUnavailableView(t("workspace.missing.title"), icon: .hardDrive,
@@ -102,9 +117,12 @@ struct SourceControlScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color(.systemBackground), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar(desktopEmbedded && navigationPath.isEmpty ? .hidden : .visible, for: .navigationBar)
             .toolbar {
-                AppToolbarItem(placement: .cancellationAction) {
-                    Button(t("common.done")) { dismiss() }.tint(.primary)
+                if !embedded {
+                    AppToolbarItem(placement: .cancellationAction) {
+                        Button(t("common.done")) { dismiss() }.tint(.primary)
+                    }
                 }
                 if let model, model.isRepo {
                     if model.projectId != nil {
@@ -130,6 +148,30 @@ struct SourceControlScreen: View {
         }
     }
 
+    private var desktopRepositoryToolbar: some View {
+        HStack(spacing: 10) {
+            if let model, model.isRepo {
+                GitRepositorySummary(model: model, chooseBranch: { showingBranches = true },
+                                     showHistory: { navigationPath.append(GitRepositoryRoute.history) })
+                if model.projectId != nil {
+                    Button { showingSync = true } label: {
+                        if model.activeAction?.isRemote == true { ProgressView().controlSize(.mini) }
+                        else { AppIcon(.arrowsUpDown, size: 14) }
+                    }
+                    .help(t("git.remote.actions")).accessibilityLabel(t("git.remote.actions"))
+                    .accessibilityIdentifier("git.openSync")
+                }
+                GitRepositoryActionsMenu(model: model, showingIdentity: $showingIdentity,
+                                         showingTreeSettings: $showingTreeSettings,
+                                         chooseBranch: { showingBranches = true },
+                                         showHistory: { navigationPath.append(GitRepositoryRoute.history) })
+            } else { Text("Changes").font(.system(size: 12, weight: .medium)); Spacer() }
+        }
+        .buttonStyle(AssistantDesktopButtonStyle()).foregroundStyle(.secondary)
+        .padding(.horizontal, 14).frame(height: 38)
+        .background(AssistantDesktopStyle.sidebar)
+    }
+
     @ViewBuilder private func content(_ model: GitModel) -> some View {
         Group {
             if model.loading {
@@ -148,7 +190,7 @@ struct SourceControlScreen: View {
             } else {
                 changesContent(model)
                     .safeAreaBar(edge: .top, spacing: 0) {
-                        if fileLayout == .tree {
+                        if fileLayout == .tree && !desktopEmbedded {
                             GitRepositoryContextBar(model: model, breadcrumb: scrollBreadcrumb.current,
                                 sections: changeSections(model), expanded: $stagedExpanded,
                                 showActions: searchQuery.isEmpty,
@@ -157,7 +199,7 @@ struct SourceControlScreen: View {
                         }
                     }
                     .toolbar {
-                        if !model.isClean {
+                        if !model.isClean && !desktopEmbedded {
                             DefaultToolbarItem(kind: .search, placement: .bottomBar)
                             if sizeClass != .regular {
                                 ToolbarSpacer(.flexible, placement: .bottomBar)
@@ -184,6 +226,10 @@ struct SourceControlScreen: View {
                             }
                             .padding(.horizontal, Spacing.lg)
                             .padding(.vertical, Spacing.sm)
+                            .background(ApplePlatform.isDesktop ? AssistantDesktopStyle.sidebar : Color.clear)
+                            .overlay(alignment: .top) {
+                                if ApplePlatform.isDesktop { Rectangle().fill(AssistantDesktopStyle.separator).frame(height: 0.5) }
+                            }
                         }
                     }
             }
@@ -244,21 +290,36 @@ struct SourceControlScreen: View {
 
     private func stagedCount(_ model: GitModel) -> some View {
         Text(t("git.stagedCount", ["count": "\(model.staged.count)"]))
-            .font(.subheadline).foregroundStyle(.secondary)
+            .font(ApplePlatform.isDesktop ? .system(size: 11) : .subheadline).foregroundStyle(.secondary)
             .fixedSize()
     }
 
-    private func commitButton(_ model: GitModel) -> some View {
+    @ViewBuilder private func commitButton(_ model: GitModel) -> some View {
+        if ApplePlatform.isDesktop { commitAction(model).buttonStyle(DesktopActionButtonStyle(prominent: true)) }
+        else { commitAction(model).buttonStyle(.glassProminent).tint(Palette.accent) }
+    }
+
+    private func commitAction(_ model: GitModel) -> some View {
         Button { showingCommit = true } label: { Text(t("git.commit")).fixedSize() }
-            .buttonStyle(.glassProminent)
-            .tint(Palette.accent)
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(model.isMutating)
             .accessibilityIdentifier("git.openCommit")
     }
 
     @ViewBuilder private func changesContent(_ model: GitModel) -> some View {
-        if model.isClean {
+        if desktopEmbedded {
+            VStack(spacing: 0) {
+                if !model.isClean { DesktopBrowserSearch(prompt: t("git.search"), text: $search) }
+                if !model.isClean {
+                    HStack(spacing: 8) {
+                        GitRepositoryChangeSummary(model: model)
+                        layoutMenu(model)
+                    }
+                    .padding(.horizontal, 14).padding(.bottom, 4)
+                }
+                changesList(model)
+            }.background(AssistantDesktopStyle.sidebar)
+        } else if model.isClean {
             changesList(model)
         } else {
             changesList(model)
@@ -271,7 +332,11 @@ struct SourceControlScreen: View {
     private func changesList(_ model: GitModel) -> some View {
         let isClean = model.isClean
         return List {
-            if fileLayout == .tree {
+            if desktopEmbedded {
+                if model.canCreatePullRequest {
+                    Section { GitPullRequestButton(model: model, spacing: Spacing.sm) { showingPullRequest = true } }
+                }
+            } else if fileLayout == .tree {
                 if !model.isClean || model.canCreatePullRequest {
                     Section {
                         VStack(spacing: Spacing.md) {
@@ -360,7 +425,7 @@ struct SourceControlScreen: View {
         }
         .modifier(SourceControlListStyle(tree: fileLayout == .tree))
         .listSectionSpacing(fileLayout == .tree ? .custom(Spacing.sm) : .compact)
-        .contentMargins(.top, Spacing.sm, for: .scrollContent)
+        .contentMargins(.top, desktopEmbedded ? 0 : Spacing.sm, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
         .refreshable { await model.refresh() }
         // Only the empty state needs this measurement; scrolling never changes list geometry.
@@ -448,6 +513,13 @@ struct SourceControlScreen: View {
 
     private func layoutMenu(_ model: GitModel) -> some View {
         AppMenu {
+            if ApplePlatform.isDesktop {
+                Picker(t("git.view"), selection: $mode) {
+                    ForEach(GitReviewMode.allCases) { Text($0.title).tag($0) }
+                }
+                .accessibilityIdentifier("git.reviewMode")
+                Divider()
+            }
             Picker(t("files.viewMode"), selection: $fileLayout) {
                 ForEach(GitFileLayout.allCases, id: \.self) { layout in
                     Label(layout.title, icon: layout.icon).tag(layout)
@@ -468,7 +540,8 @@ struct SourceControlScreen: View {
                 Button(t("files.tree.customize"), icon: .folderTree) { showingTreeSettings = true }
             }
         } label: {
-            AppIcon(fileLayout.icon, size: 20).frame(width: 40, height: 36)
+            AppIcon(fileLayout.icon, size: ApplePlatform.isDesktop ? 14 : 20)
+                .frame(width: ApplePlatform.isDesktop ? 26 : 40, height: ApplePlatform.isDesktop ? 26 : 36)
         }
         .buttonStyle(.plain)
         .tint(.primary)
@@ -522,8 +595,14 @@ struct SourceControlScreen: View {
 
 private struct SourceControlListStyle: ViewModifier {
     let tree: Bool
+    @Environment(\.embeddedWorkspaceTool) private var embedded
     @ViewBuilder func body(content: Content) -> some View {
-        if tree {
+        if embedded && ApplePlatform.isDesktop {
+            content.listStyle(.plain).scrollContentBackground(.hidden)
+                .environment(\.defaultMinListRowHeight, 28)
+                .environment(\.defaultMinListHeaderHeight, 0)
+                .font(.system(size: 13))
+        } else if tree {
             content.modifier(FileTreeListStyle())
                 .environment(\.defaultMinListHeaderHeight, 0)
                 .scrollEdgeEffectStyle(.soft, for: .top)

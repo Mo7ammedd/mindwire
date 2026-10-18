@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Multi-step wizard for creating a workspace: name → runtime → (cloud-only) power.
+/// Shared Add computer flow: choose a connection, then configure the computer.
 /// One native `Form` per step, advanced with a glass bottom bar; a provisioning
 /// overlay replaces the wizard while the workspace spins up. Mirrors `NewAgentScreen`.
 ///
@@ -11,7 +11,9 @@ struct NewWorkspaceScreen: View {
     @Environment(\.dismiss) private var dismiss
 
     let onCreated: (Workspace) -> Void
+    private let embedded: Bool
     private let assistantCloud: Bool
+    private let choosesComputer: Bool
     var contextMessage: String?
 
     @State private var model = NewWorkspaceModel()
@@ -21,6 +23,7 @@ struct NewWorkspaceScreen: View {
     @State private var showLogin = false
     @State private var loginForImages = false
     @State private var pairedWorkspace: Workspace?
+    @State private var choseComputer = false
 
     /// Wizard steps, in order. The 3rd step is `power` for cloud, `review` for a self-hosted runtime
     /// (which has no cloud power preset) — so both paths are a consistent 3 steps.
@@ -28,14 +31,17 @@ struct NewWorkspaceScreen: View {
         case name, runtime, image, power, review
     }
 
-    init(contextMessage: String? = nil, rootDisk: WorkspaceManagedDisk? = nil, server: Connection? = nil, assistantCloud: Bool = false,
+    init(contextMessage: String? = nil, rootDisk: WorkspaceManagedDisk? = nil, server: Connection? = nil, assistantCloud: Bool = false, embedded: Bool = false,
          onCreated: @escaping (Workspace) -> Void) {
         self.contextMessage = contextMessage
+        self.embedded = embedded
         self.assistantCloud = assistantCloud
+        self.choosesComputer = !assistantCloud && server == nil && rootDisk == nil
         self.onCreated = onCreated
         let draft = NewWorkspaceModel()
-        if assistantCloud { draft.name = "Mindwire Cloud" }
-        _step = State(initialValue: assistantCloud ? .power : .name)
+        if assistantCloud { draft.name = "My cloud computer" }
+        _step = State(initialValue: assistantCloud ? .power : server == nil && rootDisk == nil ? .runtime : .name)
+        _choseComputer = State(initialValue: assistantCloud || server != nil || rootDisk != nil)
         draft.selectRoot(rootDisk)
         if let server { draft.selectedServerId = server.id; draft.name = server.name }
         if let rootDisk { draft.name = rootDisk.displayName }
@@ -43,7 +49,7 @@ struct NewWorkspaceScreen: View {
     }
 
     var body: some View {
-        NavigationStack {
+        SetupNavigation(embedded: embedded) {
             Group {
                 if model.isProvisioning {
                     setupOverlay
@@ -52,8 +58,9 @@ struct NewWorkspaceScreen: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(model.isProvisioning)
             .toolbar {
-                if !model.isProvisioning {
+                if !model.isProvisioning && !embedded {
                     AppToolbarItem(placement: .cancellationAction) {
                         Button(t("common.cancel")) { dismiss() }
                             .tint(.primary)
@@ -80,7 +87,13 @@ struct NewWorkspaceScreen: View {
             AddServerScreen(presetType: destination.type, name: destination == .computer ? model.name : "") { connection in
                 servers = stores.connections.list()
                 model.selectedServerId = connection.id
-                if connection.isLocal { pairedWorkspace = stores.workspaces(forServerId: connection.id).first }
+                choseComputer = true
+                if connection.isLocal {
+                    pairedWorkspace = stores.workspaces(forServerId: connection.id).first
+                } else {
+                    model.name = connection.name
+                    step = .review
+                }
             }
         }
         .oblienLoginSheet(isPresented: $showLogin) {
@@ -114,7 +127,7 @@ struct NewWorkspaceScreen: View {
                         StepIndicator(current: currentStepIndex + 1, total: steps.count)
                             .padding(.horizontal, Spacing.xl)
                     }
-                    bottomBar
+                    if !assistantCloud { bottomBar }
                 }
                 .padding(.top, Spacing.sm)
                 .frame(maxWidth: .infinity)
@@ -150,14 +163,14 @@ struct NewWorkspaceScreen: View {
 
     private func runtimeStep(model: NewWorkspaceModel) -> some View {
         Form {
-            // Oblien Cloud — the default host, its own card.
+            // The cloud path shares the existing account and provisioning flow.
             Section {
                 runtimeRow(
                     title: t("runtime.cloud.label"),
                     subtitle: t("runtime.cloud.subtitle"),
-                    selected: model.selectedServerId == nil,
-                    icon: { OblienMark(size: 24) }
-                ) { model.selectedServerId = nil }
+                    selected: choseComputer && model.selectedServerId == nil,
+                    icon: { AppIcon(Icon.cloud, size: 24) }
+                ) { choseComputer = true; model.selectedServerId = nil }
             }
 
             Section {
@@ -177,14 +190,18 @@ struct NewWorkspaceScreen: View {
                 .tint(.primary)
             }
             if !servers.isEmpty {
-                Section("Your computers & servers") {
+                Section(t("computers.personal")) {
                     ForEach(servers) { server in
                         runtimeRow(
                             title: server.name,
                             subtitle: serverSubtitle(server),
-                            selected: model.selectedServerId == server.id,
+                            selected: choseComputer && model.selectedServerId == server.id,
                             icon: { ModeIcon(type: server.type, size: 24) }
-                        ) { model.selectedServerId = server.id }
+                        ) {
+                            choseComputer = true
+                            model.selectedServerId = server.id
+                            if model.name.isEmpty { model.name = server.name }
+                        }
                     }
                 }
             }
@@ -330,91 +347,96 @@ struct NewWorkspaceScreen: View {
         .task(id: model.spec) { await model.loadAccountOverview() }
     }
     private var cloudAccountSection: some View {
-        Section {
-            if model.loadingAccount && model.accountOverview == nil {
-                HStack { Spacer(); ProgressView(); Spacer() }
-            } else if let overview = model.accountOverview, let quota = overview.quota {
-                LabeledContent(t("newWorkspace.account.plan"), value: quota.planLabel)
-                if let balance = overview.balance {
-                    LabeledContent(t("newWorkspace.account.credits"),
-                                   value: String(format: "%.2f", balance))
-                }
-            }
-        } header: {
-            Text(t("newWorkspace.account.title"))
-        }
+        Section { cloudAccountDetails } header: { Text(t("newWorkspace.account.title")) }
     }
 
     private var cloudSummarySection: some View {
-        Section {
-            if model.loadingAccount {
-                HStack { Spacer(); ProgressView(); Spacer() }
-            } else if let overview = model.accountOverview {
-                if let estimate = overview.estimate {
-                    LabeledContent(t("newWorkspace.account.estimate"),
-                                   value: String(format: "%.0f–%.0f credits", estimate.estimate.min, estimate.estimate.max) + " / " + estimate.period)
-                }
-                if let denial = model.creationDenial {
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        Label(t("newWorkspace.unavailable.title"), icon: .warning)
-                            .font(.headline)
-                            .foregroundStyle(Palette.danger)
-                        Text(denial).font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    if model.storage.validation(image: model.selectedImage) != nil {
-                        Text("Review your storage choices before creating the workspace.").font(.footnote).foregroundStyle(.secondary)
-                    } else if overview.creationDenial != nil {
-                        billingLink(t("account.addCredits"), url: "https://oblien.com/dashboard/credits/purchase")
-                    } else if overview.canUpgradePlan {
-                        billingLink(upgradeLabel(overview), url: "https://oblien.com/dashboard/plan")
-                    } else {
-                        Label(t("newWorkspace.highestPlanHint"), icon: .verified)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                } else if !assistantCloud || overview.quota != nil && overview.balance != nil && overview.estimate != nil {
-                    Label(t("newWorkspace.available"), icon: .checkCircleFilled)
-                        .foregroundStyle(Palette.success)
-                }
+        Section { cloudSummaryDetails } header: { Text(t("newWorkspace.summary")) }
+        footer: { Text(t("newWorkspace.serviceHint")) }
+    }
+
+    @ViewBuilder private var cloudAccountDetails: some View {
+        if model.loadingAccount && model.accountOverview == nil {
+            HStack { Spacer(); ProgressView(); Spacer() }
+        } else if let overview = model.accountOverview, let quota = overview.quota {
+            LabeledContent(t("newWorkspace.account.plan"), value: quota.planLabel)
+            if let balance = overview.balance {
+                LabeledContent(t("newWorkspace.account.credits"),
+                               value: String(format: "%.2f", balance))
             }
-        } header: {
-            Text(t("newWorkspace.summary"))
-        } footer: {
-            Text(t("newWorkspace.serviceHint"))
+        }
+    }
+
+    @ViewBuilder private var cloudSummaryDetails: some View {
+        if model.loadingAccount {
+            HStack { Spacer(); ProgressView(); Spacer() }
+        } else if let overview = model.accountOverview {
+            if let estimate = overview.estimate {
+                LabeledContent(t("newWorkspace.account.estimate"),
+                               value: String(format: "%.0f–%.0f credits", estimate.estimate.min, estimate.estimate.max) + " / " + estimate.period)
+            }
+            if let denial = model.creationDenial {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Label(t("newWorkspace.unavailable.title"), icon: .warning)
+                        .font(.headline)
+                        .foregroundStyle(Palette.danger)
+                    Text(denial).font(.subheadline).foregroundStyle(.secondary)
+                }
+                if model.storage.validation(image: model.selectedImage) != nil {
+                    Text("Review your storage choices before creating the computer.").font(.footnote).foregroundStyle(.secondary)
+                } else if overview.creationDenial != nil {
+                    billingLink(t("account.addCredits"), url: "https://oblien.com/dashboard/credits/purchase")
+                } else if overview.canUpgradePlan {
+                    billingLink(upgradeLabel(overview), url: "https://oblien.com/dashboard/plan")
+                } else {
+                    Label(t("newWorkspace.highestPlanHint"), icon: .verified)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else if !assistantCloud || overview.quota != nil && overview.balance != nil && overview.estimate != nil {
+                Label(t("newWorkspace.available"), icon: .checkCircleFilled)
+                    .foregroundStyle(Palette.success)
+            }
         }
     }
 
     private var assistantCloudForm: some View {
-        Form {
-            Section {
-                Text(t("assistant.setup.cloud.review")).foregroundStyle(.secondary)
-            }
+        AssistantPage {
+            AssistantSetupProgress(step: 0)
+            AssistantHeading(title: t("assistant.cloud.title"),
+                             detail: t("assistant.setup.cloud.review"))
             if model.cloudAuthRequired {
-                Section {
-                    OblienSignInPrompt { loginForImages = true; showLogin = true }
+                AssistantOption(title: t("assistant.cloud.signIn"), detail: t("assistant.cloud.account"), icon: .cloud) {
+                    loginForImages = true; showLogin = true
                 }
             } else if model.loadingImages {
-                Section { ProgressView(t("assistant.setup.checking")) }
+                ProgressView(t("assistant.setup.checking"))
             } else if let error = model.imagesError {
-                Section {
-                    Text(error).foregroundStyle(.secondary)
-                    Button(t("common.retry")) { Task { await loadAssistantCloud() } }.tint(.primary)
-                }
+                Text(error).foregroundStyle(.secondary)
+                Button(t("common.retry")) { Task { await loadAssistantCloud() } }.tint(.primary)
             } else if model.selectedImage != nil {
-                cloudAccountSection
-                cloudSummarySection
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(t("newWorkspace.account.title")).font(.headline)
+                    cloudAccountDetails
+                    Divider()
+                    Text(t("newWorkspace.summary")).font(.headline)
+                    cloudSummaryDetails
+                }
+                .padding(22).background(AssistantStyle.surface, in: .rect(cornerRadius: 24))
+                Text(t("newWorkspace.serviceHint")).font(.footnote).foregroundStyle(.secondary)
                 if !model.loadingAccount,
                    model.accountOverview?.quota == nil || model.accountOverview?.balance == nil || model.accountOverview?.estimate == nil {
-                    Section {
-                        Text(t("assistant.setup.cloud.costError")).foregroundStyle(.secondary)
-                        Button(t("common.retry")) { Task { await model.loadAccountOverview() } }.tint(.primary)
-                    }
+                    Text(t("assistant.setup.cloud.costError")).font(.subheadline).foregroundStyle(.secondary)
+                    Button(t("common.retry")) { Task { await model.loadAccountOverview() } }.tint(.primary)
                 }
             } else {
-                Section {
-                    Text(t("assistant.setup.cloud.unavailable")).foregroundStyle(.secondary)
-                    Button(t("common.retry")) { Task { await loadAssistantCloud() } }.tint(.primary)
-                }
+                Text(t("assistant.setup.cloud.unavailable")).foregroundStyle(.secondary)
+                Button(t("common.retry")) { Task { await loadAssistantCloud() } }.tint(.primary)
+            }
+        } footer: {
+            if !model.cloudAuthRequired {
+                AssistantPrimaryButton(title: t("assistant.setup.createCloud"), icon: .cloud, action: advance)
+                    .disabled(!stepIsValid)
             }
         }
         .task { await loadAssistantCloud() }
@@ -511,7 +533,9 @@ struct NewWorkspaceScreen: View {
 
     /// 3 steps either way: cloud gets the power preset, a self-hosted runtime gets a review step.
     private var steps: [Step] {
-        assistantCloud ? [.power] : model.isCloud ? [.name, .runtime, .image, .power] : [.name, .runtime, .review]
+        if assistantCloud { return [.power] }
+        let start: [Step] = choosesComputer ? [.runtime, .name] : [.name]
+        return start + (model.isCloud ? [.image, .power] : [.review])
     }
 
     private var isLastStep: Bool {
@@ -526,6 +550,7 @@ struct NewWorkspaceScreen: View {
     /// Whether the current step's input is sufficient to advance.
     private var stepIsValid: Bool {
         switch step {
+        case .runtime: return choseComputer
         case .name:  return !model.name.trimmingCharacters(in: .whitespaces).isEmpty
         case .image: return model.selectedImage != nil
         case .power: return !model.loadingAccount && model.creationDenial == nil
@@ -595,11 +620,11 @@ struct NewWorkspaceScreen: View {
                 spec: model.isCloud || model.useSandbox ? model.spec : nil
             ) else {
                 model.isProvisioning = false
-                model.errorMessage = "The workspace was created, but its list could not be refreshed. Refresh Workspaces to open it."
+                model.errorMessage = "The computer was created, but its list could not be refreshed. Refresh Computers to open it."
                 return
             }
             onCreated(workspace)
-            dismiss()
+            if !embedded { dismiss() }
         }
     }
 

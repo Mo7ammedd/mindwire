@@ -22,6 +22,7 @@ type ocPart struct {
 	ID        string       `json:"id"`
 	SessionID string       `json:"sessionID"`
 	MessageID string       `json:"messageID"`
+	Synthetic bool         `json:"synthetic,omitempty"`
 	Type      string       `json:"type"` // text | reasoning | tool | step-start | step-finish | …
 	Text      string       `json:"text"` // cumulative, for text/reasoning
 	CallID    string       `json:"callID"`
@@ -74,6 +75,7 @@ type ocPermission struct {
 // streamState tracks per-part progress so cumulative text turns into once-only deltas and each tool
 // fires one use + one result. Mirrors codex's streamState.
 type streamState struct {
+	roles      map[string]string // Native user/context parts must never become assistant output.
 	emitted    map[string]int    // part id → bytes of text/reasoning already emitted
 	seenUse    map[string]bool   // tool id → tool_use emitted
 	seenResult map[string]bool   // tool id → tool_result emitted
@@ -82,6 +84,7 @@ type streamState struct {
 
 func newStreamState() *streamState {
 	return &streamState{
+		roles:      map[string]string{},
 		emitted:    map[string]int{},
 		seenUse:    map[string]bool{},
 		seenResult: map[string]bool{},

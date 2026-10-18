@@ -21,6 +21,7 @@ struct Chat: Codable, Identifiable, Hashable {
     /// that have never been opened or run from this phone.
     var updatedAt: String? = nil
     var syncId: String? = nil
+    var botId: String? = nil
 
     var lastActivityAt: String { max(createdAt, updatedAt ?? createdAt) }
 }

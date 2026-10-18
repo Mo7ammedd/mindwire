@@ -24,4 +24,15 @@ struct AgentDescriptor: Codable, Identifiable, Hashable {
     let name: String
     let tagline: String
     var command: String?
+    var botProfiles: Bool? = nil
+}
+
+/// Bot instructions must survive resumed conversations. Ordinary chat capabilities do not
+/// imply this; older catalogs only fall back to engines with an established bot contract.
+enum BotEngineSupport {
+    static func supports(_ type: AgentID, catalog: [AgentDescriptor] = [], capabilities: DaemonCapabilities? = nil) -> Bool {
+        if let supported = capabilities?.botProfiles { return supported }
+        if let supported = catalog.first(where: { $0.id == type })?.botProfiles { return supported }
+        return type == .claudeCode || type == .codex || type == .opencode || type == .grok
+    }
 }

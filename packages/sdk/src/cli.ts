@@ -15,7 +15,7 @@ import { configureStartup, startupStatus, watchComputer } from "./computer/start
 import { approvalCommand, chooseConnectionAction, choosePairingDecision, chooseStartupAction, connectionAction, deviceSummary } from "./computer/connection-flow.js";
 import { ConnectionProgress } from "./computer/connection-progress.js";
 import { enableAddressDiscovery, disableAddressDiscovery, saveDiscoveryPreference, discoveryPreference, reconcileAddressDiscovery, discoveryDescription } from "./computer/discovery.js";
-import { connectionAddress, connectionDescription, connectionInfo } from "./computer/provider-info.js";
+import { connectionAddress, connectionInfo } from "./computer/provider-info.js";
 import { chooseProvider, connectionProvider, setupProvider } from "./computer/provider-setup.js";
 import { terminalSetupPrompt } from "./computer/setup-prompt.js";
 import { runManagedRelay } from "./computer/managed-relay.js";
@@ -31,7 +31,7 @@ const help = `Mindwire — connect this computer to your phone
   mindwire                               Interactive status and connection controls
   mindwire connect                       Connect your phone; saved keys reconnect automatically
   mindwire reconnect                     Retry the saved connection
-  mindwire connect pair                  Pair a phone, or repair a lost phone key/address
+  mindwire connect pair                  Show a QR code to pair or reconnect a phone
   mindwire connection                    Choose a persistent connection provider
   mindwire connection automatic          Cloudflare traffic with encrypted Mindwire address recovery
   mindwire connection oblien             Sign in and use an Oblien tunnel
@@ -234,18 +234,17 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     }
     const info = await client.computer.info();
     const connection = connectionInfo(savedConfig?.relay ?? { kind: "cloudflare" }, savedConfig?.host);
-    emit("ready", { computerId: info.computerId, routes: info.routes, connection }, "Mindwire is running in the background.");
-    emit("connection", connection, info.discovery?.enabled && connection.address === "temporary"
-      ? "Cloudflare · encrypted Mindwire address recovery" : connectionDescription(connection));
+    emit("ready", { computerId: info.computerId, routes: info.routes, connection }, "Mindwire is running.");
+    emit("connection", connection);
     if (command === "start") return;
     if (info.routes.some(route => route.kind === "websocket")) {
-      emit("secure_connection", {}, "Your phone connects over end-to-end encrypted SSH. The tunnel carries encrypted traffic; only phones you approve can connect.");
+      emit("secure_connection");
     }
     const devices = await client.computer.devices();
     const saved = devices.filter(device => !device.revoked);
     if (addressChanged && !saved.some(device => device.addressRecovery)) requestedAction = "pair";
-    if (info.discovery?.enabled) emit("discovery", info.discovery, discoveryDescription(info.discovery));
-    if (saved.length) emit("saved_devices", { devices: saved }, `\nSaved approvals on this computer\n${deviceSummary(saved)}`);
+    if (info.discovery?.enabled) emit("discovery", info.discovery);
+    if (saved.length) emit("saved_devices", { devices: saved }, `\nSaved phones\n${deviceSummary(saved)}`);
     const question = !values.json && process.stdin.isTTY ? async (prompt: string): Promise<string> => {
       const input = createInterface({ input: process.stdin, output: process.stderr });
       try { return await input.question(prompt); } finally { input.close(); }
@@ -259,22 +258,22 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       try {
         const startup = await configureStartup(directory, fileURLToPath(import.meta.url), startupAction);
         emit("startup", startup, startup.enabled
-          ? "Automatic startup enabled. Saved phones can reconnect after you sign in to this computer."
-          : "Automatic startup is off. Run mindwire connect after restarting, or mindwire startup enable to change this.");
+          ? "Start at login: On"
+          : "Start at login: Off. Enable with mindwire startup enable.");
       } catch {
         emit("startup_unavailable", {}, "Mindwire is running, but startup setup didn't complete. Run mindwire startup enable to check your system's startup service.");
       }
     } else {
       emit("startup", startupPreference, startupPreference.enabled
-        ? startupPreference.running ? "Automatic startup is on. Change it with mindwire startup disable."
+        ? startupPreference.running ? "Start at login: On"
           : "Automatic startup needs repair. Run mindwire startup repair."
-        : "Automatic startup is off. Enable it with mindwire startup enable.");
+        : "Start at login: Off. Enable with mindwire startup enable.");
     }
     if (action === "resume") {
       const connected = saved.filter(device => device.connected);
-      if (connected.length) emit("connected", { computerId: info.computerId, devices: connected }, `\nConnected:\n${deviceSummary(connected)}\nMindwire continues running in the background.`);
-      else emit("waiting_for_phone", { computerId: info.computerId }, "\nReady for your saved phone. Open Mindwire; it will retry this computer's saved connection.");
-      emit("connect_hint", {}, "If the connection was removed from your phone, run mindwire connect pair to scan again.");
+      if (connected.length) emit("connected", { computerId: info.computerId, devices: connected }, "\nYour phone is connected.");
+      else emit("waiting_for_phone", { computerId: info.computerId }, "\nOpen Mindwire on your phone and choose your saved computer.");
+      emit("connect_hint", {}, "Need a QR code? Run mindwire connect pair.");
       return;
     }
     const invitation = await client.computer.invite((await client.computer.info()).routes);

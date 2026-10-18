@@ -374,6 +374,8 @@ export interface CommandInvocation {
 
 /** Per-agent feature matrix. The core switches on some fields; the client reads the rest as UI hints. */
 export interface Capabilities {
+  /** Saved bot instructions and native management tools remain available on resumed turns. */
+  botProfiles?: boolean;
   /** Static harness hint; check nativeSessions.activity() for this session's controls. */
   nativeSession?: import("./native-sessions.js").NativeSessionCapabilities;
   protocol: Protocol;
@@ -527,6 +529,8 @@ export interface CatalogEntry {
   id: string;
   name: string;
   tagline: string;
+  /** Supports persistent Mindwire bot profiles, including subsequent turns. */
+  botProfiles?: boolean;
 }
 
 // ---- prompts & memory (agent/memory.go, agent/prompts.go) ------------------
@@ -786,6 +790,11 @@ export interface Notification {
   title: string;
   body: string;
   agent?: string;
+  /** Saved bot identity; agent remains the underlying engine for routing rules. */
+  botId?: string;
+  botName?: string;
+  botIcon?: string;
+  workspaceId?: string;
   chatId?: string;
   runId?: string;
   actions?: Action[];
@@ -1237,6 +1246,7 @@ export interface Health {
   localDesktopVersion?: number;
   /** Workspace registry protocol version; absent on daemons predating workspace metadata. */
   workspaceMetadataVersion?: number;
+  botsVersion?: number;
   /** Native installed-harness discovery and atomic workspace.ensureAgent(). */
   agentDiscoveryVersion?: number;
   /** Durable project folders, membership and ordering, with conditional edits. */

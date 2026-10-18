@@ -243,12 +243,12 @@ struct ServerDetailScreen: View {
     @ViewBuilder private var workspacesSection: some View {
         let workspaces = stores.workspaces(forServerId: serverId)
         if !workspaces.isEmpty || connection?.remote != nil {
-            Section("Workspaces") {
+            Section("Computer") {
                 ForEach(workspaces) { workspace in
                     NavigationLink(value: AppRoute.workspaceDetail(id: workspace.id)) { WorkspaceRow(workspace: workspace) }
                 }
-                if connection?.remote != nil {
-                    Button("Create Workspace", icon: Icon.plus) { creatingWorkspace = true }
+                if connection?.remote != nil, workspaces.isEmpty {
+                    Button("Set up computer", icon: Icon.plus) { creatingWorkspace = true }
                         .tint(.primary)
                 }
             }

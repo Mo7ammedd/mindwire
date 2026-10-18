@@ -10,9 +10,13 @@ struct GitDiffScreen: View {
     var comparison: GitPullRequestComparison? = nil
     var onReviewFinished: (() -> Void)? = nil
     var onOpenChat: ((String, String) -> Void)? = nil
+    var desktopInline = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.embeddedWorkspaceTool) private var embedded
+    @Environment(\.desktopProjectContext) private var projectContext
+    @Environment(AppModel.self) private var app
     @AppStorage("mindwire.editor.fontSize") private var fontSize: Double = 13
     @AppStorage("mindwire.editor.wrapLines") private var wrapLines = false
     @StateObject private var editor = EditorHandle()
@@ -62,41 +66,22 @@ struct GitDiffScreen: View {
         .navigationTitle(change.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .bottomBar)
+        .toolbar(ApplePlatform.isDesktop ? .hidden : .visible, for: .navigationBar)
         .toolbar {
-            AppToolbarItem(placement: .topBarTrailing) {
-                AppMenu {
-                    Section(t("git.diff.context")) {
-                        Picker(t("git.diff.context"), selection: $fullContext) {
-                            Text(t("git.diff.changesOnly")).tag(false)
-                            Text(t("git.diff.fullFile")).tag(true)
-                        }
-                    }
-                    Section {
-                        Toggle(t("editor.wrapLines"), isOn: $wrapLines)
-                        Button { showingSettings = true } label: {
-                            Label(t("editor.settings"), icon: .type)
-                        }
-                        Button { UIPasteboard.general.string = change.path } label: {
-                            Label(t("editor.info.copyPath"), icon: .copy)
-                        }
-                    }
-                    if !isReadOnly && !staged && !change.isConflicted {
-                        Section {
-                            DestructiveButton(t("git.discard"), icon: Icon.trash) { discardConfirm = true }
-                                .disabled(working || model.isMutating || current == nil)
-                        }
-                    }
-                } label: { AppIcon(.more) }
-                .tint(.primary)
-                .accessibilityLabel(t("git.diff.options"))
+            if !ApplePlatform.isDesktop {
+                AppToolbarItem(placement: .topBarTrailing) { optionsMenu }
             }
         }
-        .safeAreaBar(edge: .top, spacing: 0) { fileContext }
+        .safeAreaBar(edge: .top, spacing: 0) {
+            if ApplePlatform.isDesktop { desktopToolbar } else { fileContext }
+        }
         .safeAreaBar(edge: .bottom, spacing: 0) {
             if model.projectId != nil, onOpenChat != nil, let selection, !selection.isEmpty {
-                SendCodeToAgentButton { sendSelection(selection) }
-                    .padding(.horizontal, Spacing.lg).padding(.vertical, Spacing.sm)
-            } else if !isReadOnly { reviewBar }
+                if !ApplePlatform.isDesktop {
+                    SendCodeToAgentButton { sendSelection(selection) }
+                        .padding(.horizontal, Spacing.lg).padding(.vertical, Spacing.sm)
+                }
+            } else if !isReadOnly && !ApplePlatform.isDesktop { reviewBar }
         }
         .sheet(isPresented: $showingSettings) { EditorSettingsView() }
         .sendCodeToAgent($agentPick, projectId: model.projectId, onOpenChat: onOpenChat)
@@ -110,6 +95,87 @@ struct GitDiffScreen: View {
             Button(t("common.ok"), role: .cancel) { failure = nil }
         } message: { Text(failure ?? "") }
         .task(id: request) { await load(request) }
+        .ignoresSafeArea(.container, edges: ApplePlatform.isDesktop ? .top : [])
+    }
+
+    private var reviewContext: String {
+        comparison.map { t("git.pr.comparisonBase", ["base": $0.baseBranch]) }
+            ?? commit.map { t("git.history.commitContext", ["id": $0.shortID]) }
+            ?? t(staged ? "git.staged" : "git.changes")
+    }
+
+    private var desktopNavigationHidden: Bool {
+        desktopInline && embedded && projectContext != nil && !app.desktopToolSidebarVisible
+    }
+
+    private var desktopToolbar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                if desktopNavigationHidden {
+                    DesktopNavigationToggle()
+                    Button { app.showProjects() } label: {
+                        Image(systemName: "chevron.left").frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(AssistantDesktopButtonStyle()).help("Back to Projects")
+                    .accessibilityLabel("Back to Projects").accessibilityIdentifier("desktop.project.back")
+                } else if !desktopInline {
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.left").frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(AssistantDesktopButtonStyle()).help(t("common.back"))
+                    .accessibilityLabel(t("common.back"))
+                }
+                FileIcon(name: change.name, size: 18).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                        Text(change.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                        if hasResult { GitDiffStats(additions: additions, deletions: deletions) }
+                        if loading && hasResult { ProgressView().controlSize(.mini) }
+                    }
+                    Text(change.path == change.name ? reviewContext : change.path)
+                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                }
+                .help("\(change.path) · \(reviewContext)")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                changeNavigation
+                if !isReadOnly { stageButton.buttonStyle(DesktopActionButtonStyle()) }
+                optionsMenu.frame(width: 28, height: 28)
+            }
+            .padding(.horizontal, 16).padding(.leading, desktopNavigationHidden ? 76 : 0)
+            .frame(height: AssistantDesktopStyle.headerHeight)
+            contextNotices.padding(.horizontal, 16)
+            Rectangle().fill(AssistantDesktopStyle.separator).frame(height: 0.5)
+        }
+        .background(AssistantDesktopStyle.canvas)
+    }
+
+    private var optionsMenu: some View {
+        AppMenu {
+            Section(t("git.diff.context")) {
+                Picker(t("git.diff.context"), selection: $fullContext) {
+                    Text(t("git.diff.changesOnly")).tag(false)
+                    Text(t("git.diff.fullFile")).tag(true)
+                }
+            }
+            Section {
+                Toggle(t("editor.wrapLines"), isOn: $wrapLines)
+                Button { showingSettings = true } label: { Label(t("editor.settings"), icon: .type) }
+                Button { UIPasteboard.general.string = change.path } label: { Label(t("editor.info.copyPath"), icon: .copy) }
+                if ApplePlatform.isDesktop, model.projectId != nil, onOpenChat != nil,
+                   let selection, !selection.isEmpty {
+                    Button { sendSelection(selection) } label: { Label(t("editor.sendToAgent"), icon: Icon.chat) }
+                }
+            }
+            if !isReadOnly && !staged && !change.isConflicted {
+                Section {
+                    DestructiveButton(t("git.discard"), icon: Icon.trash) { discardConfirm = true }
+                        .disabled(working || model.isMutating || current == nil)
+                        .accessibilityIdentifier("git.diff.discard")
+                }
+            }
+        } label: { AppIcon(.more, size: ApplePlatform.isDesktop ? 16 : 20) }
+        .tint(.primary).accessibilityLabel(t("git.diff.options"))
+        .accessibilityIdentifier("git.diff.options")
     }
 
     private var fileContext: some View {
@@ -119,9 +185,7 @@ struct GitDiffScreen: View {
                     Text(change.path).font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                     HStack(spacing: Spacing.sm) {
-                        Text(comparison.map { t("git.pr.comparisonBase", ["base": $0.baseBranch]) }
-                             ?? commit.map { t("git.history.commitContext", ["id": $0.shortID]) }
-                             ?? t(staged ? "git.staged" : "git.changes"))
+                        Text(reviewContext)
                             .font(.caption).foregroundStyle(.secondary)
                         if hasResult { GitDiffStats(additions: additions, deletions: deletions) }
                         if loading && hasResult { ProgressView().controlSize(.mini) }
@@ -131,24 +195,28 @@ struct GitDiffScreen: View {
                 changeNavigation
             }
             .frame(minHeight: 44)
-            if change.isConflicted {
-                Label(t("git.diff.conflict"), icon: .warning)
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            if truncated {
-                Label(t("git.diff.truncated"), icon: .fileMore)
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            if hasResult, let loadError {
-                HStack {
-                    Text(loadError).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                    Spacer(minLength: Spacing.sm)
-                    Button(t("common.retry")) { Task { await load(diffRequest, force: true) } }
-                        .font(.caption)
-                }
-            }
+            contextNotices
         }
         .padding(.horizontal, Spacing.lg).padding(.vertical, Spacing.sm)
+    }
+
+    @ViewBuilder private var contextNotices: some View {
+        if change.isConflicted {
+            Label(t("git.diff.conflict"), icon: .warning)
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        if truncated {
+            Label(t("git.diff.truncated"), icon: .fileMore)
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        if hasResult, let loadError {
+            HStack {
+                Text(loadError).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Spacer(minLength: Spacing.sm)
+                Button(t("common.retry")) { Task { await load(diffRequest, force: true) } }
+                    .font(.caption)
+            }
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -191,10 +259,20 @@ struct GitDiffScreen: View {
 
     @ViewBuilder private var changeNavigation: some View {
         if !changes.isEmpty {
-            HStack(spacing: Spacing.xs) {
+            if ApplePlatform.isDesktop {
+                changeNavigationControls.buttonStyle(AssistantDesktopButtonStyle()).foregroundStyle(.secondary)
+            } else {
+                changeNavigationControls.buttonStyle(.glass).tint(.primary)
+            }
+        }
+    }
+
+    private var changeNavigationControls: some View {
+        HStack(spacing: Spacing.xs) {
                 Button { revealChange((selectedChange ?? 1) - 1) } label: {
-                    AppIcon(.chevronUp).frame(minWidth: 28, minHeight: 28)
+                    AppIcon(.chevronUp, size: ApplePlatform.isDesktop ? 13 : 20).frame(minWidth: 28, minHeight: 28)
                 }
+                .help(t("git.diff.previous"))
                 .disabled(loading || selectedChange == nil || selectedChange == 0)
                 .accessibilityLabel(t("git.diff.previous"))
                 .accessibilityIdentifier("git.diff.previous")
@@ -204,33 +282,36 @@ struct GitDiffScreen: View {
                     .accessibilityLabel(t(changes.count == 1 ? "git.diff.changeCount.one" : "git.diff.changeCount",
                                           ["count": "\(changes.count)"]))
                 Button { revealChange((selectedChange ?? -1) + 1) } label: {
-                    AppIcon(.chevronDown).frame(minWidth: 28, minHeight: 28)
+                    AppIcon(.chevronDown, size: ApplePlatform.isDesktop ? 13 : 20).frame(minWidth: 28, minHeight: 28)
                 }
+                .help(t("git.diff.next"))
                 .disabled(loading || selectedChange == changes.count - 1)
                 .accessibilityLabel(t("git.diff.next"))
                 .accessibilityIdentifier("git.diff.next")
-            }
-            .buttonStyle(.glass).tint(.primary)
         }
     }
 
     @ViewBuilder private var reviewActions: some View {
         if !staged && !change.isConflicted {
             Button { discardConfirm = true } label: {
-                Text(t("git.discard")).foregroundStyle(.primary).frame(maxWidth: .infinity)
+                Text(t("git.discard")).foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
             }
                 .buttonStyle(.glass).tint(.primary)
                 .disabled(loading || working || model.isMutating || current == nil)
                 .accessibilityIdentifier("git.diff.discard")
         }
+        stageButton.buttonStyle(.glassProminent)
+    }
+
+    private var stageButton: some View {
         Button { Task { await apply(discard: false) } } label: {
             Text(t(staged ? "git.unstage" : "git.stage"))
-                .foregroundStyle(Palette.onAccent)
+                .foregroundStyle(ApplePlatform.isDesktop ? Color.primary : Palette.onAccent)
                 .opacity(working ? 0 : 1)
-                .frame(maxWidth: .infinity)
-                .overlay { if working { ProgressView().tint(Palette.onAccent) } }
+                .frame(maxWidth: ApplePlatform.isDesktop ? nil : .infinity)
+                .overlay { if working { ProgressView().controlSize(.mini) } }
         }
-        .buttonStyle(.glassProminent)
         .disabled(loading || working || model.isMutating || current == nil)
         .accessibilityIdentifier("git.diff.stage")
     }

@@ -51,6 +51,7 @@ extension Stores {
     /// Cascade app-owned chat/profile data. The daemon's native config and credentials are untouched.
     @MainActor func deleteAgent(_ id: String) {
         deleteChats(forAgentId: id)
+        bots.replaceAll(bots.list().filter { $0.agentId != id })
         // Remove values written by versions that incorrectly mirrored daemon configuration locally.
         AgentConfigStore.clear(id)
         agents.remove(id)

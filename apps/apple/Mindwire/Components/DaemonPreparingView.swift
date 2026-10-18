@@ -12,9 +12,12 @@ struct DaemonPreparingView: View {
     var currentStep: String? = nil
     var startedAt: Date? = nil
     @State private var stepsExpanded = true
+    @Environment(\.assistantAIService) private var assistantService
 
     var body: some View {
-        if let agent {
+        if let service = assistantService {
+            assistantPreparation(service)
+        } else if let agent {
             List {
                 Section {
                     HStack(spacing: Spacing.md) {
@@ -51,6 +54,39 @@ struct DaemonPreparingView: View {
             connectionIndicator
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    @ViewBuilder private func assistantPreparation(_ service: AssistantAIService) -> some View {
+        if ApplePlatform.isDesktop {
+            AssistantDesktopSetupPanel {
+                AssistantServiceMark(service: service, size: 42)
+                Text(t("assistant.ai.preparing")).font(.title2.weight(.semibold))
+                assistantProgress
+            }
+        } else {
+            AssistantPage {
+                AssistantSetupProgress(step: 1)
+                AssistantServiceMark(service: service, size: 40).padding(.top, 12)
+                AssistantHeading(eyebrow: service.name, title: t("assistant.ai.preparing"),
+                                 detail: t(activity.isWorking ? "assistant.ai.preparing.body" : "assistant.ai.checking.body"))
+                assistantProgress
+            }
+        }
+    }
+
+    @ViewBuilder private var assistantProgress: some View {
+        if activity.isWorking {
+            InstallationProgressBar(progress: progress)
+            elapsedTime
+            DisclosureGroup(t("assistant.ai.details")) {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    progressSummary
+                    stepDetails
+                }
+                .padding(.top, Spacing.md)
+            }
+            .font(.subheadline).tint(.secondary)
+        } else { connectionIndicator }
     }
 
     private var connectionIndicator: some View {
