@@ -27,11 +27,12 @@ ENV NODE_ENV=production \
     PORT=8787 \
     AUTH_DB_PATH=/data/auth.db
 
-# Preserve Bun’s dependency layout for external Node and native SQLite dependencies.
+# Preserve Bun’s dependency layout, assigning the runtime user ownership even when a
+# native package or its cache directory was installed with private permissions.
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder /app/apps/console/package.json ./apps/console/package.json
-COPY --from=builder /app/apps/console/node_modules ./apps/console/node_modules
+COPY --from=builder --chown=node:node /app/apps/console/node_modules ./apps/console/node_modules
 COPY --from=builder /app/apps/console/dist ./apps/console/dist
 COPY --from=builder /app/apps/console/dist-server ./apps/console/dist-server
 COPY --from=builder /app/apps/console/drizzle ./apps/console/drizzle

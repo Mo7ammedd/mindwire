@@ -1,5 +1,8 @@
 import { test, expect } from "bun:test";
 import { EventEmitter } from "node:events";
+import { Readable } from "node:stream";
+import { createRequire } from "node:module";
+const Docker = createRequire(import.meta.url)("dockerode");
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -11,7 +14,7 @@ import { provisionDocker, type DockerodeLike, type EnsureEvent } from "../src/in
 // marker each ensure phase emits) demultiplexed through a fake `modem.demuxStream`; `putArchive`
 // and lifecycle calls are captured.
 function fakeDocker(
-  opts: { hostPort?: string; health?: string; noPort?: boolean; running?: boolean; imagePresent?: boolean } = {},
+  opts: { hostPort?: string; health?: string; noPort?: boolean; running?: boolean; imagePresent?: boolean; pullError?: string } = {},
 ) {
   const hostPort = opts.hostPort ?? "49160";
   const health = opts.health ?? "";
@@ -92,6 +95,7 @@ function fakeDocker(
   };
 
   const docker = {
+    modem: new Docker().modem,
     getContainer: (id: string) => {
       calls.get.push(id);
       container.id = id;
@@ -106,9 +110,9 @@ function fakeDocker(
     }),
     pull: async (name: string) => {
       calls.pull.push(name);
-      const stream = new EventEmitter();
-      process.nextTick(() => stream.emit("end"));
-      return stream;
+      const progress = Array.from({ length: 2048 }, () => JSON.stringify({ status: "Downloading layer" }) + "\n");
+      if (opts.pullError) progress.push(JSON.stringify({ error: opts.pullError }) + "\n");
+      return Readable.from(progress);
     },
     createContainer: async (o: Record<string, unknown>) => {
       calls.create.push(o);
@@ -236,4 +240,11 @@ test("docker(): factory is inert and reports a missing optional peer without con
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test("provisionDocker: registry progress errors fail before creating a container", async () => {
+  const { docker, calls } = fakeDocker({ imagePresent: false, pullError: "denied: registry access rejected" });
+  await expect(provisionDocker(docker, { daemonBin: tempBin() })).rejects.toThrow(/denied: registry access rejected/);
+  expect(calls.create).toHaveLength(0);
 });

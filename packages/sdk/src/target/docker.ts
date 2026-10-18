@@ -120,6 +120,7 @@ interface ContainerLike {
 }
 
 export interface DockerodeLike {
+  modem: { followProgress(stream: DuplexLike, done: (error: Error | null, output?: Array<{ error?: string; errorDetail?: { message?: string } }>) => void): void };
   getContainer(id: string): ContainerLike;
   getImage(name: string): { inspect(): Promise<unknown> };
   pull(name: string): Promise<DuplexLike>;
@@ -293,9 +294,14 @@ async function ensureImage(
   try {
     const stream = await docker.pull(image);
     await new Promise<void>((resolve, reject) => {
-      stream.on("end", () => resolve());
-      stream.on("close", () => resolve());
-      stream.on("error", (error: unknown) => reject(error));
+      // Docker's progress stream must be consumed; just waiting for end can hang on a full buffer.
+      // The client's parser also reports registry failures delivered inside otherwise successful HTTP streams.
+      docker.modem.followProgress(stream, (error, output) => {
+        if (error) { reject(error); return; }
+        const failure = output?.find(frame => frame.error || frame.errorDetail?.message);
+        if (failure) reject(new Error(failure.error ?? failure.errorDetail!.message));
+        else resolve();
+      });
     });
     emit(`runtime image ready: ${image}`);
   } catch (error) {
