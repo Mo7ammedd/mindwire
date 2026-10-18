@@ -12,6 +12,7 @@ import { registerAuth } from "./guard";
 import { registerRoutes } from "./routes";
 import { registerTurnRoutes } from "./turn";
 import { registerComputerDirectory, startDirectoryMaintenance } from "./computer-directory/routes";
+import { registerNotifications } from "./notifications/routes";
 
 const app = new Hono();
 
@@ -19,6 +20,7 @@ const app = new Hono();
 // authentication; workspace APIs continue to require a website session.
 registerAuth(app);
 registerComputerDirectory(app);
+registerNotifications(app);
 
 app.get("/api/ping", (c) => c.json({ ok: true, service: "console" }));
 // The only pre-auth data route: branding + sign-in options for the login gate. Secret-free by

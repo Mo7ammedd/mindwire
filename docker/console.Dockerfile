@@ -76,6 +76,10 @@ RUN for pkg in oblien ssh2 dockerode better-sqlite3; do \
 # `node` user). SaaS supplies DATABASE_URL and uses Postgres instead.
 RUN mkdir -p /data && chown -R node:node /data
 USER node
+# Verify the copied dependency graph as the runtime user before publishing it.
+# The server imports this driver even when PostgreSQL is configured.
+RUN node --input-type=module -e 'import Database from "better-sqlite3"; const db = new Database(":memory:"); db.close()' \
+ || { ls -ld node_modules/better-sqlite3 apps/console/node_modules/better-sqlite3 node_modules/.bun/better-sqlite3*/node_modules/better-sqlite3; exit 1; }
 VOLUME ["/data"]
 EXPOSE 8787
 

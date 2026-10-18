@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         guard let fcmToken, !fcmToken.isEmpty else { return }
         Task {
             let ok = await BackendFactory.pushService().registerIfPossible()
-            APILog.note("push: device registration \(ok ? "active in Oblien" : "pending")")
+            APILog.note("push: device registration \(ok ? "active in Mindwire" : "pending")")
         }
     }
 

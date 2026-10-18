@@ -105,6 +105,14 @@ omit delivery counters; its HTTP status remains the acknowledgment. Provider cod
 `errors: [{ code, message, count }]` response are retained in the delivery error; provider messages
 are not copied because they can include a device token.
 
+## Mobile push service
+
+Mindwire Console owns device registration, send-only credentials and Firebase delivery at
+`/api/notifications`. The Apple client configures the daemon’s existing `push` webhook format
+with `https://console.mindwire.sh/api/notifications/send`; the daemon stays provider agnostic
+and never receives Firebase credentials or device tokens. Existing Oblien notification URLs
+forward to the same Mindwire service during migration. See the [deployment and migration guide](/docs/guides/push-service).
+
 ## Local channels: file & exec
 
 Two more channels ship as sub-packages that **self-register when blank-imported** and enable themselves

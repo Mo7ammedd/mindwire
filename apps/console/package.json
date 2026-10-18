@@ -31,6 +31,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "0.45.4",
+    "firebase-admin": "^13.10.0",
     "hono": "^4.13.13",
     "lucide-react": "^1.57.0",
     "mindwire": "workspace:*",
