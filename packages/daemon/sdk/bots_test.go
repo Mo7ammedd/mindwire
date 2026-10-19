@@ -1,13 +1,20 @@
 package mindwire
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestBotsSharePersistedProfilesAcrossHarnessViews(t *testing.T) {
-	c := newFakeClient(t, nil)
-	if c.Health().BotsVersion != 2 {
+	c, err := New(Options{Agent: "codex", CWD: t.TempDir(), StatePath: filepath.Join(t.TempDir(), "state.json")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if c.Health().BotsVersion < 2 {
 		t.Fatal("bots capability missing")
 	}
-	if _, err := c.Workspace.Agents.Put("bot-agent", WorkspaceAgent{Name: "AI", AgentType: "fake"}, nil); err != nil {
+	if _, err := c.Workspace.Agents.Put("bot-agent", WorkspaceAgent{Name: "AI", AgentType: "codex"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := c.Workspace.Projects.Put("general-project", WorkspaceProject{Name: "General", Path: t.TempDir()}, nil); err != nil {

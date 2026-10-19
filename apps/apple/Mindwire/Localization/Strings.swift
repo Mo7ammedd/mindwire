@@ -181,6 +181,8 @@ enum Strings {
         "assistant.setup.computer": "Which computer should we use?",
         "assistant.setup.computer.body": "Use your own computer, or give Mindwire one in the cloud.",
         "assistant.setup.computer.hint": "You can change computers later in Settings.",
+        "assistant.setup.preparingComputer": "Preparing your computer…",
+        "assistant.setup.preparingComputer.body": "Keep your computer on and connected. We’ll check the connection and get Mindwire ready before connecting your AI account.",
         "assistant.setup.own": "Your computer",
         "assistant.setup.own.body": "Work with the files and apps already on your computer. Keep it on and connected while Mindwire works.",
         "assistant.setup.own.caption": "Mac, Windows, or Linux",

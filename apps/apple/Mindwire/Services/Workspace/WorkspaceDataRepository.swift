@@ -347,8 +347,26 @@ final class WorkspaceDataRepository {
 
     func prepareDaemon(workspaceId: String) async throws {
         guard let workspace = resolveWorkspace(workspaceId) else { throw WorkspaceRegistryError.missing }
-        try await ordered(workspaceId) { try await self.remote(workspace).prepare(allowInstall: true) }
-        await refresh(workspace)
+        invalidateChecks(workspaceId)
+        let generation = generations[workspaceId, default: 0]
+        do {
+            try await ordered(workspaceId) {
+                let remote = self.remote(workspace)
+                try await remote.prepare(allowInstall: true)
+                try Task.checkCancellation()
+                guard generation == self.generations[workspaceId, default: 0] else { throw CancellationError() }
+                try await self.reconcile(workspace, remote: remote)
+                try Task.checkCancellation()
+                guard generation == self.generations[workspaceId, default: 0] else { throw CancellationError() }
+            }
+            errors[workspaceId] = nil
+        } catch {
+            if generation == generations[workspaceId, default: 0], !error.isRequestCancellation {
+                errors[workspaceId] = error.localizedDescription
+                remotes[workspaceId]?.invalidateChecks()
+            }
+            throw error
+        }
     }
 
     func startDaemon(workspaceId: String) async throws {
@@ -823,7 +841,7 @@ final class WorkspaceDataRepository {
                            agentType: input.agentType, agentTypeName: input.catalogName, workspaceId: input.workspaceId,
                            createdAt: isoNow(), lastUsedAt: nil)
         pendingAgents[key] = record
-        let saved = try await mutation(input.workspaceId) { remote, workspace in
+        let saved: Agent = try await mutation(input.workspaceId) { remote, workspace in
             if remote.supportsAgentDiscovery {
                 let generation = self.generations[workspace.id, default: 0]
                 let result = try await remote.ensureAgent(type: input.agentType, name: name)
@@ -844,10 +862,7 @@ final class WorkspaceDataRepository {
             guard let saved = self.stores.agents.get(record.id) else { throw WorkspaceRegistryError.missing }
             return saved
         } legacy: {
-            if let existing = self.stores.agents(forWorkspaceId: input.workspaceId)
-                .filter({ $0.agentType == input.agentType }).sorted(by: { $0.id < $1.id }).first { return existing }
-            self.stores.agents.save(record)
-            return record
+            throw WorkspaceRegistryError.updateRequired
         }
         pendingAgents[key] = nil
         return saved
@@ -957,7 +972,7 @@ final class WorkspaceDataRepository {
         let record = pendingChats[key] ?? Chat(id: newId(), agentId: agentId, projectId: projectId,
                           title: title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "New chat", createdAt: isoNow(), sessionId: nil, botId: botId)
         pendingChats[key] = record
-        let saved = try await mutation(project.workspaceId) { remote, workspace in
+        let saved: Chat = try await mutation(project.workspaceId) { remote, workspace in
             if botId != nil && !remote.supportsBots { throw WorkspaceRegistryError.botsUnavailable }
             if let botId, self.stores.bots.get(botId)?.projectId != projectId, !remote.supportsWorkspaceBots {
                 throw WorkspaceRegistryError.botsUnavailable
@@ -966,8 +981,7 @@ final class WorkspaceDataRepository {
             guard let saved = self.stores.chats.get(record.id) else { throw WorkspaceRegistryError.missing }
             return saved
         } legacy: {
-            if botId != nil { throw WorkspaceRegistryError.botsUnavailable }
-            self.stores.chats.save(record); return record
+            throw WorkspaceRegistryError.updateRequired
         }
         pendingChats[key] = nil
         return saved

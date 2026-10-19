@@ -102,7 +102,7 @@ func TestMasterCreatesInspectsAndImprovesBotsThroughRealMCP(t *testing.T) {
 		t.Run(harness, func(t *testing.T) {
 			client, turn, cleanup := connect(t, s, "chat", harness, t.Context())
 			defer cleanup()
-			if !strings.Contains(turn.Options.SystemPrompt, "You are Mindwire") || !strings.Contains(turn.Options.SystemPrompt, "bots_update") {
+			if !strings.Contains(turn.Options.ContextInstructions, "You are the manager bot") || !strings.Contains(turn.Options.ContextInstructions, "bots_update") {
 				t.Fatal("master does not know its management role")
 			}
 			call(t, client, "bots_create", map[string]any{"name": "Writing Partner " + harness, "purpose": "Write clearly", "instructions": "Use clear prose"})
@@ -156,7 +156,7 @@ func TestChildToolsUseOwnKnowledgeMemoryAndRejectManagement(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	client, turn, cleanup := connect(t, s, chat.ID, "codex", ctx)
 	defer cleanup()
-	if strings.Contains(turn.Options.SystemPrompt, "You are Mindwire, the user's main assistant") || !strings.Contains(turn.Options.SystemPrompt, "Study Coach") {
+	if strings.Contains(turn.Options.ContextInstructions, "You are the manager bot") || !strings.Contains(turn.Options.ContextInstructions, "Study Coach") {
 		t.Fatal("child received wrong persona")
 	}
 	tools, err := client.ListTools(t.Context(), nil)
@@ -209,7 +209,7 @@ func TestDeveloperTurnDoesNotReceiveBotPromptOrTools(t *testing.T) {
 	}
 	turn, cleanup, err := s.Bind(t.Context(), adapter, runner.Turn{ChatID: "developer-chat", Message: "Write code"})
 	defer cleanup()
-	if err != nil || turn.Options.SystemPrompt != "" || len(turn.Options.MCPServers) != 0 || len(turn.Environment) != 0 {
+	if err != nil || turn.Options.SystemPrompt != "" || turn.Options.ContextInstructions != "" || len(turn.Options.MCPServers) != 0 || len(turn.Environment) != 0 {
 		t.Fatalf("Developer changed: %+v %v", turn, err)
 	}
 }
@@ -271,7 +271,7 @@ func TestCommandHarnessUsesTheSameScopedBotTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	if !strings.Contains(turn.Options.SystemPrompt, "--bot-tool") || turn.Environment["MINDWIRE_BOT_TOOL_HELPER"] == "" {
+	if !strings.Contains(turn.Options.ContextInstructions, "--bot-tool") || turn.Environment["MINDWIRE_BOT_TOOL_HELPER"] == "" {
 		t.Fatal("command harness received no tool bridge")
 	}
 	t.Setenv("MINDWIRE_BOT_TOOL_URL", turn.Environment["MINDWIRE_BOT_TOOL_URL"])

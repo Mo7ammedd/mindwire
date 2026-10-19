@@ -17,9 +17,11 @@ struct AssistantSetupScreen: View {
     @State private var attempt = 0
     @State private var restored = false
     @State private var preparingLocalComputer = ApplePlatform.isDesktop
+    @State private var computerPreparation = AssistantComputerPreparation()
+    @State private var computerAttempt = 0
 
     private enum SetupStep: String, Hashable {
-        case computer, pairComputer, cloud, createCloud, account
+        case computer, pairComputer, cloud, createCloud, prepareComputer, account
     }
 
     private var workspace: Workspace? { workspaceID.flatMap(repository.get) }
@@ -53,6 +55,8 @@ struct AssistantSetupScreen: View {
                     }
                 case .createCloud:
                     NewWorkspaceScreen(assistantCloud: true, embedded: true) { choose($0) }
+                case .prepareComputer:
+                    prepareComputer
                 case .account:
                     account
                 }
@@ -66,7 +70,9 @@ struct AssistantSetupScreen: View {
                 if let pending {
                     let pendingAgent = stores.experience.pendingAgentID.flatMap(stores.agents.get)
                     choose(pending)
-                    if let pendingAgent, pendingAgent.workspaceId == workspaceID { select(pendingAgent) }
+                    if let pendingAgent, pendingAgent.workspaceId == workspaceID {
+                        stores.experience.pendingAgentID = pendingAgent.id
+                    }
                 } else {
                     #if targetEnvironment(macCatalyst)
                     await useThisMac()
@@ -74,7 +80,6 @@ struct AssistantSetupScreen: View {
                 }
             }
         }
-        .task(id: workspaceID) { await refreshAgents() }
         .onChange(of: stores.experience.pendingWorkspaceID) { _, id in
             // A pairing deep link may finish in the window's shared pairing sheet.
             if id != workspaceID, let id {
@@ -82,7 +87,7 @@ struct AssistantSetupScreen: View {
             }
         }
         .onChange(of: path) { _, path in
-            if !path.contains(.account), workspaceID != nil { clearSelection() }
+            if !path.contains(.account), !path.contains(.prepareComputer), workspaceID != nil { clearSelection() }
         }
         .observeWorkspaceCache(reloadAgents)
     }
@@ -126,6 +131,39 @@ struct AssistantSetupScreen: View {
         }
     }
 
+    private var prepareComputer: some View {
+        AssistantPage {
+            AssistantSetupProgress(step: 0)
+            AssistantArtwork()
+            AssistantHeading(title: t("assistant.setup.preparingComputer"),
+                             detail: t("assistant.setup.preparingComputer.body"))
+            if let workspace {
+                AssistantConnectionSummary(name: workspace.name, isCloud: workspace.isCloud)
+            }
+            if let error = computerPreparation.error {
+                Text(error).font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                ProgressView().accessibilityLabel(t("assistant.setup.preparingComputer"))
+            }
+        } footer: {
+            if computerPreparation.error != nil {
+                AssistantPrimaryButton(title: t("common.retry"), icon: .refresh) { computerAttempt += 1 }
+            }
+        }
+        .task(id: "\(workspaceID ?? ""):\(computerAttempt)") {
+            guard let workspaceID else { return }
+            let ready = await computerPreparation.prepare(workspaceID) {
+                try await stores.workspaceData.prepareDaemon(workspaceId: $0)
+            }
+            guard ready, !Task.isCancelled, self.workspaceID == workspaceID,
+                  path.last == .prepareComputer else { return }
+            reloadAgents()
+            path[path.count - 1] = .account
+            if let agent = stores.experience.pendingAgentID.flatMap(stores.agents.get),
+               agent.workspaceId == workspaceID { select(agent) }
+        }
+    }
+
     private var account: some View {
         Group {
             if workspace == nil {
@@ -136,6 +174,8 @@ struct AssistantSetupScreen: View {
                         if path.last == .account { path.removeLast() }
                     }
                 }
+            } else if computerPreparation.readyWorkspaceID != workspaceID {
+                prepareComputer
             } else if let readyAgent {
                 preparation(agent: readyAgent)
             } else if let selectedAgent {
@@ -218,14 +258,16 @@ struct AssistantSetupScreen: View {
         stores.experience.pendingWorkspaceID = workspace.id
         stores.experience.pendingAgentID = nil
         selectedAgent = nil; readyAgent = nil; preparedProject = nil; error = nil
+        computerPreparation.reset()
         // Returning from account choice lands in the same computer branch, including after
         // adding a computer. Pairing/creation does not remain underneath as an unfinished form.
-        if ApplePlatform.isDesktop && workspace.runtime.isLocal { path = [.account] }
-        else { path = [workspace.isCloud ? .cloud : .computer, .account] }
+        if ApplePlatform.isDesktop && workspace.runtime.isLocal { path = [.prepareComputer] }
+        else { path = [workspace.isCloud ? .cloud : .computer, .prepareComputer] }
     }
 
     private func select(_ agent: Agent) {
-        guard workspaceID == agent.workspaceId, path.last == .account else { return }
+        guard workspaceID == agent.workspaceId, computerPreparation.readyWorkspaceID == workspaceID,
+              path.last == .account else { return }
         stores.experience.pendingAgentID = agent.id
         selectedAgent = agent
     }
@@ -237,6 +279,7 @@ struct AssistantSetupScreen: View {
 
     private func clearSelection() {
         backToAccounts()
+        computerPreparation.reset()
         workspaceID = nil
         stores.experience.pendingWorkspaceID = nil
         agents = []
@@ -244,15 +287,6 @@ struct AssistantSetupScreen: View {
 
     private func reloadAgents() {
         agents = workspaceID.map { stores.availableAgents(forWorkspaceId: $0) } ?? []
-    }
-
-    private func refreshAgents(force: Bool = false) async {
-        reloadAgents()
-        guard let workspace else { return }
-        if force { await stores.workspaceData.refresh(workspace) }
-        else { await stores.workspaceData.refreshIfNeeded(workspace) }
-        guard !Task.isCancelled else { return }
-        reloadAgents()
     }
 }
 

@@ -92,6 +92,103 @@ final class AgentPreparationTests: XCTestCase {
         XCTAssertNil(coordinator.states[key]?.error)
     }
 
+    func testUnavailableComputerCannotUnlockOnboardingOrCreateAnAgent() async throws {
+        for failure: Error in [URLError(.notConnectedToInternet), URLError(.cannotConnectToHost),
+                               WorkspaceRegistryError.updateRequired] {
+            let stores = try stores()
+            let remote = remote(in: stores)
+            remote.prepareError = failure
+            let preparation = AssistantComputerPreparation()
+            let ready = await preparation.prepare(workspace.id) {
+                try await stores.workspaceData.prepareDaemon(workspaceId: $0)
+            }
+            XCTAssertFalse(ready)
+            XCTAssertNil(preparation.readyWorkspaceID)
+            XCTAssertNotNil(preparation.error)
+            let model = NewAgentModel(workspaceId: workspace.id, agentType: .codex)
+            do {
+                _ = try await model.create(stores: stores)
+                XCTFail("An unavailable computer must not accept a new profile")
+            } catch {}
+            XCTAssertNil(model.createdAgent)
+            XCTAssertTrue(stores.agents.list().isEmpty)
+            XCTAssertTrue(stores.projects.list().isEmpty)
+            XCTAssertTrue(stores.chats.list().isEmpty)
+            XCTAssertTrue(stores.preparation.pendingIDs.isEmpty)
+            XCTAssertTrue(remote.putIDs.isEmpty)
+            XCTAssertTrue(remote.imports.isEmpty)
+        }
+    }
+
+    func testOnboardingWaitsForAuthoritativeSyncAndRetryReusesTheComputer() async throws {
+        let stores = try stores()
+        let remote = remote(in: stores)
+        remote.snapshotError = URLError(.networkConnectionLost)
+        let preparation = AssistantComputerPreparation()
+        let failed = await preparation.prepare(workspace.id) {
+            try await stores.workspaceData.prepareDaemon(workspaceId: $0)
+        }
+        XCTAssertFalse(failed, "A healthy service with a failed workspace sync is not ready")
+        XCTAssertNotNil(preparation.error)
+        XCTAssertTrue(stores.agents.list().isEmpty)
+        remote.snapshotError = nil
+        remote.holdSnapshot = true
+        let retry = Task {
+            await preparation.prepare(workspace.id) {
+                try await stores.workspaceData.prepareDaemon(workspaceId: $0)
+            }
+        }
+        try await eventually { remote.snapshotGate != nil }
+        XCTAssertNil(preparation.readyWorkspaceID, "Accounts stay locked while synchronization is in flight")
+        XCTAssertNil(preparation.error)
+        remote.releaseSnapshot()
+        let ready = await retry.value
+        XCTAssertTrue(ready)
+        XCTAssertEqual(preparation.readyWorkspaceID, workspace.id)
+        XCTAssertNil(stores.workspaceData.errors[workspace.id])
+        XCTAssertTrue(remote.prepareAllowInstall.allSatisfy { $0 })
+        XCTAssertTrue(remote.putIDs.isEmpty, "Preparing a computer alone creates no profiles or chats")
+        XCTAssertTrue(stores.agents.list().isEmpty)
+        XCTAssertTrue(stores.chats.list().isEmpty)
+    }
+
+    func testLeavingOrChangingComputerDiscardsLatePreparation() async throws {
+        let preparation = AssistantComputerPreparation()
+        var finish: CheckedContinuation<Void, Never>?
+        let oldComputer = Task {
+            await preparation.prepare("old") { _ in
+                await withCheckedContinuation { finish = $0 }
+            }
+        }
+        try await eventually { finish != nil }
+        preparation.reset()
+        let newReady = await preparation.prepare("new") { _ in }
+        XCTAssertTrue(newReady)
+        finish?.resume()
+        let oldReady = await oldComputer.value
+        XCTAssertFalse(oldReady)
+        XCTAssertEqual(preparation.readyWorkspaceID, "new")
+        XCTAssertNil(preparation.error)
+    }
+
+    func testOfflineOrOutdatedDaemonCannotCreateLocalOnlyChats() async throws {
+        for failure: Error in [URLError(.cannotConnectToHost), WorkspaceRegistryError.updateRequired] {
+            let stores = try stores()
+            let remote = remote(in: stores)
+            let agent = stores.createAgent(.init(name: "Existing", agentType: .codex, workspaceId: workspace.id))
+            let project = stores.createProject(.init(name: "Existing", workspaceId: workspace.id, path: "/work"))
+            remote.prepareError = failure
+            do {
+                _ = try await stores.workspaceData.createChat(agentId: agent.id, projectId: project.id)
+                XCTFail("An unavailable service must not create a local-only chat")
+            } catch {}
+            XCTAssertTrue(stores.chats.list().isEmpty)
+            XCTAssertEqual(stores.agents.list().count, 1)
+            XCTAssertEqual(stores.projects.list().count, 1)
+            XCTAssertTrue(remote.putIDs.isEmpty)
+        }
+    }
+
     func testAlreadyInstalledCodexAndClaudeSkipSetupWithoutRequiringAuthentication() async throws {
         for harness in ["codex", "claude-code"] {
             let channel = InstallationChannel(harness: harness, installedVersion: "1.2.3")
