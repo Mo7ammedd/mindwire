@@ -98,6 +98,9 @@ type TurnOptions struct {
 	// memory and tools). It must never replace a harness's native system prompt.
 	// Recomputed from the registry on each turn; excluded from public turn receipts.
 	ContextInstructions string `json:"-"`
+	// SkillsRoot is a private, turn-scoped bundle supplied by the bot service.
+	// Harness adapters may discover its skills without changing global settings.
+	SkillsRoot string `json:"-"`
 
 	// Session controls (precedence resolved by the adapter): SessionID pins an explicit session id for
 	// this turn; ContinueLatest resumes the most recent session in the cwd; ForkOnResume branches a new

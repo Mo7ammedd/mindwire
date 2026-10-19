@@ -705,7 +705,7 @@ func (s *Service) routeTool(ctx context.Context, actor registry.Bot, name string
 		}
 		return nil, false, nil
 	}
-	if workspace == "" && (name == "bots_list" || name == "bots_agents") {
+	if workspace == "" && (name == "bots_list" || name == "bots_agents" || name == "apps_list") {
 		if _, err := s.authorize(actor, actor.ID, true); err != nil {
 			return nil, true, err
 		}
@@ -738,6 +738,9 @@ func (s *Service) routeTool(ctx context.Context, actor registry.Bot, name string
 				if receipt, ok := result["mindwireBot"].(map[string]any); ok {
 					receipt["workspaceId"] = workspace
 				}
+				if receipt, ok := result["mindwireApp"].(map[string]any); ok {
+					receipt["workspaceId"] = workspace
+				}
 			}
 			return out, true, err
 		}
@@ -747,7 +750,19 @@ func (s *Service) routeTool(ctx context.Context, actor registry.Bot, name string
 
 func (s *Service) discoverPeers(ctx context.Context, name string, args map[string]any) (map[string]any, error) {
 	out := map[string]any{}
-	if name == "bots_list" {
+	if name == "apps_list" {
+		apps, err := s.db.Apps()
+		if err != nil {
+			return nil, err
+		}
+		entries := []any{}
+		for _, app := range apps {
+			if !app.Archived {
+				entries = append(entries, app)
+			}
+		}
+		out["apps"] = entries
+	} else if name == "bots_list" {
 		archived, _ := args["includeArchived"].(bool)
 		saved, err := s.db.Bots("", archived)
 		if err != nil {
@@ -814,7 +829,7 @@ func (s *Service) discoverPeers(ctx context.Context, name string, args map[strin
 		if result.err != nil {
 			status["error"] = result.err.Error()
 		} else if value, ok := result.value.(map[string]any); ok {
-			for _, key := range []string{"bots", "agents", "projects"} {
+			for _, key := range []string{"bots", "agents", "projects", "apps"} {
 				if rows, ok := value[key].([]any); ok {
 					// Stamp the authenticated destination, rather than trusting identifiers in
 					// remote content. Model routing is explicit even when display names clash.

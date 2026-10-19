@@ -47,7 +47,7 @@ export function Account({
         description="Manage your Mindwire profile and sign-in security."
       />
       {error && <ErrorNotice message={error} />}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+      <div className="grid items-start gap-6 min-[1250px]:grid-cols-[minmax(0,1fr)_19rem]">
         <div className="space-y-6">
           <Card>
             <CardContent className="p-6">
@@ -55,7 +55,7 @@ export function Account({
                 onSubmit={(e) => void submit(e, "profile")}
                 className="space-y-5"
               >
-                <h2 className="text-sm font-medium">Your profile</h2>
+                <h2 className="text-base font-medium">Your profile</h2>
                 <label className="block space-y-2 text-sm">
                   <span>Name</span>
                   <Input
@@ -104,7 +104,7 @@ export function Account({
                 onSubmit={(e) => void submit(e, "password")}
                 className="space-y-5"
               >
-                <h2 className="text-sm font-medium">Change password</h2>
+                <h2 className="text-base font-medium">Change password</h2>
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   For accounts using an email and password. Social sign-in
                   credentials are managed by your sign-in provider.
@@ -157,8 +157,8 @@ export function Account({
         <aside>
           <Card>
             <CardContent className="space-y-4 p-6">
-              <ShieldCheck className="size-5 text-muted-foreground" />
-              <h2 className="text-sm font-medium">One Mindwire account</h2>
+              <span className="grid size-11 place-items-center rounded-2xl bg-[var(--mw-mint-soft)] text-[var(--mw-mint)]"><ShieldCheck className="size-5" /></span>
+              <h2 className="text-base font-medium">One Mindwire account</h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Your profile connects your app, devices and Cloud subscriptions.
                 Changing your profile does not affect your computers or data.

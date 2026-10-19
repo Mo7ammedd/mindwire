@@ -7,8 +7,12 @@ struct CommandGroupDisclosure<Content: View>: View {
     var isLive = false
     @Binding var expanded: Bool
     @ViewBuilder var content: () -> Content
+    @Environment(\.appExperienceMode) private var experienceMode
 
     var body: some View {
+        if experienceMode == .general {
+            GeneralToolSteps(parts: parts, isLive: isLive)
+        } else {
         DisclosureGroup(isExpanded: $expanded, content: content) {
             HStack(spacing: Spacing.sm) {
                 ChatToolIcon(symbol: Icon.terminal)
@@ -21,7 +25,7 @@ struct CommandGroupDisclosure<Content: View>: View {
                         .accessibilityLabel(t("chat.tool.failed"))
                 }
                 if isLive && parts.contains(where: \.hasPendingToolResult) {
-                    ProgressView().controlSize(.mini).accessibilityLabel(t("chat.running"))
+                    ProgressView().chatActivityTint().controlSize(.mini).accessibilityLabel(t("chat.running"))
                 }
             }
             .font(.subheadline).foregroundStyle(.secondary)
@@ -31,6 +35,7 @@ struct CommandGroupDisclosure<Content: View>: View {
         .font(.subheadline)
         .tint(.secondary)
         .disclosureGroupStyle(ChatToolDisclosureStyle(identifier: "chat.commandGroup"))
+        }
     }
 }
 

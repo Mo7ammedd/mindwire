@@ -1,20 +1,20 @@
-import { useState } from "react";
-import { Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
+import { useRef, useState } from "react";
+import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
   ArrowUpRight,
   CreditCard,
   LayoutDashboard,
   LogOut,
   Monitor,
-  Moon,
+  Menu,
+  X,
   Smartphone,
-  Sun,
   UserRound,
 } from "lucide-react";
 import type { AuthUser } from "@/lib/api";
 import { CloudProvider, useCloud } from "@/lib/cloud";
-import { useTheme } from "@/lib/theme";
-import { cn } from "@/lib/utils";
+import { ThemeButton } from "@/components/ThemeButton";
+import styles from "./portal.module.css";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { CloudComputers, NewComputer, Billing } from "../CloudComputers";
@@ -59,75 +59,37 @@ function PortalShell({
   onSignOut,
   onSignedOut,
 }: Parameters<typeof Portal>[0]) {
-  const { theme, toggle } = useTheme(),
-    cloud = useCloud();
+  const cloud = useCloud();
+  const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+  const currentPage = navigation.find((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to))?.label ?? "Your account";
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside className="border-b border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between gap-4 px-5 py-6">
-          <Link to="/" aria-label="Mindwire home">
-            <BrandMark size={24} />
-          </Link>
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-            onClick={toggle}
-          >
-            {theme === "dark" ? <Sun /> : <Moon />}
-          </Button>
+    <div className={styles.shell} onKeyDown={event => { if (event.key === "Escape" && menuOpen) { setMenuOpen(false); menuTrigger.current?.focus(); } }}>
+      <a href="#account-content" className={styles.skip}>Skip to content</a>
+      <aside className={styles.sidebar}>
+        <div className={styles.brand}>
+          <Link to="/" aria-label="Mindwire home" onClick={() => setMenuOpen(false)}><BrandMark size={26} /></Link>
+          <Button ref={menuTrigger} size="icon" variant="ghost" className={styles.menuButton} aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen} aria-controls="account-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</Button>
         </div>
-        <p className="hidden px-5 pb-5 text-xs text-muted-foreground lg:block">
-          Your Mindwire account
-        </p>
-        <nav
-          aria-label="Account navigation"
-          className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:overflow-visible lg:pb-0"
-        >
-          {navigation.map((item) => (
-            <NavLink
-              end={item.to === "/"}
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                cn(
-                  "flex shrink-0 items-center gap-3 px-3 py-2.5 text-sm transition-colors",
-                  isActive
-                    ? "bg-secondary font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                )
-              }
-            >
-              <item.icon className="size-4" />
-              {item.label}
-            </NavLink>
-          ))}
+        <nav id="account-navigation" aria-label="Account navigation" className={styles.nav} data-open={menuOpen}>
+          {navigation.map((item) => <NavLink end={item.to === "/"} key={item.to} to={item.to} onClick={() => setMenuOpen(false)}><item.icon className="size-[18px]" />{item.label}</NavLink>)}
         </nav>
-        <div className="mt-auto hidden space-y-5 p-5 lg:block">
-          <a
-            href="https://mindwire.sh/docs"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-between text-xs text-muted-foreground hover:text-foreground"
-          >
-            Help & documentation
-            <ArrowUpRight className="size-3" />
-          </a>
-          <div className="border-t border-border pt-5">
-            <p className="truncate text-sm font-medium">
-              {user.name || "Your account"}
-            </p>
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              {user.email}
-            </p>
+        <div className={styles.sidebarBottom} data-open={menuOpen}>
+          <a href="https://mindwire.sh/docs" target="_blank" rel="noreferrer" className={styles.help}>Help & documentation<ArrowUpRight className="size-4" /></a>
+          <div className={styles.profile}>
+            <span className={styles.avatar} aria-hidden="true">{(user.name || user.email).slice(0,2).toUpperCase()}</span>
+            <div><p>{user.name || "Your account"}</p><p>{user.email}</p></div>
           </div>
         </div>
       </aside>
-      <div className="min-w-0">
-        <header className="flex h-16 items-center justify-between gap-4 border-b border-border px-5 lg:px-9">
-          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+      <div className={styles.workspace}>
+        <header className={styles.topbar}>
+          <p className={styles.location}><span>Your account /</span><strong>{currentPage}</strong></p>
+          <div className={styles.headerActions}>
+            <ThemeButton />
           <Button
             variant="ghost"
             size="sm"
@@ -147,8 +109,9 @@ function PortalShell({
             <LogOut className="size-3.5" />
             Sign out
           </Button>
+          </div>
         </header>
-        <main className="mx-auto max-w-6xl space-y-6 p-5 py-7 lg:p-9">
+        <main id="account-content" tabIndex={-1} className={styles.main}>
           {error && <ErrorNotice message={error} />}
           {cloud.error && (
             <ErrorNotice

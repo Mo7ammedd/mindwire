@@ -27,7 +27,7 @@ struct DesktopToolContent: View {
                 } else if let error {
                     Text(error).font(.caption).foregroundStyle(.secondary)
                     Button("Load screenshot") { Task { await loadImage() } }.font(.caption)
-                } else { ProgressView().frame(maxWidth: .infinity, minHeight: 70) }
+                } else { ProgressView().chatActivityTint().frame(maxWidth: .infinity, minHeight: 70) }
             }
             if let status = action.status {
                 Text(status == "dispatched" ? "Input sent" : status == "outcome_unknown" ? "Input may have been sent. Check the desktop before retrying." : status)

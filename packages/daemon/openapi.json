@@ -3,7 +3,7 @@
   "info": {
     "title": "Mindwire daemon API",
     "version": "0.4.0",
-    "description": "One protocol over every coding-agent harness. The daemon hosts every registered adapter; a request selects one with `?agent=<type>` (falling back to the default). All endpoints, including `GET /healthz`, require the daemon bearer token. Workspace registry metadata is shared across harnesses. Turns/runs/chats are shared (keyed by chatId); auth, config, and creds are isolated per agent type."
+    "description": "One protocol over every coding-agent harness. The daemon hosts every registered adapter; a request selects one with `?agent=<type>` (falling back to the default). Management endpoints, including `GET /healthz`, require the daemon bearer token. Provider webhooks at `/integrations/{id}/webhook` use provider authentication; app notification endpoints use scoped app credentials. Workspace registry metadata is shared across harnesses. Turns/runs/chats are shared (keyed by chatId); auth, config, and creds are isolated per agent type."
   },
   "servers": [
     {
@@ -67,6 +67,14 @@
     {
       "name": "Bots",
       "description": "General profiles, durable knowledge/memory, and bot chat membership."
+    },
+    {
+      "name": "Apps",
+      "description": "Application resources, readiness, scoped notifications and durable host-owned schedules."
+    },
+    {
+      "name": "Integrations",
+      "description": "Slack, Teams, Discord and Telegram connections, signed inbound events, native bot conversations and streamed replies."
     }
   ],
   "components": {
@@ -75,6 +83,11 @@
         "type": "http",
         "scheme": "bearer",
         "description": "Set DAEMON_TOKEN on the daemon (required). Authorized runtime/SSH clients can recover it from the private daemon.token file beside STATE_PATH."
+      },
+      "appBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Send-only token scoped to one saved app. Accepted only by POST /apps/{id}/notify from loopback without a browser Origin. The owner daemon token is not accepted here."
       }
     },
     "parameters": {
@@ -278,7 +291,7 @@
           },
           "projectIconsVersion": {
             "type": "integer",
-            "description": "Project-relative icons and authenticated previews. Version 1 supports SVG, PNG, JPEG and GIF images up to 1 MiB."
+            "description": "1: read project-owned images and save icon paths; 2: upload validated images into a confined, content-addressed project folder."
           },
           "projectSyncVersion": {
             "type": "integer",
@@ -318,7 +331,15 @@
           },
           "botsVersion": {
             "type": "integer",
-            "description": "1: saved bot profiles, knowledge and memory; 2: saved icons; 3: native task delegation and authenticated cross-computer bot control."
+            "description": "Saved bot protocol version. Version 5 adds base-agent selection for future chats; version 6 adds assigned portable skills and on-demand loading; version 7 adds creation-only plain harness profiles (raw). Version 8 makes bots workspace-owned: optional default folder and per-chat/task project selection on that workspace."
+          },
+          "appsVersion": {
+            "type": "integer",
+            "description": "Application resource protocol version. Version 2 adds separate public links, static build directories and provider-independent publication preparation."
+          },
+          "integrationsVersion": {
+            "type": "integer",
+            "description": "Messaging integration protocol version; 1 supports the integrations API."
           }
         },
         "required": [
@@ -2531,7 +2552,8 @@
               "error",
               "waiting_approval",
               "waiting_feedback",
-              "waiting_input"
+              "waiting_input",
+              "app"
             ]
           },
           "chatId": {
@@ -2588,6 +2610,18 @@
                 "label"
               ]
             }
+          },
+          "appId": {
+            "type": "string"
+          },
+          "appName": {
+            "type": "string"
+          },
+          "appIcon": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string"
           }
         },
         "required": [
@@ -3252,6 +3286,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Bot"
+            }
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppShortcut"
             }
           }
         }
@@ -7290,7 +7330,8 @@
             "type": "string"
           },
           "projectId": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional default working folder on this workspace, not ownership. With botsVersion >= 8 a bot can work in any project on its workspace. The saved value is empty if no default is assigned or its project was deleted."
           },
           "name": {
             "type": "string"
@@ -7329,6 +7370,22 @@
           "notificationsMuted": {
             "type": "boolean",
             "description": "Mute notifications from this named bot, independently of other bots using the same base agent. Requires botsVersion >= 4 and notificationPreferencesVersion >= 2."
+          },
+          "skills": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "maxLength": 32768
+            },
+            "description": "Assigned portable SKILL.md documents with name/description YAML frontmatter. Loaded on demand, separate from bot identity, memory and knowledge. Total limit 128 KiB; native permission/hook frontmatter is rejected. Requires botsVersion >= 6. Omit on edits to preserve assignments."
+          },
+          "raw": {
+            "type": "boolean",
+            "description": "Creation-only plain harness mode: retains identity and conversation grouping, without Mindwire bot context, skills or MCP tools. Cannot be combined with bot instructions, memory, knowledge or assigned skills. Existing bots default to false. Requires botsVersion >= 7."
           }
         }
       },
@@ -7336,7 +7393,6 @@
         "type": "object",
         "required": [
           "agentId",
-          "projectId",
           "name"
         ],
         "properties": {
@@ -7347,7 +7403,8 @@
             "type": "string"
           },
           "projectId": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional default working folder on this workspace, not ownership. With botsVersion >= 8 a bot can work in any project on its workspace. The saved value is empty if no default is assigned or its project was deleted."
           },
           "name": {
             "type": "string"
@@ -7370,6 +7427,19 @@
           "icon": {
             "type": "string",
             "description": "Saved color-character avatar, for example peach-fox. Version 4 supports 10 colors and 24 characters. Empty resets to the stable automatic avatar."
+          },
+          "skills": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "maxLength": 32768
+            },
+            "description": "Assigned portable SKILL.md documents with name/description YAML frontmatter. Loaded on demand, separate from bot identity, memory and knowledge. Total limit 128 KiB; native permission/hook frontmatter is rejected. Requires botsVersion >= 6. Omit on edits to preserve assignments."
+          },
+          "raw": {
+            "type": "boolean",
+            "description": "Creation-only plain harness mode: retains identity and conversation grouping, without Mindwire bot context, skills or MCP tools. Cannot be combined with bot instructions, memory, knowledge or assigned skills. Existing bots default to false. Requires botsVersion >= 7."
           }
         }
       },
@@ -7411,6 +7481,19 @@
           "notificationsMuted": {
             "type": "boolean",
             "description": "Mute notifications from this named bot, independently of other bots using the same base agent. Requires botsVersion >= 4 and notificationPreferencesVersion >= 2."
+          },
+          "agentId": {
+            "type": "string",
+            "description": "Select the base agent for future chats (botsVersion >= 5). Existing chats retain their original native engine and transcript."
+          },
+          "skills": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "maxLength": 32768
+            },
+            "description": "Assigned portable SKILL.md documents with name/description YAML frontmatter. Loaded on demand, separate from bot identity, memory and knowledge. Total limit 128 KiB; native permission/hook frontmatter is rejected. Requires botsVersion >= 6. Omit on edits to preserve assignments."
           }
         }
       },
@@ -7452,6 +7535,10 @@
           },
           "title": {
             "type": "string"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Working project on this bot's workspace. Omit to use its default folder. Requires botsVersion >= 8."
           }
         }
       },
@@ -7489,6 +7576,10 @@
           "title": {
             "type": "string",
             "maxLength": 256
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Working project on this bot's workspace. Omit to use its default folder. Requires botsVersion >= 8."
           }
         },
         "required": [
@@ -7806,6 +7897,742 @@
           "workspaceId",
           "reachable"
         ]
+      },
+      "AppShortcut": {
+        "type": "object",
+        "required": [
+          "id",
+          "workspaceId",
+          "projectId",
+          "name",
+          "url",
+          "archived",
+          "createdAt",
+          "revision",
+          "notificationsMuted"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "botId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "startupCommand": {
+            "type": "string"
+          },
+          "healthPath": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "channelIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16
+          },
+          "notificationsMuted": {
+            "type": "boolean"
+          },
+          "automation": {
+            "type": "boolean",
+            "description": "A reminder/automation without a web page. Its URL must be empty; opening shows its schedules."
+          },
+          "staticDirectory": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Dedicated static build folder inside the app project; used by the owner hosting adapter."
+          },
+          "publicUrl": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Confirmed public HTTPS link, recorded by the owner hosting adapter after successful publication."
+          }
+        },
+        "description": "An application resource persisted on its owning host. Consumers choose its presentation and presets. Archiving revokes notification grants and pauses future schedules while preserving files and running services."
+      },
+      "AppShortcutCreate": {
+        "type": "object",
+        "required": [
+          "projectId",
+          "name",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "botId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "startupCommand": {
+            "type": "string"
+          },
+          "healthPath": {
+            "type": "string"
+          },
+          "channelIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16
+          },
+          "notificationsMuted": {
+            "type": "boolean"
+          },
+          "automation": {
+            "type": "boolean",
+            "description": "A reminder/automation without a web page. Its URL must be empty; opening shows its schedules."
+          },
+          "staticDirectory": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Dedicated static build folder inside the app project; used by the owner hosting adapter."
+          },
+          "publicUrl": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Confirmed public HTTPS link, recorded by the owner hosting adapter after successful publication."
+          }
+        }
+      },
+      "AppShortcutEdit": {
+        "type": "object",
+        "required": [
+          "expectedRevision"
+        ],
+        "properties": {
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "startupCommand": {
+            "type": "string"
+          },
+          "healthPath": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "channelIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16
+          },
+          "notificationsMuted": {
+            "type": "boolean"
+          },
+          "staticDirectory": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Dedicated static build folder inside the app project; used by the owner hosting adapter."
+          },
+          "publicUrl": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Confirmed public HTTPS link, recorded by the owner hosting adapter after successful publication."
+          }
+        }
+      },
+      "AppShortcutMutation": {
+        "type": "object",
+        "required": [
+          "app",
+          "snapshot"
+        ],
+        "properties": {
+          "app": {
+            "$ref": "#/components/schemas/AppShortcut"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/WorkspaceSnapshot"
+          }
+        }
+      },
+      "AppNotificationChannel": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "AppNotificationMessage": {
+        "type": "object",
+        "required": [
+          "eventId"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "description": "Stable event ID, reused when retrying this notification."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 2048
+          }
+        },
+        "description": "A title or body is required. App identity and recipients come from saved configuration, never from the caller."
+      },
+      "AppNotificationSetup": {
+        "type": "object",
+        "properties": {
+          "channelIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16
+          },
+          "rotate": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AppNotificationSetupResult": {
+        "type": "object",
+        "required": [
+          "app",
+          "snapshot",
+          "credentialFile"
+        ],
+        "properties": {
+          "app": {
+            "$ref": "#/components/schemas/AppShortcut"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/WorkspaceSnapshot"
+          },
+          "credentialFile": {
+            "type": "string",
+            "description": "Protected file path on the owning computer containing appId, endpoint and app-scoped token. Never copy it into frontend code or source control."
+          }
+        }
+      },
+      "AppScheduleSpec": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "runAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "First/one-time run with explicit UTC or time-zone offset."
+          },
+          "intervalSeconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 31536000
+          },
+          "localTime": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "IANA time zone for localTime, for example Africa/Cairo."
+          },
+          "weekdays": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            },
+            "description": "Sunday=0, Saturday=6. Omit to run daily."
+          },
+          "command": {
+            "type": "string",
+            "maxLength": 8192,
+            "description": "Runs in the app project, with a 30 second timeout. Must complete and exit; do not use sleep loops."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "description": "A command or notification message is required. Choose runAt for a one-time task, intervalSeconds for recurrence, or localTime and timeZone for calendar recurrence. Updating requires id and expectedRevision. Same-name creation conflicts rather than duplicating work."
+      },
+      "AppSchedule": {
+        "type": "object",
+        "required": [
+          "id",
+          "appId",
+          "name",
+          "revision",
+          "active",
+          "state",
+          "attempts"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "runAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "First/one-time run with explicit UTC or time-zone offset."
+          },
+          "intervalSeconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 31536000
+          },
+          "localTime": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "IANA time zone for localTime, for example Africa/Cairo."
+          },
+          "weekdays": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            },
+            "description": "Sunday=0, Saturday=6. Omit to run daily."
+          },
+          "command": {
+            "type": "string",
+            "maxLength": 8192,
+            "description": "Runs in the app project, with a 30 second timeout. Must complete and exit; do not use sleep loops."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "appId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "nextRunAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastRunAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "retryAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "occurrence": {
+            "type": "string"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "commandDone": {
+            "type": "boolean"
+          },
+          "leaseUntil": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Persisted host-owned work. The long-lived daemon explicitly starts its scheduler; the Go SDK opts in with RunScheduledJobs. Agent-created background commands require an owner interaction, while direct authenticated owner API/SDK requests are explicit authorization. Notifications retry without repeating a completed command."
+      },
+      "AppPublication": {
+        "type": "object",
+        "required": [
+          "app",
+          "kind"
+        ],
+        "properties": {
+          "app": {
+            "$ref": "#/components/schemas/AppShortcut"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "port",
+              "static"
+            ]
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "directory": {
+            "type": "string",
+            "description": "Validated absolute static build directory on the owning computer."
+          }
+        }
+      },
+      "IntegrationCredentials": {
+        "type": "object",
+        "description": "Write-only credentials. Omitted fields preserve stored values on update.",
+        "properties": {
+          "botToken": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "signingSecret": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "webhookSecret": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "publicKey": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "clientSecret": {
+            "type": "string",
+            "writeOnly": true
+          }
+        }
+      },
+      "IntegrationSpec": {
+        "type": "object",
+        "required": [
+          "name",
+          "provider",
+          "botId",
+          "mode",
+          "enabled",
+          "channelIds",
+          "notify"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "slack",
+              "teams",
+              "discord",
+              "telegram"
+            ]
+          },
+          "botId": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "notifications",
+              "commands",
+              "chat",
+              "trigger"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "channelIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string"
+            }
+          },
+          "userIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Slack team, Discord guild, or Microsoft Entra tenant ID."
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string",
+            "default": "/mindwire"
+          },
+          "notify": {
+            "type": "boolean"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "destination": {
+            "type": "string"
+          },
+          "serviceUrl": {
+            "type": "string",
+            "description": "Owner-configured public Microsoft Teams connector URL."
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Required on update; must equal current revision."
+          },
+          "credentials": {
+            "$ref": "#/components/schemas/IntegrationCredentials"
+          }
+        }
+      },
+      "Integration": {
+        "type": "object",
+        "required": [
+          "id",
+          "revision",
+          "name",
+          "provider",
+          "botId",
+          "mode",
+          "enabled",
+          "channelIds",
+          "notify",
+          "hasCredentials",
+          "webhookPath"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "slack",
+              "teams",
+              "discord",
+              "telegram"
+            ]
+          },
+          "botId": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "notifications",
+              "commands",
+              "chat",
+              "trigger"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "channelIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string"
+            }
+          },
+          "userIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Slack team, Discord guild, or Microsoft Entra tenant ID."
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string",
+            "default": "/mindwire"
+          },
+          "notify": {
+            "type": "boolean"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "destination": {
+            "type": "string"
+          },
+          "serviceUrl": {
+            "type": "string",
+            "description": "Owner-configured public Microsoft Teams connector URL."
+          },
+          "id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hasCredentials": {
+            "type": "boolean"
+          },
+          "webhookPath": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationReceipt": {
+        "type": "object",
+        "required": [
+          "id",
+          "integrationId",
+          "channelId",
+          "userId",
+          "state",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "integrationId": {
+            "type": "string"
+          },
+          "channelId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "chatId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "delivered",
+              "failed"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     }
   },
@@ -15402,6 +16229,9 @@
           },
           "409": {
             "description": "Conflicting request or service update in progress"
+          },
+          "408": {
+            "description": "Input was canceled before any PTY write. Retry the same writer, sequence and bytes."
           }
         },
         "parameters": [
@@ -16236,6 +17066,125 @@
           }
         ],
         "description": "Requires projectIconsVersion >= 1. Without a path, reads the saved icon. A path previews a candidate inside this project. Follows internal symlinks but rejects escapes, non-regular files, oversized/invalid images and external SVG resources. Never exposes a public file URL."
+      },
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Upload a project icon",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "description": "Requires projectIconsVersion >= 2. Validates an SVG/PNG/JPEG/GIF image up to 1 MB and atomically stores it in .mindwire/project-icons inside the confined project root. Identical uploads reuse the same content-addressed path. Uploading does not select the icon; save the returned path as iconPath through the revisioned project edit.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "content"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Image filename; its extension identifies SVG or raster input. Never used as a storage path."
+                  },
+                  "content": {
+                    "type": "string",
+                    "format": "byte",
+                    "description": "Base64-encoded image, at most 1 MB decoded."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectIcon"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or saved icon not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Update the daemon to use project operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/workspace/sync/exports": {
@@ -20164,6 +21113,1018 @@
           },
           "404": {
             "description": "Peer not found"
+          }
+        }
+      }
+    },
+    "/apps": {
+      "get": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "listApps",
+        "summary": "List saved app shortcuts",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppShortcut"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or app not ready"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "registerApp",
+        "summary": "Save an app shortcut without executing its startup script",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppShortcutMutation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or app not ready"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppShortcutCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{id}": {
+      "get": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "getApp",
+        "summary": "Read an app shortcut",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppShortcut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or app not ready"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "updateApp",
+        "summary": "Update or archive an app shortcut using its current revision",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppShortcutMutation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or app not ready"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppShortcutEdit"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{id}/open": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "openApp",
+        "summary": "Ensure an app is running and return its saved destination",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppShortcut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or app not ready"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/apps/channels": {
+      "get": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "listAppNotificationChannels",
+        "summary": "List available destinations without exposing provider credentials",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppNotificationChannel"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing or invalid credential"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or work currently running"
+          }
+        }
+      }
+    },
+    "/apps/{id}/notifications": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "configureAppNotifications",
+        "summary": "Create or rotate a protected app-scoped backend notification credential",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppNotificationSetupResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing or invalid credential"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or work currently running"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppNotificationSetup"
+              }
+            }
+          }
+        },
+        "description": "Prepares a new hashed grant, atomically publishes its protected credential file, then retires old grants. Failed file publication retains working credentials. Startup reconciles interrupted rotation using the published file."
+      }
+    },
+    "/apps/{id}/notifications/token": {
+      "delete": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "revokeAppNotificationToken",
+        "summary": "Revoke app backend notification access",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "revoked"
+                  ],
+                  "properties": {
+                    "revoked": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing or invalid credential"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or work currently running"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/apps/{id}/notify": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "sendAppNotification",
+        "summary": "Send as this app through its saved destinations using its local app token",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "accepted"
+                  ],
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing or invalid credential"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or work currently running"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppNotificationMessage"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "appBearer": []
+          }
+        ],
+        "description": "Loopback only; browser Origin headers are rejected. eventId deduplicates successful delivery per destination, retaining the latest 1000 delivery receipts per app. A failed destination can retry using the same eventId. No recipient, URL or provider credential can be supplied."
+      }
+    },
+    "/apps/{id}/schedules": {
+      "get": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "listAppSchedules",
+        "summary": "Read saved schedules, next run times and outcomes",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppSchedule"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing or invalid credential"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or work currently running"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "saveAppSchedule",
+        "summary": "Create or update a durable app schedule using its current revision",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSchedule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing or invalid credential"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or work currently running"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppScheduleSpec"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{id}/schedules/{jobId}": {
+      "delete": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "deleteAppSchedule",
+        "summary": "Delete one saved schedule after any active run finishes",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "removed"
+                  ],
+                  "properties": {
+                    "removed": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing or invalid credential"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or work currently running"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/apps/{id}/publication/prepare": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "operationId": "prepareAppPublication",
+        "summary": "Validate a provider-independent publication plan; does not deploy or charge",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppPublication"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "App or project missing"
+          },
+          "409": {
+            "description": "Revision conflict or app not ready"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/integrations": {
+      "get": {
+        "operationId": "integrationsList",
+        "summary": "List messaging connections (credentials redacted)",
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Integration"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Owner authentication required"
+          },
+          "404": {
+            "description": "Connection or event not found"
+          },
+          "409": {
+            "description": "Revision conflict or operation unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "integrationCreate",
+        "summary": "Connect a bot to a messaging app",
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Owner authentication required"
+          },
+          "404": {
+            "description": "Connection or event not found"
+          },
+          "409": {
+            "description": "Revision conflict or operation unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationSpec"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integrations/{id}": {
+      "get": {
+        "operationId": "integrationGet",
+        "summary": "Get a redacted messaging connection",
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Owner authentication required"
+          },
+          "404": {
+            "description": "Connection or event not found"
+          },
+          "409": {
+            "description": "Revision conflict or operation unavailable"
+          }
+        }
+      },
+      "put": {
+        "operationId": "integrationUpdate",
+        "summary": "Replace connection configuration with a revision check",
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Owner authentication required"
+          },
+          "404": {
+            "description": "Connection or event not found"
+          },
+          "409": {
+            "description": "Revision conflict or operation unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationSpec"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "integrationDelete",
+        "summary": "Disconnect a messaging app",
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Owner authentication required"
+          },
+          "404": {
+            "description": "Connection or event not found"
+          },
+          "409": {
+            "description": "Revision conflict or operation unavailable"
+          }
+        }
+      }
+    },
+    "/integrations/{id}/send": {
+      "post": {
+        "operationId": "integrationSend",
+        "summary": "Send a message to the configured notification destination",
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Owner authentication required"
+          },
+          "404": {
+            "description": "Connection or event not found"
+          },
+          "409": {
+            "description": "Revision conflict or operation unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integrations/{id}/events": {
+      "get": {
+        "operationId": "integrationEvents",
+        "summary": "Latest 100 redacted delivery receipts",
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationReceipt"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Owner authentication required"
+          },
+          "404": {
+            "description": "Connection or event not found"
+          },
+          "409": {
+            "description": "Revision conflict or operation unavailable"
+          }
+        }
+      }
+    },
+    "/integrations/{id}/events/{eventId}/retry": {
+      "post": {
+        "operationId": "integrationRetry",
+        "summary": "Retry a failed delivery using its existing task receipt",
+        "tags": [
+          "Integrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Owner authentication required"
+          },
+          "404": {
+            "description": "Connection or event not found"
+          },
+          "409": {
+            "description": "Revision conflict or operation unavailable"
+          }
+        }
+      }
+    },
+    "/integrations/{id}/webhook": {
+      "post": {
+        "operationId": "integrationWebhook",
+        "summary": "Receive a provider-authenticated webhook",
+        "description": "No daemon bearer token. Validates Slack HMAC and timestamp, Discord Ed25519 and timestamp, Telegram secret-token header, or Microsoft Bot Connector JWT including issuer, audience, expiry, key endorsement and service URL. Durably queues accepted events before responding.",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Provider-specific acknowledgement or verification challenge"
+          },
+          "400": {
+            "description": "Malformed event"
+          },
+          "401": {
+            "description": "Invalid provider signature or authentication"
+          },
+          "403": {
+            "description": "Channel, sender or workspace not allowed"
+          },
+          "404": {
+            "description": "Unknown or disabled connection"
+          },
+          "413": {
+            "description": "Event exceeds 1 MiB"
+          },
+          "503": {
+            "description": "Queue full; provider should retry"
           }
         }
       }

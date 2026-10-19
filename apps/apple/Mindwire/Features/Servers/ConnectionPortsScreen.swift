@@ -90,11 +90,12 @@ struct ConnectionPortsScreen: View {
     }
 }
 
-private struct ForwardedWebPreview: UIViewRepresentable {
+struct ForwardedWebPreview: UIViewRepresentable {
     let url: URL
-    let connectionRevision: Int
+    var connectionRevision: Int = 0
     final class Coordinator {
         var revision: Int?
+        var destination: URL?
     }
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeUIView(context: Context) -> WKWebView {
@@ -102,13 +103,16 @@ private struct ForwardedWebPreview: UIViewRepresentable {
         web.allowsBackForwardNavigationGestures = true
         web.load(URLRequest(url: url))
         context.coordinator.revision = connectionRevision
+        context.coordinator.destination = url
         return web
     }
     func updateUIView(_ web: WKWebView, context: Context) {
-        if context.coordinator.revision != connectionRevision || web.url?.port != url.port {
-            let current = web.url.flatMap { $0.host == url.host && $0.port == url.port ? $0 : nil } ?? url
+        let changed = context.coordinator.destination != url
+        if changed || context.coordinator.revision != connectionRevision || web.url?.port != url.port {
+            let current = changed ? url : (web.url.flatMap { $0.host == url.host && $0.port == url.port ? $0 : nil } ?? url)
             web.load(URLRequest(url: current))
             context.coordinator.revision = connectionRevision
+            context.coordinator.destination = url
         }
     }
 }

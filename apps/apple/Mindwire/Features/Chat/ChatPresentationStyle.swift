@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// Explicit activity tint survives neutral toolbar and disclosure styling.
+/// Scope it to indicators so Cancel, Done and other native controls stay neutral.
+private struct ChatActivityTint: ViewModifier {
+    @Environment(\.chatAccent) private var accent
+
+    func body(content: Content) -> some View { content.tint(accent) }
+}
+
+extension View {
+    func chatActivityTint() -> some View { modifier(ChatActivityTint()) }
+}
+
 private struct DesktopMessengerKey: EnvironmentKey {
     static let defaultValue = false
 }
@@ -45,7 +57,7 @@ struct DesktopChatHeader<Actions: View>: View {
                     .accessibilityIdentifier("chat-title")
                 if computerName != nil || status != nil {
                     HStack(spacing: 5) {
-                        if status != nil { ProgressView().controlSize(.mini).tint(Palette.accent) }
+                        if status != nil { ProgressView().controlSize(.mini).chatActivityTint() }
                         Text([computerName, status].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                             .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                     }
@@ -147,6 +159,7 @@ struct ChatNavigationTitle: View {
                     .accessibilityIdentifier("chat-title")
                 if showsProgress {
                     ProgressView().controlSize(.mini)
+                        .chatActivityTint()
                         .frame(width: 12, height: 12)
                         .accessibilityLabel("Updating conversation")
                         .accessibilityIdentifier("chat-history-refreshing")
@@ -169,10 +182,11 @@ struct ChatNavigationTitle: View {
 
 private struct ChatHistoryProgressStyle: ProgressViewStyle {
     let agentType: AgentID?
+    @Environment(\.chatAccent) private var accent
 
     func makeBody(configuration: Configuration) -> some View {
         VStack(spacing: Spacing.md) {
-            AgentActivityGlyph(agentType: nil)
+            AgentActivityGlyph(agentType: nil, color: accent)
             configuration.label.font(.footnote).foregroundStyle(.secondary)
         }
     }

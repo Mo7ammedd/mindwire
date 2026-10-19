@@ -6,7 +6,6 @@ private struct ProjectCreationDestination: Identifiable {
 }
 
 private struct ProjectLibraryContents {
-    let allEntries: [ProjectListEntry]
     let entries: [ProjectListEntry]
     let folders: [ProjectFolder]
     let counts: [String: Int]
@@ -39,6 +38,7 @@ struct ProjectsScreen: View {
     private var library: ProjectLibrary { stores.projectLibrary }
     private var folder: ProjectFolder? { folderId.flatMap { library.folder($0) } }
     private var showsFolders: Bool { folderId == nil && library.view == .folders }
+    private var showsSignIn: Bool { workspaceId == nil && folderId == nil && repository.requiresSignIn }
 
     /// Sort once per update and count groups in one pass, rather than scanning the inventory
     /// for every folder row. No file, Git, or daemon reads are needed to build this list.
@@ -61,7 +61,7 @@ struct ProjectsScreen: View {
                 if parent == folderId { visible.append(entry) }
             } else if !showsFolders || parent == nil { visible.append(entry) }
         }
-        return .init(allEntries: all, entries: visible,
+        return .init(entries: visible,
                      folders: library.folders.filter { workspaceId == nil || counts[$0.id, default: 0] > 0 },
                      counts: counts, previews: previews)
     }
@@ -71,31 +71,31 @@ struct ProjectsScreen: View {
         let contents = contents
         let empty = contents.entries.isEmpty && (!showsFolders || contents.folders.isEmpty)
         GeometryReader { geometry in
-            if !empty && (library.layout == .grid || showsFolders) {
-                cards(contents)
+            if empty {
+                ScrollView {
+                    VStack(spacing: Spacing.lg) {
+                        Spacer(minLength: Spacing.xl)
+                        emptyState
+                        Spacer(minLength: Spacing.xl)
+                        if showsSignIn { signInFooter.padding(.bottom, Spacing.md) }
+                    }
+                    .frame(minHeight: geometry.size.height)
+                    .padding(.horizontal, Spacing.lg)
+                }
+                .background(Palette.bg)
+            } else if library.layout == .grid || showsFolders {
+                cards(contents, minimumHeight: geometry.size.height)
             } else {
                 List {
-                    if empty {
-                        emptyState
-                            .frame(minHeight: geometry.size.height)
-                            .listRowInsets(EdgeInsets())
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                    }
-                    if contents.allEntries.contains(where: { repository.requiresSignIn(for: $0.workspaceId) }) {
-                        Section {
-                            MindwireSignInRow(bodyKey: "projects.signIn.body") { showLogin = true }
-                        }
-                    }
                     if !contents.entries.isEmpty {
                         Section {
                             projectRows(contents)
                         }
                     }
+                    if showsSignIn { Section { signInFooter } }
                 }
                 .listStyle(.insetGrouped)
                 .listSectionSpacing(.compact)
-                .contentMargins(.vertical, empty ? 0 : nil, for: .scrollContent)
             }
         }
         .navigationTitle(folder?.name ?? t("tabs.projects"))
@@ -165,12 +165,14 @@ struct ProjectsScreen: View {
                         onMoveToFolder: { movingProject = $0 })
     }
 
-    private func cards(_ contents: ProjectLibraryContents) -> some View {
+    private var signInFooter: some View {
+        MindwireSignInRow(bodyKey: "projects.signIn.body") { showLogin = true }
+            .padding(.vertical, Spacing.sm)
+    }
+
+    private func cards(_ contents: ProjectLibraryContents, minimumHeight: CGFloat) -> some View {
         return ScrollView {
             VStack(alignment: .leading, spacing: Spacing.lg) {
-                if contents.allEntries.contains(where: { repository.requiresSignIn(for: $0.workspaceId) }) {
-                    MindwireSignInRow(bodyKey: "projects.signIn.body") { showLogin = true }
-                }
                 if showsFolders && !contents.folders.isEmpty {
                     cardLayout {
                         ForEach(contents.folders) { folder in
@@ -185,7 +187,12 @@ struct ProjectsScreen: View {
                     }
                     cardLayout { projectRows(contents, nativeListReordering: false) }
                 }
+                if showsSignIn {
+                    Spacer(minLength: 0)
+                    signInFooter
+                }
             }
+            .frame(minHeight: max(0, minimumHeight - Spacing.sm - Spacing.md), alignment: .top)
             .padding(.horizontal, Spacing.lg)
             .padding(.top, Spacing.sm)
             .padding(.bottom, Spacing.md)

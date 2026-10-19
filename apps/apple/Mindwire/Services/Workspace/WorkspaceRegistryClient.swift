@@ -45,6 +45,13 @@ enum WorkspaceRegistryError: LocalizedError {
 /// A workspace connection, independent of any saved agent or installed CLI.
 @MainActor
 protocol WorkspaceRegistryRemote: AnyObject {
+    var supportsApps: Bool { get }
+    var supportsIntegrations: Bool { get }
+    var supportsAppPublishing: Bool { get }
+    var supportsBotRebinding: Bool { get }
+    var supportsBotSkills: Bool { get }
+    var supportsWorkspaceBots: Bool { get }
+    func appsHTTP() async throws -> DaemonHTTP
     var supportsBots: Bool { get }
     func catalog() async throws -> DaemonCatalog
     func createBot(_ input: AssistantBotCreate) async throws -> AssistantBotMutation
@@ -70,6 +77,7 @@ protocol WorkspaceRegistryRemote: AnyObject {
     var supportsProjectOperations: Bool { get }
     var supportsProjectIcons: Bool { get }
     func projectIcon(_ id: String, path: String?) async throws -> ProjectIconData
+    func uploadProjectIcon(_ id: String, icon: ProjectIconData) async throws -> ProjectIconData
     func projectGitStatus(_ project: Project) async throws -> GitStatus?
     var supportsNotificationPreferences: Bool { get }
     func desktopHTTP() async throws -> DaemonHTTP
@@ -99,6 +107,13 @@ protocol WorkspaceRegistryRemote: AnyObject {
 }
 
 extension WorkspaceRegistryRemote {
+    var supportsApps: Bool { false }
+    var supportsIntegrations: Bool { false }
+    var supportsAppPublishing: Bool { false }
+    var supportsBotRebinding: Bool { false }
+    var supportsBotSkills: Bool { false }
+    var supportsWorkspaceBots: Bool { false }
+    func appsHTTP() async throws -> DaemonHTTP { throw WorkspaceRegistryError.updateRequired }
     var supportsBots: Bool { false }
     func catalog() async throws -> DaemonCatalog { throw WorkspaceRegistryError.updateRequired }
     func createBot(_ input: AssistantBotCreate) async throws -> AssistantBotMutation { throw WorkspaceRegistryError.botsUnavailable }
@@ -138,6 +153,7 @@ extension WorkspaceRegistryRemote {
     var supportsProjectOperations: Bool { false }
     var supportsProjectIcons: Bool { false }
     func projectIcon(_ id: String, path: String?) async throws -> ProjectIconData { throw WorkspaceRegistryError.projectIconsUnavailable }
+    func uploadProjectIcon(_ id: String, icon: ProjectIconData) async throws -> ProjectIconData { throw WorkspaceRegistryError.projectIconsUnavailable }
     func projectGitStatus(_ project: Project) async throws -> GitStatus? { nil }
     var supportsNotificationPreferences: Bool { false }
     func updateDaemon() async throws { throw WorkspaceRegistryError.updateRequired }
@@ -160,8 +176,16 @@ extension WorkspaceRegistryRemote {
 @MainActor
 final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
     private(set) var supportsBots = false
+    var supportsApps: Bool { appsVersion >= 1 }
+    var supportsIntegrations: Bool { integrationsVersion >= 1 }
+    var supportsAppPublishing: Bool { appsVersion >= 2 }
+    var supportsBotRebinding: Bool { botProfilesVersion >= 5 }
+    var supportsBotSkills: Bool { botProfilesVersion >= 6 }
+    var supportsWorkspaceBots: Bool { botProfilesVersion >= 8 }
     private var botIconsSupported = false
     private var botProfilesVersion = 0
+    private var appsVersion = 0
+    private var integrationsVersion = 0
     private var botNotificationsSupported = false
     var supportsProjectLibrary: Bool { projectLibraryVersion >= 1 }
     func projectLibrary() async throws -> DaemonProjectLibrary {
@@ -184,6 +208,7 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
     private var conversationBrowserVersion = 0
     private(set) var supportsProjectOperations = false
     private(set) var supportsProjectIcons = false
+    private var projectIconsVersion = 0
     private(set) var supportsNotificationPreferences = false
     private(set) var supportsAgentDiscovery = false
     private let workspace: Workspace
@@ -229,6 +254,7 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
         supportsNotificationPreferences = false
         supportsAgentDiscovery = false
         supportsProjectIcons = false
+        projectIconsVersion = 0
         _ = try await coordinator.join(daemonKey)
         var revision = coordinator.probeRevision(daemonKey)
         do {
@@ -269,6 +295,8 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
             supportsNotificationPreferences = (health.notificationPreferencesVersion ?? 0) >= 1
             supportsAgentDiscovery = (health.agentDiscoveryVersion ?? 0) >= 1
             supportsBots = (health.botsVersion ?? 0) >= 1
+            appsVersion = health.appsVersion ?? 0
+            integrationsVersion = health.integrationsVersion ?? 0
             botCreationSupported = (health.botsVersion ?? 0) >= 3
             botIconsSupported = (health.botsVersion ?? 0) >= 2
             botProfilesVersion = health.botsVersion ?? 0
@@ -277,6 +305,7 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
             supportsGitOperations = (health.gitOperationsVersion ?? 0) >= 1
             gitOperationsVersion = health.gitOperationsVersion ?? 0
             supportsProjectIcons = (health.projectIconsVersion ?? 0) >= 1
+            projectIconsVersion = health.projectIconsVersion ?? 0
             projectSyncVersion = health.projectSyncVersion ?? 0
             projectLibraryVersion = health.projectLibraryVersion ?? 0
             conversationBrowserVersion = health.conversationBrowserVersion ?? 0
@@ -613,7 +642,14 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
         return try await requiredHTTP.decode("POST", "/bots/ensure", json: ["agentId": agentId, "projectId": projectId])
     }
 
+    func appsHTTP() async throws -> DaemonHTTP {
+        guard appsVersion >= 1 else { throw BackendError.message("Update Mindwire on this computer to use Apps.") }
+        return try requiredHTTP
+    }
+
     func createBot(_ input: AssistantBotCreate) async throws -> AssistantBotMutation {
+        guard input.raw != true || botProfilesVersion >= 7 else { throw WorkspaceRegistryError.botsUnavailable }
+        guard input.skills == nil || supportsBotSkills else { throw WorkspaceRegistryError.botsUnavailable }
         guard botCreationSupported, botProfilesVersion >= AssistantBotIcon.minimumVersion(for: input.icon) else {
             throw WorkspaceRegistryError.botsUnavailable
         }
@@ -686,6 +722,8 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
     }
 
     func editBot(_ id: String, edit: AssistantBotEdit) async throws -> AssistantBotMutation {
+        guard edit.skills == nil || supportsBotSkills else { throw WorkspaceRegistryError.botsUnavailable }
+        guard edit.agentId == nil || supportsBotRebinding else { throw WorkspaceRegistryError.botsUnavailable }
         guard supportsBots else { throw WorkspaceRegistryError.botsUnavailable }
         guard edit.icon == nil || (botIconsSupported && botProfilesVersion >= AssistantBotIcon.minimumVersion(for: edit.icon)) else {
             throw WorkspaceRegistryError.botsUnavailable
@@ -725,6 +763,13 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
         let http = try requiredHTTP
         let query = path.map { "?path=\(http.encQuery($0))" } ?? ""
         return try await http.decode("GET", "/workspace/projects/\(http.encQuery(id))/icon\(query)", quiet: true)
+    }
+
+    func uploadProjectIcon(_ id: String, icon: ProjectIconData) async throws -> ProjectIconData {
+        guard projectIconsVersion >= 2 else { throw WorkspaceRegistryError.projectIconsUnavailable }
+        let http = try requiredHTTP
+        return try await http.decode("POST", "/workspace/projects/\(http.encQuery(id))/icon",
+            json: ["name": icon.path, "content": icon.content.base64EncodedString()], quiet: true)
     }
 
     func projectGitStatus(_ project: Project) async throws -> GitStatus? {

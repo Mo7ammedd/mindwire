@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Run the account portal by default. Agent runtime and website are explicit independent targets.
+// Run the landing site, account API and SaaS console by default. The agent runtime is an explicit target.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -10,7 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const daemonDir = resolve(root, "packages/daemon");
 
 const targets = process.argv.slice(2).filter(Boolean);
-if (targets.length === 0) targets.push("console");
+if (targets.length === 0) targets.push("console", "web");
 const available = new Set(["daemon", "console", "web"]);
 if (targets.some((target) => !available.has(target))) {
   console.error("Usage: bun dev [daemon] [console] [web]");
@@ -71,9 +71,17 @@ if (targets.includes("daemon")) {
 }
 if (targets.includes("console")) {
   console.log("[dev] account portal → http://127.0.0.1:5174");
-  run("console", "bun", ["--filter=@mindwire/console", "run", "dev"], { cwd: root, env: process.env });
+  run("console", "bun", ["run", "dev"], { cwd: resolve(root, "apps/console"), env: process.env });
 }
 if (targets.includes("web")) {
-  console.log(`[dev] docs site → http://localhost:3000`);
-  run("web", "bun", ["--filter=@mindwire/web", "run", "dev"], { cwd: root, env: process.env });
+  const webPort = process.env.WEB_PORT || "3000";
+  console.log(`[dev] landing + docs → http://localhost:${webPort}`);
+  run("web", "bun", ["run", "dev"], {
+    cwd: resolve(root, "apps/web"),
+    env: {
+      ...process.env,
+      PORT: webPort,
+      NEXT_PUBLIC_CONSOLE_URL: process.env.NEXT_PUBLIC_CONSOLE_URL || "http://127.0.0.1:5174",
+    },
+  });
 }

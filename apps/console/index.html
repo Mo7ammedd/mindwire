@@ -3,18 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark light" />
-    <!-- Set the theme class before first paint so there's no flash. Dark is the default (the console's
-         signature look); the toggle in the nav persists the choice to localStorage under "mw-theme". -->
+    <meta name="color-scheme" content="light dark" />
+    <!-- Set the theme class before first paint so there's no flash. Light matches the website by default; the toggle in the nav persists the choice to localStorage under "mw-theme". -->
     <script>
       (function () {
         try {
           var t = localStorage.getItem("mw-theme");
-          if (t !== "light" && t !== "dark") t = "dark";
+          if (t !== "light" && t !== "dark") t = "light";
           document.documentElement.classList.toggle("dark", t === "dark");
           document.documentElement.style.colorScheme = t;
         } catch (e) {
-          document.documentElement.classList.add("dark");
+          document.documentElement.style.colorScheme = "light";
         }
       })();
     </script>

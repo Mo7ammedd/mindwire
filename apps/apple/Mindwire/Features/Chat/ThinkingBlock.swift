@@ -28,7 +28,7 @@ struct ThinkingBlock: View {
                 if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let tokenLabel {
                     Text(tokenLabel).font(.caption).monospacedDigit()
                 }
-                if isLive { ProgressView().controlSize(.mini) }
+                if isLive { ProgressView().chatActivityTint().controlSize(.mini) }
             }
         }
     }

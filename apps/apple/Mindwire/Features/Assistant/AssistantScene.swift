@@ -7,10 +7,14 @@ struct AssistantScene: View {
     @Environment(AppModel.self) private var app
     @Environment(\.stores) private var stores
     @State private var showingSidebar = false
+    @State private var startingApp = false
     @State private var showingSettings = false
     @State private var settingsShowsAccount = false
     @State private var showingSetup = false
     @State private var showingBotCreation = false
+    @State private var showingChatPicker = false
+    @State private var pickedChat: Chat?
+    @State private var newChatBotID: String?
     @State private var createdBot: AssistantBot?
     @State private var helpWithCreatedBot = false
     @State private var started = false
@@ -45,14 +49,20 @@ struct AssistantScene: View {
             }
             #endif
         } sidebar: {
-            ChatHistorySheet(onOpenChat: { chat in app.openChat(chat.id) },
-                onNewChat: { showingSidebar = false; newChat() },
+            ChatHistorySheet(onOpenChat: { chat in app.assistantAppsVisible = false; app.openChat(chat.id) },
+                onNewChat: { app.assistantAppsVisible = false; showingSidebar = false; newChat() },
                 onSettings: { openSettings(account: false) },
                 onAccount: { openSettings(account: true) },
                 onCloseSidebar: { showingSidebar = false },
                 onNewBot: { showingSidebar = false; showingBotCreation = true },
-                onNewBotChat: { bot in showingSidebar = false; newChat(bot: bot) },
-                onEditBot: { bot in talkToMindwire(for: bot) })
+                onNewBotChat: { bot in
+                    app.assistantAppsVisible = false; showingSidebar = false
+                    if stores.experience.mode == .developer { newChatBotID = bot.id; showingChatPicker = true }
+                    else { newChat(bot: bot) }
+                },
+                onEditBot: { bot in app.assistantAppsVisible = false; talkToMindwire(for: bot) },
+                onApps: app.usesAssistant ? { app.assistantAppsVisible = true; showingSidebar = false } : nil,
+                appsSelected: app.assistantAppsVisible)
         }
         #if targetEnvironment(macCatalyst)
         .overlay(alignment: .topLeading) {
@@ -64,6 +74,14 @@ struct AssistantScene: View {
         #endif
         .environment(\.desktopMessenger, ApplePlatform.isDesktop)
         .modifier(AssistantDesktopWindow())
+        .sheet(isPresented: $showingChatPicker, onDismiss: {
+            newChatBotID = nil
+            if let chat = pickedChat { pickedChat = nil; app.openChat(chat.id) }
+        }) {
+            ChatAgentPicker(initialBotId: newChatBotID ?? selectedBot?.id, initialWorkspaceId: defaultWorkspaceID, repository: repository) { chat in
+                pickedChat = chat; showingChatPicker = false
+            }
+        }
         .sheet(isPresented: $showingBotCreation, onDismiss: {
             guard let bot = createdBot else { return }
             createdBot = nil
@@ -140,6 +158,7 @@ struct AssistantScene: View {
         } message: { Text("Your file edits haven’t been saved.") }
         #endif
         .onChange(of: app.assistantChatID) { _, id in
+            app.assistantAppsVisible = false
             selectedChatWasPresent = id.flatMap(stores.chats.get) != nil
             if let botId = id.flatMap(stores.chats.get)?.botId { app.assistantBotID = botId }
         }
@@ -170,7 +189,9 @@ struct AssistantScene: View {
 
     @ViewBuilder private var conversation: some View {
                 Group {
-                    if let id = app.assistantChatID {
+                    if app.assistantAppsVisible && app.usesAssistant {
+                        AppsCatalogScreen(onCreate: startAppBuilder, creating: startingApp)
+                    } else if let id = app.assistantChatID {
                         #if targetEnvironment(macCatalyst)
                         if stores.chats.get(id) != nil { ChatScreen(chatId: id).id(id) }
                         else { desktopUnavailableConversation }
@@ -326,8 +347,7 @@ struct AssistantScene: View {
 
     private func hasContext(_ bot: AssistantBot) -> Bool {
         !bot.archived && repository.get(bot.workspaceId) != nil &&
-            stores.agents.get(bot.agentId)?.workspaceId == bot.workspaceId &&
-            stores.projects.get(bot.projectId)?.workspaceId == bot.workspaceId
+            stores.agents.get(bot.agentId)?.workspaceId == bot.workspaceId
     }
     #endif
 
@@ -378,16 +398,39 @@ struct AssistantScene: View {
         newChat(bot: bot, configure: true)
     }
 
-    private func newChat() { newChat(bot: nil) }
+    private func newChat() {
+        if stores.experience.mode == .developer { showingChatPicker = true }
+        else { newChat(bot: nil) }
+    }
+
+    private func startAppBuilder() {
+        guard !startingApp else { return }
+        guard let agent = stores.experience.assistantAgentID.flatMap(stores.agents.get),
+              let workspaceID = agent.workspaceId,
+              let projectID = stores.experience.projectIDs[workspaceID] else {
+            app.assistantAppsVisible = false
+            newChat()
+            return
+        }
+        startingApp = true
+        Task {
+            defer { startingApp = false }
+            do {
+                _ = try await stores.workspaceData.appAutomationHTTP(workspaceId: workspaceID)
+                let master = try await stores.workspaceData.ensureGeneralBots(agentId: agent.id, projectId: projectID)
+                let builder = stores.bots.list().first(where: { $0.isAppBuilder && $0.projectId == projectID && !$0.archived }) ?? master
+                app.assistantAppsVisible = false
+                newChat(bot: builder)
+            } catch { if !error.isRequestCancellation { self.error = error.localizedDescription } }
+        }
+    }
 
     private func newChat(bot requestedBot: AssistantBot?, configure: Bool = false) {
         guard !creating else { return }
         let chosenBot = requestedBot ?? selectedBot
         guard let agent = (chosenBot?.agentId ?? stores.experience.assistantAgentID).flatMap(stores.agents.get),
               let workspaceID = agent.workspaceId,
-              repository.get(workspaceID) != nil,
-              let projectID = chosenBot?.projectId ?? stores.experience.projectIDs[workspaceID],
-              let project = stores.projects.get(projectID), project.workspaceId == workspaceID else {
+              repository.get(workspaceID) != nil else {
             #if targetEnvironment(macCatalyst)
             if desktopStartup.bot == nil { retryDesktop() }
             else { error = WorkspaceRegistryError.missing.localizedDescription }
@@ -404,11 +447,17 @@ struct AssistantScene: View {
             do {
                 let bot: AssistantBot
                 if let chosenBot { bot = chosenBot }
-                else { bot = try await stores.workspaceData.ensureGeneralBots(agentId: agent.id, projectId: project.id) }
+                else {
+                    let project: Project
+                    if let id = stores.experience.projectIDs[workspaceID], let saved = stores.projects.get(id), saved.workspaceId == workspaceID {
+                        project = saved
+                    } else { project = try await AssistantContext.prepare(agent: agent, stores: stores) }
+                    bot = try await stores.workspaceData.ensureGeneralBots(agentId: agent.id, projectId: project.id)
+                }
                 let chat: Chat
                 if configure { chat = try await BotConversationActions.configurationChat(for: bot, stores: stores) }
                 else { chat = try await BotConversationActions.createChat(for: bot, stores: stores) }
-                guard !Task.isCancelled, app.usesAssistant, app.assistantChatID == previousChatID,
+                guard !Task.isCancelled, app.usesAssistant || app.selectedTab == .agents, app.assistantChatID == previousChatID,
                       app.assistantBotID == previousBotID else { return }
                 app.openChat(chat.id)
             } catch {

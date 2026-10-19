@@ -1,0 +1,277 @@
+---
+title: Messaging integrations
+description: Connect a bot to Slack, Microsoft Teams, Discord, or Telegram for streamed chat, commands, triggers, and notifications.
+---
+
+Connect a saved Mindwire bot to the messaging apps you already use. Connections run on the bot's
+computer and keep working when the Mindwire app is closed. The same configuration is available
+in the app, TypeScript SDK, Go SDK, and REST API.
+
+Open a bot's settings, choose **Integrations**, then add a connection. Enter the app's bot
+credentials and allowed channels, save, and copy the webhook path from the connection. Configure
+the messaging app to send events to your computer's public HTTPS address followed by that path.
+**Send test message** checks outbound access; **Delivery activity** shows incoming task receipts
+and lets you retry failures.
+
+Check `health.integrationsVersion >= 1` before using these endpoints. Upgrade older daemons
+from the computer's settings.
+
+## Choose a mode
+
+| Mode | Incoming messages | Conversation context |
+| --- | --- | --- |
+| `chat` | Messages start bot turns; replies update as text arrives | Continued per connection, workspace, channel, thread, and sender |
+| `commands` | Only the configured slash command starts work | Continued in the same scope |
+| `trigger` | Each incoming message starts a separate task | A new conversation for each event |
+| `notifications` | Incoming messages never start bot turns | Outbound delivery only |
+
+`notify: true` additionally forwards this bot's lifecycle notifications to `destination`, which
+defaults to the first allowed channel. `conditions` can select `finished`, `error`,
+`waiting_approval`, `waiting_feedback`, or `waiting_input`; omit it to receive all conditions.
+Direct calls to `send()` work independently of this subscription.
+
+Slack, Telegram, and Teams accept normal text messages. Discord uses an HTTP slash command:
+send `/mindwire message:your question`, then continue with the same command in that channel or
+thread. Discord Gateway message ingestion is not part of this transport. Replies stream through
+message edits in all four apps. Only visible assistant text and a pending-interaction notice
+are forwarded; internal thinking and tool inputs are not copied into channels.
+
+Channel messages are visible to members of that channel. Sender isolation keeps each person's
+bot context separate; it does not make a public channel private. Slack direct messages retain
+one conversation per sender, and channel replies retain their original thread.
+
+## Connect with TypeScript
+
+```ts
+import { Mindwire, remote } from "mindwire";
+
+const mw = new Mindwire({
+  target: remote("https://computer.example.com", {
+    token: process.env.MINDWIRE_TOKEN!,
+  }),
+});
+
+const connection = await mw.integrations.create({
+  name: "Team assistant",
+  provider: "slack",
+  botId: "your-saved-bot-id",
+  mode: "chat",
+  enabled: true,
+  notify: false,
+  workspaceId: "T0123456789",
+  channelIds: ["C0123456789"],
+  userIds: ["U0123456789"], // Optional additional restriction
+  credentials: {
+    botToken: process.env.SLACK_BOT_TOKEN!,
+    signingSecret: process.env.SLACK_SIGNING_SECRET!,
+  },
+});
+
+console.log(connection.webhookPath);
+await mw.integrations.send(connection.id, "Your assistant is connected.");
+```
+
+Credentials are write-only. List, get, update responses, workspace snapshots, project copies,
+and delivery receipts do not return them. The daemon stores connection credentials in its private
+workspace database; protect the computer and its backups as you do other bot credentials.
+
+Update using the latest revision. Omit `credentials` to retain saved values, or include changed
+credential fields to rotate them. Connection provider and bot are fixed; create another
+connection to change either.
+
+```ts
+const current = await mw.integrations.get(connection.id);
+await mw.integrations.update(current.id, {
+  ...current,
+  expectedRevision: current.revision,
+  notify: true,
+  conditions: ["finished", "error"],
+});
+
+const events = await mw.integrations.events(connection.id);
+const failed = events.find((event) => event.state === "failed");
+if (failed) await mw.integrations.retry(connection.id, failed.id);
+
+// Disconnect: revokes new input and subsequent output, retaining native chats.
+await mw.integrations.delete(connection.id);
+```
+
+## Provider setup
+
+All providers need a public HTTPS webhook URL. Publish only
+`POST /integrations/{id}/webhook` through your reverse proxy or tunnel. Keep the daemon's
+management API authenticated. The webhook independently verifies the provider; the daemon owner
+token is not a substitute for a valid provider signature.
+
+### Slack
+
+1. Create a Slack app, add a bot, and install it in the workspace. Give it `chat:write` and
+   the history or mention scopes required by the events you subscribe to. Invite it to allowed channels.
+2. Save `provider: "slack"`, the Slack team ID as `workspaceId`, allowed channel IDs, and
+   `credentials.botToken` plus `credentials.signingSecret`.
+3. Enable Events API subscriptions at the connection's HTTPS webhook URL. Mindwire answers
+   the signed URL verification challenge. Subscribe to `app_mention` for mentions and
+   `message.im` for direct messages. Subscribe to `message.channels` or `message.groups` if
+   you want all messages in allowed channels; grant the matching Slack history scopes.
+4. For commands, register `/mindwire` (or your configured `command`) with the same request URL.
+
+Slack retries are deduplicated. Bot messages, edited-message subtypes, and duplicate mention/message
+events for the same message are ignored. Slack's request signature and five-minute timestamp
+window are verified before parsing or acknowledging the event.
+
+See [Slack request verification](https://docs.slack.dev/authentication/verifying-requests-from-slack/)
+and [Events API](https://docs.slack.dev/apis/events-api/).
+
+### Telegram
+
+1. Create a bot with BotFather and obtain its token. Add the bot to your chat or group.
+2. Save `provider: "telegram"`, allowed numeric chat IDs as strings, `credentials.botToken`,
+   and a random `credentials.webhookSecret` containing 16–256 letters, digits, underscores, or hyphens.
+   Group chat IDs can be negative. Optional `userIds` contain numeric Telegram user IDs as strings.
+3. Call Telegram's `setWebhook` method with the connection's public HTTPS URL and the same
+   `secret_token`. Select `allowed_updates: ["message"]`.
+4. For complete group chat input, configure BotFather's privacy setting for the bot. Otherwise,
+   Telegram may deliver only commands and replies. Forum topics remain separate conversations.
+
+```ts
+await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/setWebhook`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    url: `https://computer.example.com${connection.webhookPath}`,
+    secret_token: process.env.TELEGRAM_WEBHOOK_SECRET,
+    allowed_updates: ["message"],
+  }),
+});
+```
+
+Mindwire validates `X-Telegram-Bot-Api-Secret-Token`, deduplicates `update_id`, and ignores bot
+messages. Edited messages, attachments, and service messages do not start text tasks.
+See the [Telegram Bot API](https://core.telegram.org/bots/api#setwebhook).
+
+### Discord
+
+1. Create an application and bot in the Discord developer portal. Install it in your server
+   with `bot` and `applications.commands` scopes, and grant access to allowed channels.
+2. Save `provider: "discord"`, the server ID as `workspaceId`, `applicationId`, allowed
+   channel or thread IDs, `credentials.botToken`, and the application's hex `credentials.publicKey`.
+3. Set the application's **Interactions Endpoint URL** to the connection's public webhook URL.
+   Mindwire validates the Ed25519 signature and answers Discord's ping.
+4. Register a chat-input command named `mindwire` with one string option named `message`.
+   Make that option optional to show help when the command has no text. A different command
+   name must match the connection's `command` without its leading slash.
+
+Mindwire acknowledges accepted interactions immediately with a deferred response, then edits
+the original response as the bot streams. Subsequent chunks use interaction follow-ups. Discord
+interaction tokens expire after 15 minutes; if a task outlives that window, delivery activity
+reports the failure and the native task remains available in Mindwire. Ordinary channel messages
+are not consumed by this HTTP transport.
+See [Discord interactions](https://docs.discord.com/developers/interactions/receiving-and-responding).
+
+### Microsoft Teams
+
+1. Register a Microsoft Entra application and Azure Bot resource for your tenant, enable the
+   Teams channel, and install the bot in Teams.
+2. Save `provider: "teams"`, the tenant ID as `workspaceId`, the app's `applicationId`,
+   `credentials.clientSecret`, and allowed Teams conversation IDs.
+3. Set `serviceUrl` to the exact connector URL from a trusted Teams activity, such as
+   `https://smba.trafficmanager.net/emea/`. The configured URL must be HTTPS on a supported
+   Microsoft Teams connector host. Set `destination` to a conversation in `channelIds`.
+4. Set the Azure Bot messaging endpoint to the connection's public webhook URL.
+
+This adapter uses tenant-scoped client credentials for outbound Bot Connector requests and
+validates inbound Microsoft RS256 JWTs, audience, issuer, lifetime, signing-key endorsement,
+tenant, and signed service URL. It caches signing keys and outbound tokens. Sovereign clouds,
+Emulator authentication, managed identities, and multi-tenant app registrations need a separate
+adapter configuration; they are not covered by this connector.
+See [Microsoft Bot Connector authentication](https://learn.microsoft.com/en-us/azure/bot-service/rest-api/bot-framework-rest-connector-authentication?view=azure-bot-service-4.0).
+
+## Commands and approvals
+
+Use the configured slash command followed by:
+
+| Text | Action |
+| --- | --- |
+| `ask <message>` or any question | Start or continue a bot turn |
+| `status` | Show this conversation's latest task state |
+| `stop` | Request cancellation of its latest task |
+| `reset` | Start a fresh conversation on the next message |
+| `help` | Show available commands |
+
+For example, Slack and Telegram accept `/mindwire ask summarize the changes`. Discord accepts
+`/mindwire message:status`. In Teams, send `/mindwire status` as message text.
+
+The connected bot keeps its saved instructions, knowledge, engine, project, permissions, and
+native conversation history. Tool approvals and questions remain in Mindwire. A channel notice
+directs you to the app when a response is required; sending text does not grant an approval.
+`stop` and `status` remain available while a reply is streaming. A reset leaves existing work
+running; use `stop` first if you want to cancel it.
+
+## Apps and scheduled notifications
+
+Enabled connections appear in `mw.apps.channels()` as `integration:<connection-id>`. Select one
+in an app's notification settings or configure it through the existing app API:
+
+```ts
+await mw.apps.notifications(appId, {
+  channelIds: [`integration:${connection.id}`],
+});
+```
+
+The app keeps its existing send-only credential, recipient restrictions, mute preference,
+rate limit, and per-destination delivery receipts. App schedules use the same destinations.
+The app never receives the messaging provider's bot token.
+
+## Embedded Go hosts
+
+```go
+client, err := mindwire.New(mindwire.Options{
+    CWD: "/workspace",
+    StatePath: "/private/mindwire/state.json",
+    RunIntegrations: true,
+})
+if err != nil { log.Fatal(err) }
+defer client.Close()
+
+connections, err := client.Integrations.List()
+if err != nil { log.Fatal(err) }
+_ = connections
+
+mux := http.NewServeMux()
+mux.HandleFunc("POST /integrations/{id}/webhook", client.Integrations.Webhook)
+```
+
+Embedded hosts opt into queue processing with `RunIntegrations: true` or
+`client.Integrations.Start()`. The standalone daemon starts it automatically. Only one runtime
+should own a state directory. `Client.WithAgent()` shares the same connection service.
+
+## Delivery behavior and limits
+
+Incoming work is durably queued before acknowledgement. Native request IDs prevent an event
+retry from starting another turn. Replies use the existing event hub and coalesce updates
+roughly every 1.2 seconds, avoiding a provider request for every token. Final output is split
+into bounded text messages without breaking Unicode characters. Provider rate limits receive
+bounded retries; failed receipts can be retried through the app or SDK.
+
+A daemon supports up to 64 connections, 100 allowed channels and users per connection,
+256 pending events, and eight active conversations, with separate capacity for control commands.
+Each sender's turns are serialized within their channel/thread. Completed and failed receipts
+are retained for 30 days and pruned on startup; native chat retention is independent.
+
+Delivery across a process crash is at least once: a provider can accept a message immediately
+before the daemon saves its returned message ID. That narrow window can duplicate an outgoing
+message. Bot execution still uses the native durable request receipt. Disabled or deleted
+connections reject new events and stop subsequent sends; already accepted bot work continues
+under its existing permissions.
+
+## Validation
+
+`go -C packages/daemon test -race ./internal/integrations` exercises all four provider protocols
+with signed fixtures, sender/channel access checks, mode selection, replay deduplication,
+conversation isolation, retry, and restart recovery.
+
+`go -C packages/daemon test -race ./internal/api -run TestIntegrationsTypeScriptSDKEndToEnd`
+uses Bun to drive the actual TypeScript SDK through authenticated HTTP, the registry, signed
+Slack ingress, the real bot supervisor, streamed output, and a simulated provider endpoint.
+It needs Bun installed. These tests use deterministic provider and harness fixtures; live
+Slack, Telegram, Teams, and Discord credentials are not required.

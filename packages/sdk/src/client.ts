@@ -3,6 +3,8 @@ import { readSSE } from "./sse.js";
 import { Run } from "./run.js";
 import { WorkspaceApi, type ProjectAuth } from "./workspace.js";
 import { BotsApi } from "./bots.js";
+import { AppsApi } from "./apps.js";
+import { IntegrationsApi } from "./integrations.js";
 import { SurfacesApi } from "./surfaces.js";
 import { ServiceApi } from "./service.js";
 import { ExecutionApi } from "./execution.js";
@@ -127,6 +129,8 @@ export class Mindwire {
   /** Workspace registry: saved agent profiles, projects and chat relationships. */
   readonly workspace: WorkspaceApi;
   readonly bots: BotsApi;
+  readonly apps: AppsApi;
+  readonly integrations: IntegrationsApi;
   readonly surfaces: SurfacesApi;
   readonly service: ServiceApi;
   readonly execution: ExecutionApi;
@@ -173,6 +177,8 @@ export class Mindwire {
     this.defaultAgent = opts.agent;
     this.workspace = new WorkspaceApi(this);
     this.bots = new BotsApi(this);
+    this.apps = new AppsApi(this);
+    this.integrations = new IntegrationsApi(this);
     this.surfaces = new SurfacesApi(this);
     this.service = new ServiceApi(this);
     this.execution = new ExecutionApi(this);
@@ -203,6 +209,8 @@ export class Mindwire {
     clone.defaultAgent = agent;
     clone.workspace = new WorkspaceApi(clone as Mindwire);
     clone.bots = new BotsApi(clone as Mindwire);
+    clone.apps = new AppsApi(clone as Mindwire);
+    clone.integrations = new IntegrationsApi(clone as Mindwire);
     clone.surfaces = new SurfacesApi(clone as Mindwire);
     clone.service = new ServiceApi(clone as Mindwire);
     clone.execution = new ExecutionApi(clone as Mindwire);

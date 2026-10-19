@@ -40,6 +40,7 @@ struct AgentSettingsScreen: View {
                 ServiceUpdateInfoSheet(workspace: workspace)
             }
         }
+        .frame(width: ApplePlatform.isDesktop ? 620 : nil, height: ApplePlatform.isDesktop ? 680 : nil)
     }
 
     @ViewBuilder
@@ -76,6 +77,14 @@ struct AgentSettingsScreen: View {
             Section(t("agentSettings.section.identity")) {
                 TextField(t("agentSettings.row.name"), text: $model.name, prompt: Text(agent.displayName))
                     .textInputAutocapitalization(.words)
+                if let id = agent.workspaceId, let computer = WorkspaceRepository.shared.get(id) {
+                    LabeledContent {
+                        Text(computer.runtime.isLocal && ApplePlatform.isDesktop ? "This Mac" : computer.name)
+                            .foregroundStyle(.secondary)
+                    } label: {
+                        Label(t("bots.create.computer"), icon: computer.runtime.isCloud ? .cloud : .laptop)
+                    }
+                }
             }
 
             if let auth { AgentAuthSection(model: auth) }

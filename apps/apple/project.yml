@@ -67,6 +67,11 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: Mindwire
+        excludes:
+          - Resources/BotSkills
+      - path: Mindwire/Resources/BotSkills
+        type: folder
+        buildPhase: resources
       - path: scripts/mindwire-cli.sh
         buildPhase: resources
     dependencies:
@@ -184,6 +189,7 @@ targets:
       - path: Mindwire/Resources/Assets.xcassets
       - path: Mindwire/Models/AgentBrand.swift
       - path: Mindwire/DesignSystem/BotPalette.swift
+      - path: Mindwire/DesignSystem/SavedAppIcon.swift
       - path: Mindwire/Features/Assistant/AssistantBotAvatar.swift
       - path: Mindwire/Localization/Strings.swift
       - path: Mindwire/Services/Notifications/CommunicationNotification.swift

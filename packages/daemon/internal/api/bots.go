@@ -122,8 +122,9 @@ func (a *API) botChatCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		ChatID string `json:"chatId"`
-		Title  string `json:"title"`
+		ChatID    string `json:"chatId"`
+		Title     string `json:"title"`
+		ProjectID string `json:"projectId,omitempty"`
 	}
 	if err := decode(w, r, &input); err != nil {
 		badRequest(w, "invalid chat")
@@ -131,7 +132,7 @@ func (a *API) botChatCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	a.registryMu.Lock()
 	defer a.registryMu.Unlock()
-	chat, err := a.registry.CreateBotChat(r.PathValue("id"), input.ChatID, input.Title)
+	chat, err := a.registry.CreateBotChat(r.PathValue("id"), input.ChatID, input.Title, input.ProjectID)
 	if err != nil {
 		workspaceError(w, err)
 		return

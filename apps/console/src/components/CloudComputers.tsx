@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, Cpu, Loader2, Monitor, Plus } from "lucide-react";
 import type { CloudComputer, ComputerPlan } from "@shared/cloud";
 import { useCloud, computerState } from "@/lib/cloud";
+import { AccountArtwork } from "./AccountArtwork";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,9 +20,9 @@ export function ComputerRow({ computer }: { computer: CloudComputer }) {
   return (
     <Link
       to={`/computers/${computer.id}`}
-      className="group flex flex-wrap items-center gap-4 border-b border-border p-5 transition-colors last:border-0 hover:bg-accent/40"
+      className="group flex flex-wrap items-center gap-4 border-b border-border/60 p-5 transition-colors last:border-0 hover:bg-secondary"
     >
-      <span className="grid size-11 shrink-0 place-items-center bg-secondary">
+      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[var(--mw-blue-soft)] text-[var(--mw-blue)]">
         <Monitor className="size-5" />
       </span>
       <div className="min-w-0 flex-1">
@@ -32,7 +33,7 @@ export function ComputerRow({ computer }: { computer: CloudComputer }) {
           storage
         </p>
       </div>
-      <span className="text-xs text-muted-foreground">
+      <span className="rounded-full bg-secondary px-3 py-1.5 text-xs text-muted-foreground">
         {computerState(computer)}
       </span>
       <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
@@ -71,7 +72,7 @@ export function CloudComputers() {
         }
       />
       {!cloud.loaded ? (
-        <Loading />
+        cloud.error ? null : <Loading />
       ) : cloud.computers.length ? (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -82,12 +83,10 @@ export function CloudComputers() {
         </Card>
       ) : (
         <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-            <span className="grid size-14 place-items-center bg-secondary">
-              <Monitor className="size-6" />
-            </span>
+          <CardContent className="flex flex-col items-center gap-4 px-6 py-8 text-center">
+            <AccountArtwork className="w-full max-w-[290px]" />
             <div>
-              <h2 className="font-medium">
+              <h2 className="text-2xl font-medium tracking-tight">
                 Your next computer, ready when you are
               </h2>
               <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -120,13 +119,14 @@ export function PlanCards({
 }) {
   const { catalog } = useCloud();
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {catalog?.plans.map((plan) => (
+    <div className="grid gap-4 min-[700px]:grid-cols-3">
+      {catalog?.plans.map((plan, index) => (
         <Card
           key={plan.id}
-          className={selected === plan.id ? "border-foreground" : ""}
+          style={{ background: `var(--mw-${["peach", "blue", "mint"][index % 3]}-soft)` }}
+          className={selected === plan.id ? "ring-2 ring-foreground ring-offset-4 ring-offset-background" : ""}
         >
-          <CardContent className="space-y-5 p-5">
+          <CardContent className="space-y-6 p-6">
             <div className="flex items-center justify-between">
               <h3 className="font-medium">{plan.name}</h3>
               {selected === plan.id ? (
@@ -135,7 +135,7 @@ export function PlanCards({
                 <Cpu className="size-4 text-muted-foreground" />
               )}
             </div>
-            <p className="text-3xl font-semibold tracking-tight">
+            <p className="text-4xl font-medium tracking-tight">
               {money(plan.monthlyCents)}
               <span className="ml-1 text-sm font-normal text-muted-foreground">
                 /month
@@ -151,6 +151,7 @@ export function PlanCards({
                 type="button"
                 variant={selected === plan.id ? "default" : "outline"}
                 className="w-full"
+                aria-pressed={selected === plan.id}
                 onClick={() => onSelect(plan.id)}
               >
                 {selected === plan.id ? "Selected" : `Choose ${plan.name}`}
@@ -244,7 +245,7 @@ export function NewComputer() {
         <ErrorNotice message={error} retry={() => setRetry((n) => n + 1)} />
       )}
       {!cloud.loaded || loadingImages ? (
-        <Loading />
+        cloud.error && !cloud.loaded ? null : <Loading />
       ) : !cloud.catalog?.available ? (
         <ErrorNotice
           message="Cloud Computer purchases are not enabled yet. Your existing account and personal computers remain available."
@@ -252,7 +253,7 @@ export function NewComputer() {
         />
       ) : (
         <form onSubmit={submit} className="space-y-7">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="grid gap-6 min-[1500px]:grid-cols-[minmax(0,1fr)_19rem]">
             <div className="space-y-7">
               <Card>
                 <CardContent className="grid gap-5 p-6 sm:grid-cols-2">
@@ -271,7 +272,7 @@ export function NewComputer() {
                   <label className="space-y-2 text-sm">
                     <span>Operating system</span>
                     <select
-                      className="h-9 w-full border border-input bg-background px-3"
+                      className="h-11 w-full rounded-xl border border-transparent bg-secondary px-3"
                       aria-label="Operating system"
                       value={image}
                       onChange={(e) => {
@@ -305,7 +306,7 @@ export function NewComputer() {
             <aside>
               <Card>
                 <CardContent className="space-y-5 p-6">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <p className="text-sm font-medium text-muted-foreground">
                     Your computer
                   </p>
                   <p className="text-lg font-medium">
@@ -379,6 +380,7 @@ export function Billing() {
         description="One subscription per Cloud Computer. Your personal computers and Mindwire account stay free."
       />
       {error && <ErrorNotice message={error} />}
+      {cloud.loaded && !cloud.computers.length && <Card><CardContent className="flex flex-wrap items-center justify-between gap-5 p-6"><div><p className="text-base font-medium">Your own computer. Always free.</p><p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">You have no Cloud subscriptions. Use Mindwire with your Mac or a server you already own, and add a Cloud Computer whenever you need one.</p></div><Button asChild variant="outline"><a href="https://mindwire.sh/download">Get Mindwire<ArrowRight /></a></Button></CardContent></Card>}
       {!!cloud.computers.length && (
         <section className="space-y-4">
           <h2 className="text-sm font-medium">Your subscriptions</h2>
@@ -452,7 +454,7 @@ export function Billing() {
         </section>
       )}
       {!cloud.loaded ? (
-        <Loading />
+        cloud.error ? null : <Loading />
       ) : (
         <section className="space-y-4">
           <h2 className="text-sm font-medium">Choose a Cloud Computer</h2>

@@ -23,9 +23,14 @@ struct ToolCallCard: View {
     }
 
     @ViewBuilder var body: some View {
-        if experienceMode == .general, call.isError != true, isBotTool,
-           let result = AssistantBotToolResult.parse(call.output) {
-            AssistantBotToolContent(result: result, workspaceId: workspaceId)
+        if experienceMode == .general, let result = call.mindwireCard {
+            switch result {
+            case .app(let shortcut): AppShortcutChatCard(shortcut: shortcut, workspaceId: workspaceId)
+            case .bot(let bot): AssistantBotToolContent(result: bot, workspaceId: workspaceId)
+            case .publish(let request): AppPublishChatCard(shortcut: request.app, workspaceId: workspaceId)
+            }
+        } else if experienceMode == .general {
+            GeneralToolStep(call: call, isRunning: isRunning)
         } else { toolCard }
     }
 
@@ -81,7 +86,7 @@ struct ToolCallCard: View {
                     AppIcon(.warning, size: ChatContentStyle.iconSize).foregroundStyle(Palette.danger)
                         .accessibilityLabel(t("chat.tool.failed"))
                 } else if isRunning {
-                    ProgressView().controlSize(.mini).accessibilityLabel(t("chat.running"))
+                    ProgressView().chatActivityTint().controlSize(.mini).accessibilityLabel(t("chat.running"))
                 } else if let ms = durationMs, ms >= 500 {
                     Text("\(max(1, ms / 1000))s").font(.caption).foregroundStyle(.secondary)
                         .monospacedDigit().fixedSize()
@@ -95,11 +100,6 @@ struct ToolCallCard: View {
         .tint(.secondary)
         .disclosureGroupStyle(ChatToolDisclosureStyle(identifier: "chat.tool.\(call.id)"))
         .sheet(item: $selectedOutput) { document in ToolOutputSheet(document: document) }
-    }
-
-    private var isBotTool: Bool {
-        call.action?.mcp?.server == "mindwire_bots" || call.name?.hasPrefix("mcp__mindwire_bots__") == true
-            || call.action?.shell?.command?.contains("--bot-tool") == true
     }
 
     // MARK: - Content

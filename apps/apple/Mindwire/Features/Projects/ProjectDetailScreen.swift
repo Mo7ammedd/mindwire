@@ -35,10 +35,11 @@ struct ProjectDetailScreen: View {
     @State private var desktopTool: ProjectTool? = .files
     @State private var visitedDesktopTools: Set<ProjectTool> = [.files]
     @State private var desktopChatID: String?
+    @State private var pendingChat: Chat?
 
 
     /// One sheet driver — multiple `.sheet(isPresented:)` on one view don't reliably coexist.
-    private enum ProjectSheet: Int, Identifiable { case newAgent, chats, files, sourceControl, icon, transfer, desktop; var id: Int { rawValue } }
+    private enum ProjectSheet: Int, Identifiable { case newChat, chats, files, sourceControl, icon, transfer, desktop; var id: Int { rawValue } }
 
     private var gitChangeCount: Int { project.flatMap { stores.projectPresentation.git(for: $0)?.changedFiles } ?? 0 }
     private var gitCountLoading: Bool {
@@ -146,6 +147,7 @@ struct ProjectDetailScreen: View {
         .sheet(item: $activeSheet, onDismiss: {
             reload()
             if let id = switchedProjectId { switchedProjectId = nil; app.replaceTop(.projectDetail(id: id)) }
+            if let chat = pendingChat { pendingChat = nil; openCreatedChat(chat) }
         }) { sheet in
             switch sheet {
             case .transfer:
@@ -154,8 +156,11 @@ struct ProjectDetailScreen: View {
                 }
             case .icon:
                 ProjectIconSheet(projectId: projectId, repository: repository)
-            case .newAgent:
-                if let project { NewAgentScreen(workspaceId: project.workspaceId) }
+            case .newChat:
+                ChatAgentPicker(projectId: projectId, repository: repository) { chat in
+                    pendingChat = chat
+                    activeSheet = nil
+                }
             case .chats:
                 ChatHistorySheet(projectId: projectId)
             case .desktop:
@@ -242,7 +247,7 @@ struct ProjectDetailScreen: View {
             }.padding(.horizontal, 16).frame(height: 40)
             List {
                 ForEach(activity.ordered(chats)) { chat in
-                    ChatListRow(chat: chat, subtitle: agentName(chat.agentId), compact: true,
+                    ChatListRow(chat: chat, subtitle: agentName(chat), compact: true,
                                 onOpen: { app.projectsPath = NavigationPath(); desktopChatID = chat.id }, onChanged: reload)
                         .buttonStyle(.plain).font(.system(size: 13))
                         .listRowInsets(.init(top: 10, leading: 14, bottom: 10, trailing: 14))
@@ -415,7 +420,7 @@ struct ProjectDetailScreen: View {
         Section {
             newChatAction
             ForEach(activity.ordered(chats, limit: Self.inlineChatLimit)) { chat in
-                ChatListRow(chat: chat, subtitle: agentName(chat.agentId), onChanged: reload)
+                ChatListRow(chat: chat, subtitle: agentName(chat), onChanged: reload)
             }
             if chats.count > Self.inlineChatLimit {
                 Button { activeSheet = .chats } label: {
@@ -432,48 +437,24 @@ struct ProjectDetailScreen: View {
         }
     }
 
-    private func agentName(_ id: String) -> String {
-        stores.agents.get(id)?.displayName ?? t("projectDetail.section.agents")
+    private func agentName(_ chat: Chat) -> String {
+        chat.botId.flatMap(stores.bots.get)?.name ?? stores.agents.get(chat.agentId)?.displayName ?? t("projectDetail.section.agents")
     }
 
     // MARK: New chat (needs an agent — the chat runs as that agent in this project)
 
     private var newChatAction: some View {
-        Group {
-            if agents.count > 1 {
-                AppMenu {
-                    Section(t("projectDetail.section.agents")) {
-                        ForEach(agents) { agent in
-                            Button(agent.displayName) { openNewChat(agentId: agent.id) }
-                        }
-                    }
-                } label: {
-                    Label(t("agentDetail.newChat"), icon: Icon.plus)
-                }
-            } else {
-                Button {
-                    guard project.flatMap({ repository.get($0.workspaceId) }) != nil else { reload(); return }
-                    if let agent = agents.first { openNewChat(agentId: agent.id) }
-                    else { activeSheet = .newAgent }
-                } label: {
-                    Label(t("agentDetail.newChat"), icon: Icon.plus)
-                }
-            }
-        }
+        Button { activeSheet = .newChat } label: { Label(t("agentDetail.newChat"), icon: Icon.edit) }
         .tint(.primary)
         .disabled(actions.running)
     }
 
-    private func openNewChat(agentId: String) {
-        guard project.flatMap({ repository.get($0.workspaceId) }) != nil else { reload(); return }
-        actions.run {
-            let chat = try await stores.workspaceData.createChat(agentId: agentId, projectId: projectId)
-            reload()
-            if ApplePlatform.isDesktop {
-                desktopChatID = chat.id
-                selectDesktopTool(nil)
-            } else { app.push(.chat(chatId: chat.id)) }
-        }
+    private func openCreatedChat(_ chat: Chat) {
+        reload()
+        if ApplePlatform.isDesktop {
+            desktopChatID = chat.id
+            selectDesktopTool(nil)
+        } else { app.push(.chat(chatId: chat.id)) }
     }
 
     // MARK: Data

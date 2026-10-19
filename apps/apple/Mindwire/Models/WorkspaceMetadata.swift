@@ -13,6 +13,7 @@ struct WorkspaceMetadata: Codable {
     var agentDiscoveryIssues: [WorkspaceAgentDiscoveryIssue]? = nil
     var projectLibrary: DaemonProjectLibrary? = nil
     var bots: [AssistantBot]? = nil
+    var apps: [AppShortcut]? = nil
 }
 
 struct WorkspaceAgentDiscoveryIssue: Codable, Equatable {

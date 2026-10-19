@@ -21,7 +21,12 @@ enum CommunicationNotification {
         let avatar: INImage
         let senderID: String
         let name: String
-        if let botID = data["botId"] as? String, !botID.isEmpty,
+        if let appID = data["appId"] as? String, !appID.isEmpty,
+           let appName = data["appName"] as? String, !appName.isEmpty {
+            avatar = INImage(imageData: try renderAvatar(SavedAppIcon(id: appID, icon: data["appIcon"] as? String, size: 256)))
+            senderID = "mindwire.app.\(data["workspaceId"] as? String ?? "").\(appID)"
+            name = appName
+        } else if let botID = data["botId"] as? String, !botID.isEmpty,
            let botName = data["botName"] as? String, !botName.isEmpty {
             avatar = INImage(imageData: try avatarPNG(botID: botID, icon: data["botIcon"] as? String))
             let workspace = data["workspaceId"] as? String ?? ""
@@ -50,7 +55,11 @@ enum CommunicationNotification {
 
     /// Render the same saved character used in the bot list and chat header.
     static func avatarPNG(botID: String, icon: String?) throws -> Data {
-        let renderer = ImageRenderer(content: AssistantBotAvatar(botId: botID, icon: icon, size: 256))
+        try renderAvatar(AssistantBotAvatar(botId: botID, icon: icon, size: 256))
+    }
+
+    private static func renderAvatar<Content: View>(_ view: Content) throws -> Data {
+        let renderer = ImageRenderer(content: view)
         renderer.scale = 1
         guard let data = renderer.uiImage?.pngData() else { throw AvatarError.renderFailed }
         return data

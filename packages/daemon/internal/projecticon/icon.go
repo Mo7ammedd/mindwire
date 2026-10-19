@@ -1,8 +1,9 @@
-// Package projecticon reads small project-owned images through a confined filesystem root.
+// Package projecticon stores and reads small images through a confined project root.
 package projecticon
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/xml"
@@ -18,7 +19,7 @@ import (
 	"strings"
 )
 
-const Version = 1
+const Version = 2
 const MaxBytes = 1 << 20
 
 var ErrInvalid = errors.New("invalid project icon")
@@ -80,6 +81,10 @@ func Read(directory, name string) (Image, error) {
 	if err != nil {
 		return Image{}, invalid("the icon could not be read")
 	}
+	return validate(name, data)
+}
+
+func validate(name string, data []byte) (Image, error) {
 	if len(data) == 0 || len(data) > MaxBytes {
 		return Image{}, invalid("choose an image smaller than 1 MB")
 	}
@@ -99,6 +104,49 @@ func Read(directory, name string) (Image, error) {
 	}
 	hash := sha256.Sum256(data)
 	return Image{Path: name, MediaType: mediaType, Content: data, ETag: hex.EncodeToString(hash[:])}, nil
+}
+
+// Upload never uses a client-supplied storage path. Identical images reuse the
+// same content-addressed file; a temporary file makes publication atomic.
+// The caller saves the returned path through the usual revisioned project edit.
+func Upload(directory, name string, data []byte) (Image, error) {
+	ext := strings.ToLower(path.Ext(name))
+	if err := ValidatePath("icon" + ext); err != nil {
+		return Image{}, err
+	}
+	icon, err := validate("icon"+ext, data)
+	if err != nil {
+		return Image{}, err
+	}
+	const folder = ".mindwire/project-icons"
+	icon.Path = folder + "/" + icon.ETag + ext
+	root, err := os.OpenRoot(directory)
+	if err != nil {
+		return Image{}, invalid("the project folder is unavailable")
+	}
+	defer root.Close()
+	if err = root.MkdirAll(folder, 0700); err != nil {
+		return Image{}, invalid("the icon folder could not be created")
+	}
+	var nonce [16]byte
+	if _, err = rand.Read(nonce[:]); err != nil {
+		return Image{}, err
+	}
+	temporary := folder + "/.upload-" + hex.EncodeToString(nonce[:])
+	file, err := root.OpenFile(temporary, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return Image{}, invalid("the icon could not be uploaded")
+	}
+	defer root.Remove(temporary)
+	_, writeErr := file.Write(data)
+	closeErr := file.Close()
+	if writeErr != nil || closeErr != nil {
+		return Image{}, invalid("the icon could not be uploaded")
+	}
+	if err = root.Rename(temporary, icon.Path); err != nil {
+		return Image{}, invalid("the icon could not be uploaded")
+	}
+	return icon, nil
 }
 
 func validateSVG(data []byte) error {

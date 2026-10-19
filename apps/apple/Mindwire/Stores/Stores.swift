@@ -30,6 +30,7 @@ final class Stores {
     let projects: JSONListStore<Project>
     let chats: JSONListStore<Chat>
     let bots: JSONListStore<AssistantBot>
+    let apps: JSONListStore<AppShortcut>
     let github: JSONListStore<GitHubAccount>
 
     init(defaults: UserDefaults = .standard) {
@@ -44,6 +45,7 @@ final class Stores {
         projects = JSONListStore(key: StorageKey.projects, defaults: defaults)
         chats = JSONListStore(key: StorageKey.chats, defaults: defaults)
         bots = JSONListStore(key: StorageKey.bots, defaults: defaults)
+        apps = JSONListStore(key: "mindwire:apps:v1", defaults: defaults)
         github = JSONListStore(key: StorageKey.github, defaults: defaults)
     }
 }

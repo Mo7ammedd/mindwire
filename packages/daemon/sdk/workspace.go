@@ -125,6 +125,17 @@ func (w *Workspace) ProjectIcon(projectID, path string) (ProjectIcon, error) {
 	return image, workspaceError("Workspace.ProjectIcon", err)
 }
 
+// UploadProjectIcon stores a validated image inside the project. Save its Path
+// with SetProjectIcon to select it; uploading alone does not change metadata.
+func (w *Workspace) UploadProjectIcon(projectID, name string, content []byte) (ProjectIcon, error) {
+	p, err := w.c.core.registry.Project(projectID)
+	if err != nil {
+		return ProjectIcon{}, workspaceError("Workspace.UploadProjectIcon", err)
+	}
+	icon, err := projecticon.Upload(p.Path, name, content)
+	return icon, workspaceError("Workspace.UploadProjectIcon", err)
+}
+
 // SetProjectIcon updates revisioned metadata without copying or changing project
 // files. nil explicitly resets the icon; older Put calls that omit it preserve it.
 func (w *Workspace) SetProjectIcon(projectID string, path *string, expectedRevision int64) (WorkspaceSnapshot, error) {

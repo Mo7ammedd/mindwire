@@ -9,10 +9,17 @@ struct ChatPreview: View {
     @State private var loading = true
     @State private var unavailable = false
 
+    private var botColor: BotColor? {
+        _ = stores.bots.revision
+        guard let bot = chat.botId.flatMap(stores.bots.get) else { return nil }
+        return AssistantBotIcon.resolve(botId: bot.id, icon: bot.icon).color
+    }
+
     var body: some View {
         ChatPreviewContent(title: title, agent: stores.agents.get(chat.agentId), messages: messages,
                            loading: loading, unavailable: unavailable)
             .environment(\.chatProjectPath, stores.projects.get(chat.projectId)?.path)
+            .environment(\.chatBotColor, botColor)
             .task(id: chat.id) {
                 if let cached = stores.chatSessions.cached(chat.id) {
                     // Join the same initial read if the conversation is already opening.

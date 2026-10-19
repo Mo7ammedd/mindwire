@@ -32,6 +32,9 @@ private struct ChatBotColorKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
+    /// Derived from the same identity as chat bubbles; no separate activity theme to sync.
+    var chatAccent: Color { (chatBotColor ?? .brand).fill }
+
     var chatBotColor: BotColor? {
         get { self[ChatBotColorKey.self] }
         set { self[ChatBotColorKey.self] = newValue }

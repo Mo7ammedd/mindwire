@@ -4,7 +4,8 @@ import { GeistMono } from "geist/font/mono";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import "./globals.css";
 import Nav from "@/components/Nav";
-import Footer from "@/components/Footer";
+import SiteContent from "@/components/SiteContent";
+import LandingFooter from "@/components/landing/LandingFooter";
 import HideOnDocs from "@/components/HideOnDocs";
 
 export const metadata: Metadata = {
@@ -30,11 +31,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <RootProvider theme={{ defaultTheme: "light", enableSystem: false }}>
           <a href="#main-content" className="skip-link">Skip to content</a>
           <Nav />
-          <main id="main-content" className="relative">{children}</main>
+          <SiteContent>{children}</SiteContent>
           {/* The marketing footer is hidden on /docs — the Fumadocs sidebar is a fixed full-height
               column, so a site footer beneath it just adds clutter. */}
           <HideOnDocs>
-            <Footer />
+            <LandingFooter />
           </HideOnDocs>
         </RootProvider>
       </body>

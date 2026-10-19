@@ -49,8 +49,8 @@ func (s *Supervisor) StartBotTurn(botID string, chat registry.Chat, profile regi
 	if !ok {
 		return session.Run{}, fmt.Errorf("%w: this bot's base AI connection is unavailable", registry.ErrInvalid)
 	}
-	if !a.Capabilities().BotProfiles {
-		return session.Run{}, fmt.Errorf("%w: this AI connection cannot refresh bot instructions in resumed chats; choose a supported connection", registry.ErrInvalid)
+	if err := s.checkBotEngine(a, chat.ID); err != nil {
+		return session.Run{}, err
 	}
 	return s.StartTurnChecked(a, StartTurnInput{ChatID: chat.ID, CWD: project.Path, Message: message, RequestID: requestID, botID: botID})
 }

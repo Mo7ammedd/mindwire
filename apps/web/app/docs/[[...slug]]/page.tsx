@@ -23,9 +23,6 @@ export default async function Page(props: PageProps) {
   const MDX = data.body;
   return (
     <DocsPage toc={data.toc} full={data.full}>
-      {/* Copy-as-Markdown toolbar, floated to the top-right of the header (beside the title); the button
-          fetches the page's own `.md` (app/api/md via rewrite). Placed before the title so it floats
-          up beside it without affecting the title→description spacing. */}
       <CopyMarkdown markdownUrl={`${page.url}.md`} />
       <DocsTitle>{data.title}</DocsTitle>
       <DocsDescription>{data.description}</DocsDescription>

@@ -28,7 +28,7 @@ import (
 const Version = 1
 const NotificationPreferencesVersion = 2
 const AgentDiscoveryVersion = 1
-const schemaVersion = 9
+const schemaVersion = 12
 
 var (
 	ErrConflict = errors.New("record changed on another client; refresh and try again")
@@ -69,7 +69,7 @@ type Chat struct {
 	Record
 	SyncID         string `json:"syncId,omitempty"`
 	AgentID        string `json:"agentId"`
-	BotID          string `json:"botId,omitempty"` // General-mode profile; empty for Developer chats
+	BotID          string `json:"botId,omitempty"` // Optional saved profile; absent for unbound native chats.
 	ProjectID      string `json:"projectId"`
 	Title          string `json:"title"`
 	NativeTitle    string `json:"nativeTitle,omitempty"` // cached harness title, retained underneath a user's override
@@ -95,6 +95,7 @@ type Import struct {
 
 type Snapshot struct {
 	Import
+	Apps                   []AppShortcut           `json:"apps"`
 	Version                int                     `json:"version"`
 	WorkspaceID            string                  `json:"workspaceId"` // identity of this registry, independent of a cloud/SSH provider
 	Revision               int64                   `json:"revision"`
@@ -181,6 +182,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS project_operation_destination ON project_opera
  WHERE status IN ('queued','running','cancelling');
 CREATE TABLE IF NOT EXISTS surface_records (kind TEXT NOT NULL, id TEXT NOT NULL, data BLOB NOT NULL,
  updated_at TEXT NOT NULL, PRIMARY KEY(kind,id));
+CREATE INDEX IF NOT EXISTS integration_event_state ON surface_records(json_extract(data,'$.state'),updated_at)
+ WHERE kind='integration-event';
+CREATE INDEX IF NOT EXISTS integration_event_connection ON surface_records(json_extract(data,'$.integrationId'),updated_at)
+ WHERE kind='integration-event';
 CREATE TABLE IF NOT EXISTS git_operations (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, path TEXT NOT NULL,
  status TEXT NOT NULL, updated_at TEXT NOT NULL, data BLOB NOT NULL);
 CREATE INDEX IF NOT EXISTS git_operations_project ON git_operations(project_id,updated_at);
@@ -194,8 +199,28 @@ CREATE TABLE IF NOT EXISTS project_sync_records (kind TEXT NOT NULL, id TEXT NOT
 CREATE TABLE IF NOT EXISTS project_library (id INTEGER PRIMARY KEY CHECK(id=1), data BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS project_folder_deletions (id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS bots (id TEXT PRIMARY KEY, data BLOB NOT NULL, revision INTEGER NOT NULL);
-PRAGMA user_version=9;`); err != nil {
+CREATE TABLE IF NOT EXISTS apps (id TEXT PRIMARY KEY, data BLOB NOT NULL, revision INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS app_token_grants (app_id TEXT NOT NULL, hash TEXT NOT NULL, PRIMARY KEY(app_id,hash));
+CREATE TABLE IF NOT EXISTS app_notifications (app_id TEXT NOT NULL, event_id TEXT NOT NULL, status TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(app_id,event_id));
+CREATE INDEX IF NOT EXISTS app_notifications_recent ON app_notifications(app_id,updated_at);
+CREATE TABLE IF NOT EXISTS app_jobs (id TEXT PRIMARY KEY, app_id TEXT NOT NULL, data BLOB NOT NULL);
+CREATE INDEX IF NOT EXISTS app_jobs_app ON app_jobs(app_id);
+PRAGMA user_version=12;`); err != nil {
 		return err
+	}
+	if version < 12 {
+		var previous int
+		if err = tx.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='app_tokens'").Scan(&previous); err != nil {
+			return err
+		}
+		if previous != 0 {
+			if _, err = tx.Exec("INSERT OR IGNORE INTO app_token_grants SELECT app_id,hash FROM app_tokens"); err != nil {
+				return err
+			}
+			if _, err = tx.Exec("DROP TABLE app_tokens"); err != nil {
+				return err
+			}
+		}
 	}
 	identity := make([]byte, 16)
 	if _, err = rand.Read(identity); err != nil {
@@ -690,6 +715,14 @@ func deleteRecord(tx *sql.Tx, kind, id string, expected *int64, force bool, revi
 			return false, err
 		}
 	}
+	if kind == "projects" {
+		if err = archiveProjectApps(tx, id, revision); err != nil {
+			return false, err
+		}
+		if err = clearBotDefaultProject(tx, id, revision); err != nil {
+			return false, err
+		}
+	}
 	if _, err = tx.Exec("DELETE FROM "+kind+" WHERE id=?", id); err != nil {
 		return false, err
 	}
@@ -788,6 +821,10 @@ func (st *Store) Snapshot(since *int64) (Snapshot, error) {
 		s.ProjectLibrary = &library
 	}
 	s.Bots, err = readBots(tx, minimum)
+	if err != nil {
+		return s, err
+	}
+	s.Apps, err = readApps(tx, minimum)
 	if err != nil {
 		return s, err
 	}

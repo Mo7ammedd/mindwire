@@ -5,11 +5,62 @@ import SwiftTerm
 /// are fed straight into the emulator (full ANSI parsing, scrollback, cursor — all native), and
 /// the user's keystrokes are forwarded back through the session. `theme` recolors the emulator;
 /// `isActive` drives focus so only the visible tab owns the keyboard.
-struct WorkspaceTerminalView: UIViewRepresentable {
+struct WorkspaceTerminalView: View {
+    let session: TerminalSession
+    var theme: TerminalTheme = .default
+    var fontSize: CGFloat = 13
+    var isActive = true
+    @State private var connectionState: TerminalConnectionState = .connected
+    @State private var showingStatus = false
+
+    var body: some View {
+        NativeWorkspaceTerminalView(session: session, theme: theme, fontSize: fontSize, isActive: isActive,
+                                    onConnectionChange: { connectionState = $0 })
+            .overlay(alignment: .topTrailing) {
+                if showingStatus { status.padding(10) }
+            }
+            .task(id: connectionState) {
+                showingStatus = false
+                switch connectionState {
+                case .connected: return
+                case .connecting, .reconnecting:
+                    // A brief handoff stays invisible and never moves terminal content.
+                    do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                case .failed, .ended: break
+                }
+                guard !Task.isCancelled else { return }
+                showingStatus = true
+            }
+    }
+
+    @ViewBuilder private var status: some View {
+        HStack(spacing: 8) {
+            switch connectionState {
+            case .connected: EmptyView()
+            case .connecting, .reconnecting:
+                ProgressView().controlSize(.mini).tint(.white)
+                Text(connectionState == .connecting ? "Connecting…" : "Reconnecting…")
+            case .failed(let message):
+                Image(systemName: "exclamationmark.circle").foregroundStyle(Palette.danger)
+                Text(message).lineLimit(3).frame(maxWidth: 260, alignment: .leading)
+                Button("Retry") { session.retryConnection() }.buttonStyle(.plain).fontWeight(.semibold)
+            case .ended:
+                Text("Session ended")
+            }
+        }
+        .font(.system(size: 12)).foregroundStyle(.white)
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background(.ultraThinMaterial, in: .rect(cornerRadius: 13))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct NativeWorkspaceTerminalView: UIViewRepresentable {
     let session: TerminalSession
     var theme: TerminalTheme = .default
     var fontSize: CGFloat = 13
     var isActive: Bool = true
+    var onConnectionChange: (TerminalConnectionState) -> Void
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         // Explicit readable monospaced font — SwiftTerm's default renders too small.
@@ -29,6 +80,11 @@ struct WorkspaceTerminalView: UIViewRepresentable {
                 coordinator?.feedingOutput = false
             }
         }
+        session.onConnectionChange = { [weak coordinator = context.coordinator] state in
+            DispatchQueue.main.async { coordinator?.onConnectionChange(state) }
+        }
+        let state = session.connectionState
+        DispatchQueue.main.async { [weak coordinator = context.coordinator] in coordinator?.onConnectionChange(state) }
         // NOTE: we deliberately do NOT start the session here. At makeUIView time the view still
         // has a .zero frame, so SwiftTerm hasn't computed its cols/rows yet — starting now would
         // create the PTY at the 80×24 default and the shell would wrap at 80 cols regardless of the
@@ -61,15 +117,18 @@ struct WorkspaceTerminalView: UIViewRepresentable {
         #endif
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(session: session) }
+    func makeCoordinator() -> Coordinator { Coordinator(session: session, onConnectionChange: onConnectionChange) }
 
     final class Coordinator: NSObject, TerminalViewDelegate {
         let session: TerminalSession
         weak var terminal: SwiftTerm.TerminalView?
         private var didStart = false
         var feedingOutput = false
+        let onConnectionChange: (TerminalConnectionState) -> Void
 
-        init(session: TerminalSession) { self.session = session }
+        init(session: TerminalSession, onConnectionChange: @escaping (TerminalConnectionState) -> Void) {
+            self.session = session; self.onConnectionChange = onConnectionChange
+        }
 
         func send(source: TerminalView, data: ArraySlice<UInt8>) {
             if feedingOutput && session.handlesDeviceQueries { return }

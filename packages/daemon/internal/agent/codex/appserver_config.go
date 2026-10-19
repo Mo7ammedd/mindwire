@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -23,9 +24,13 @@ func newAppServer(in agent.TurnInput, files materialized) appServer {
 		fork:         in.Options.ForkOnResume,
 		instructions: files.systemPrompt, images: files.imagePaths, audio: files.audioAttachments,
 		developerInstructions: in.Options.ContextInstructions,
+		skillsRoot:            filepath.Join(in.Options.SkillsRoot, "skills"),
 		files:                 files.fileAttachments, outputSchema: in.Options.OutputSchema,
 		config: map[string]any{},
 		voice:  in.Voice, voiceOptions: in.Options.Voice,
+	}
+	if in.Options.SkillsRoot == "" {
+		a.skillsRoot = ""
 	}
 	if in.Options.Voice != nil {
 		a.command += " -c 'features.realtime_conversation=true'"

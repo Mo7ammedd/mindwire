@@ -6,6 +6,7 @@ import SwiftUI
 ///
 /// Used by compact previews. The full transcript virtualizes these same part views individually.
 struct TurnPartsView: View {
+    @Environment(\.appExperienceMode) private var experienceMode
     let parts: [DaemonMessagePart]
     var isLive = false
     /// Only tools first observed live in this visit auto-expand. History and replay start closed.
@@ -16,7 +17,7 @@ struct TurnPartsView: View {
     var onOpenInteraction: ((DaemonInteraction) -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: ChatContentStyle.partSpacing) {
-            ForEach(ChatPartGroup.make(parts)) { group in
+            ForEach(ChatPartGroup.make(parts, generalMode: experienceMode == .general)) { group in
                 Group {
                     if group.isCommandGroup {
                         CommandGroupView(parts: group.parts,
@@ -46,6 +47,7 @@ struct TurnPartView: View, Equatable {
     var toolExpansion: Binding<Bool>? = nil
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @Environment(\.desktopMessenger) private var desktopMessenger
+    @Environment(\.appExperienceMode) private var experienceMode
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.part == rhs.part && lhs.isLive == rhs.isLive && lhs.isLast == rhs.isLast
@@ -73,7 +75,7 @@ struct TurnPartView: View, Equatable {
                           isLive: isLive && part.durationMs == nil && isLast)
         case .tool:
             if let call = part.tool {
-                if !call.fileEdits.isEmpty {
+                if experienceMode != .general, !call.fileEdits.isEmpty {
                     ForEach(call.fileEdits, id: \.path) { edit in
                         ToolDiffCard(edit: edit, isError: call.isError == true,
                                      initiallyExpanded: autoExpanded)

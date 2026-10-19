@@ -9,6 +9,9 @@ final class AppModel {
     var selectedTab: AppTab = ApplePlatform.isDesktop ? .agents : .projects { didSet { navigationDidChange?() } }
     var assistantChatID: String? { didSet { navigationDidChange?() } }
     var assistantBotID: String? { didSet { navigationDidChange?() } }
+    var assistantAppsVisible = false
+    var presentedAppShortcut: AppShortcut?
+    private var pendingAppShortcutID: String?
 
     var usesAssistant: Bool {
         stores.experience.mode == .general
@@ -304,10 +307,25 @@ final class AppModel {
     /// Route a tapped push notification to the thing it's about (see `PushTarget`).
     func open(_ target: PushTarget, notificationID: String? = nil) {
         switch target {
+        case .app(let id):
+            pendingAppShortcutID = id
+            assistantAppsVisible = true
+            resolvePendingAppShortcut()
+            Task {
+                await stores.workspaceData.refreshAll(WorkspaceRepository.shared.all)
+                resolvePendingAppShortcut()
+            }
         case .chat(let id):    openNotifiedChat(id, notificationID: notificationID)
         case .project(let id): openProject(id)
         case .agent(let id):   openAgent(id)
         case .workspace(let id): openWorkspace(id)
         }
+    }
+
+    func resolvePendingAppShortcut() {
+        guard let id = pendingAppShortcutID, let app = stores.apps.get(id) else { return }
+        guard !app.archived else { pendingAppShortcutID = nil; return }
+        presentedAppShortcut = app
+        pendingAppShortcutID = nil
     }
 }

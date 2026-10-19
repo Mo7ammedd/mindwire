@@ -19,6 +19,7 @@ enum PushPayload {
 /// `target_type` + `target_id` in the message data; the app parses it on tap and routes through
 /// `AppModel.open(_:)`. Keep this contract in sync with the sender.
 enum PushTarget: Hashable {
+    case app(String)
     case chat(String)
     case project(String)
     case agent(String)
@@ -26,7 +27,7 @@ enum PushTarget: Hashable {
 
     /// Payload keys the sender must set.
     enum Key {
-        static let type = "target_type"   // "chat" | "project" | "agent" | "workspace"
+        static let type = "target_type"   // "app" | "chat" | "project" | "agent" | "workspace"
         static let id = "target_id"
     }
 
@@ -41,12 +42,15 @@ enum PushTarget: Hashable {
         }
         if let type = value(Key.type), let id = value(Key.id) {
             switch type {
+            case "app":     self = .app(id)
             case "chat":    self = .chat(id)
             case "project": self = .project(id)
             case "agent":   self = .agent(id)
             case "workspace", "sandbox": self = .workspace(id)
             default:        return nil
             }
+        } else if let id = value("appId") {
+            self = .app(id)
         } else if let id = value("chatId") ?? value("chat_id") {
             self = .chat(id)
         } else if let id = value("workspace_id") ?? value("channel") {

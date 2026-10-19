@@ -5,6 +5,7 @@ import SwiftUI
 struct AgentsListScreen: View {
     var repository: WorkspaceRepository = .shared
     @Environment(\.stores) private var stores
+    @Environment(\.appExperienceMode) private var experienceMode
     @Environment(AppModel.self) private var app
     @Environment(\.sidebarNavigation) private var sidebar
     @State private var entries: [Entry] = []
@@ -116,6 +117,17 @@ struct AgentsListScreen: View {
                 }
                 Text(entry.latest.map { activity.title($0) } ?? entry.bot.purpose.nilIfEmpty ?? entry.computer)
                     .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                if experienceMode == .developer {
+                    HStack(spacing: 5) {
+                        if let agent = stores.agents.get(entry.bot.agentId) {
+                            AgentLogo(id: agent.agentType, size: 13).accessibilityHidden(true)
+                            Text(agent.typeDisplayName)
+                            Text("·")
+                        }
+                        Text(entry.computer)
+                    }
+                    .font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                }
             }
         }
         .contentShape(.rect)

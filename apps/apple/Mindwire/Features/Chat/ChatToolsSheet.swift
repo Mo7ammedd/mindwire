@@ -167,7 +167,7 @@ struct ChatToolsSheet: View {
                     agentIcon
                     Text(t("chat.tools.loadingSettings")).foregroundStyle(.secondary)
                     Spacer()
-                    ProgressView().controlSize(.small)
+                    ProgressView().chatActivityTint().controlSize(.small)
                 }
             } else if settings?.configurationLoaded == true {
                 Text(t("chat.tools.noSettings")).foregroundStyle(.secondary)

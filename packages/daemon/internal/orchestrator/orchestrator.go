@@ -205,6 +205,11 @@ type Supervisor struct {
 // New builds a supervisor over EVERY registered adapter (each with its own auth + runner +
 // namespaced creds). defaultAgent selects the agent for requests that omit ?agent=; if it
 // isn't registered, the first adapter by ID is used (deterministic).
+// AddNotifier is startup wiring and must run before any turns are admitted.
+func (s *Supervisor) AddNotifier(notifier notify.Notifier) {
+	s.notifier = notify.Fanout([]notify.Notifier{s.notifier, notifier})
+}
+
 func New(store *session.Store, hub *stream.Hub, notifier notify.Notifier, cwd, defaultAgent string, options ...Option) *Supervisor {
 	s := &Supervisor{
 		nativeSessions: nativesessions.New(),
@@ -655,6 +660,15 @@ func (s *Supervisor) Respond(runID, interactionID, decision string, options []st
 // RespondInteraction accepts exactly one complete answer for a currently pending request.
 func (s *Supervisor) RespondInteraction(runID string, reply agent.InteractionResponse) error {
 	return s.RespondInteractionWithGitAuth(runID, reply, nil)
+}
+
+// IsServiceInteraction reports whether the supervisor itself is waiting for this
+// answer. Service approvals do not require the agent adapter's Respond capability.
+func (s *Supervisor) IsServiceInteraction(runID, interactionID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	it, ok := s.pending[runID][interactionID]
+	return ok && it.NeedsResponse && s.serviceReplies[runID][interactionID] != nil
 }
 
 func (s *Supervisor) RespondInteractionWithGitAuth(runID string, reply agent.InteractionResponse, gitAuth *gitaccess.Auth) error {

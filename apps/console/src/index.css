@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../../../packages/theme/tokens.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -28,9 +29,7 @@
   font-display: swap;
 }
 
-/* Map shadcn's semantic token names onto the CSS variables defined per-theme below, so every
-   generated component (Button, Card, Input, …) reads the same monochrome palette. Radius is zeroed
-   to match the site's squared bento look; rounded-full (dots, avatars) still reads its own token. */
+/* The console primitives map to the same palette as the public website and docs. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -62,69 +61,35 @@
   --font-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --radius-2xl: 0px;
-  --radius-3xl: 0px;
+  --radius-sm: 8px;
+  --radius-md: var(--mw-radius-control);
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: var(--mw-radius-card);
+  --radius-3xl: var(--mw-radius-panel);
 }
 
-/* No gray anywhere. Every non-background tone is pure black/white driven to the exact shade with an
-   alpha channel — muted text, hairlines, surfaces, and focus rings are all translucent ink over the
-   canvas, never a chromatic zinc token. Structure comes from those translucent films + hairline
-   borders, not from tinted fills.
-
-   Light theme (secondary — dormant; the app ships `.dark`). Ink is black-at-opacity on white. */
 :root {
-  --ink: #000000;
-  --background: #ffffff;
-  --foreground: #000000;
-  --card: #ffffff;
-  --card-foreground: #000000;
-  --popover: #ffffff;
-  --popover-foreground: #000000;
-  --primary: #000000;
-  --primary-foreground: #ffffff;
-  --secondary: rgb(0 0 0 / 0.05);
-  --secondary-foreground: #000000;
-  --muted: rgb(0 0 0 / 0.04);
-  --muted-foreground: rgb(0 0 0 / 0.56);
-  --accent: rgb(0 0 0 / 0.06);
-  --accent-foreground: #000000;
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
-  --border: rgb(0 0 0 / 0.12);
-  --input: rgb(0 0 0 / 0.16);
-  --ring: rgb(0 0 0 / 0.40);
-}
-
-/* Dark theme (primary — index.html ships `class="dark"`). The canvas is pure black `#000`; every
-   elevated surface is a translucent WHITE FILM over it (`--card` = white/0.03), never a hand-picked
-   near-black hex (those carry a cool tint that reads as gray). Structure = films + white/opacity
-   hairlines. The only solid surface is `--popover` — dropdowns/tooltips/toasts overlay arbitrary
-   content, so they must be opaque; on a black page, pure black + a hairline reads as a crisp panel. */
-.dark {
-  --ink: #ffffff;
-  --background: #000000;
-  --foreground: #ffffff;
-  --card: rgb(255 255 255 / 0.045);
-  --card-foreground: #ffffff;
-  --popover: #000000;
-  --popover-foreground: #ffffff;
-  --primary: #ffffff;
-  --primary-foreground: #000000;
-  --secondary: rgb(255 255 255 / 0.09);
-  --secondary-foreground: #ffffff;
-  --muted: rgb(255 255 255 / 0.06);
-  --muted-foreground: rgb(255 255 255 / 0.66);
-  --accent: rgb(255 255 255 / 0.10);
-  --accent-foreground: #ffffff;
-  --destructive: #ff5f57;
-  --destructive-foreground: #000000;
-  --border: rgb(255 255 255 / 0.14);
-  --input: rgb(255 255 255 / 0.20);
-  --ring: rgb(255 255 255 / 0.45);
+  --ink: var(--mw-ink);
+  --background: var(--mw-bg);
+  --foreground: var(--mw-ink);
+  --card: var(--mw-surface);
+  --card-foreground: var(--mw-ink);
+  --popover: var(--mw-surface);
+  --popover-foreground: var(--mw-ink);
+  --primary: var(--mw-ink);
+  --primary-foreground: var(--mw-bg);
+  --secondary: var(--mw-subtle);
+  --secondary-foreground: var(--mw-ink);
+  --muted: var(--mw-subtle);
+  --muted-foreground: var(--mw-muted);
+  --accent: var(--mw-peach-soft);
+  --accent-foreground: var(--mw-peach);
+  --destructive: var(--mw-danger);
+  --destructive-foreground: var(--mw-bg);
+  --border: var(--mw-line);
+  --input: var(--mw-line);
+  --ring: var(--mw-peach);
 }
 
 @layer base {
@@ -161,4 +126,13 @@
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
   }
+}
+
+@layer base {
+  :is(a, button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--mw-peach); outline-offset: 4px; }
+  ::selection { background: var(--mw-peach-soft); color: var(--mw-ink); }
+  select { border-radius: var(--mw-radius-control); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

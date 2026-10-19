@@ -93,6 +93,7 @@ struct AgentActivityGlyph: View {
     let agentType: AgentID?
     var size: CGFloat = 58
     var isAnimating = true
+    var color: Color = .secondary
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
@@ -110,7 +111,7 @@ struct AgentActivityGlyph: View {
                     var arc = Path()
                     arc.addArc(center: CGPoint(x: rect.midX, y: rect.midY), radius: rect.width / 2,
                                startAngle: start, endAngle: start + .degrees(100), clockwise: false)
-                    context.stroke(arc, with: .color(.secondary), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    context.stroke(arc, with: .color(color), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 }
             }
             if let agentType { AgentLogo(id: agentType, size: size * 30 / 58) }

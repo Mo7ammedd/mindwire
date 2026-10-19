@@ -37,8 +37,8 @@ final class ProjectLibrary {
         var folders: [ProjectFolder] = []
         var membership: [String: String] = [:]
         var order: [String] = []
-        var view: ProjectLibraryView = .all
-        var layout: ProjectLibraryLayout = .list
+        var view: ProjectLibraryView = .folders
+        var layout: ProjectLibraryLayout = .grid
         var sort: ProjectLibrarySort = .recent
         var pending: [PendingPlacement] = []
         var replicas: [String: Replica] = [:]
@@ -49,8 +49,8 @@ final class ProjectLibrary {
             folders = try values.decodeIfPresent([ProjectFolder].self, forKey: .folders) ?? []
             membership = try values.decodeIfPresent([String: String].self, forKey: .membership) ?? [:]
             order = try values.decodeIfPresent([String].self, forKey: .order) ?? []
-            view = try values.decodeIfPresent(ProjectLibraryView.self, forKey: .view) ?? .all
-            layout = try values.decodeIfPresent(ProjectLibraryLayout.self, forKey: .layout) ?? .list
+            view = try values.decodeIfPresent(ProjectLibraryView.self, forKey: .view) ?? .folders
+            layout = try values.decodeIfPresent(ProjectLibraryLayout.self, forKey: .layout) ?? .grid
             sort = try values.decodeIfPresent(ProjectLibrarySort.self, forKey: .sort) ?? .recent
             pending = try values.decodeIfPresent([PendingPlacement].self, forKey: .pending) ?? []
             replicas = try values.decodeIfPresent([String: Replica].self, forKey: .replicas) ?? [:]

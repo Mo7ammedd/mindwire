@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 import { OblienMark } from "@/components/OblienMark";
 
-// The product lockup: the Oblien parent-brand glyph next to the "MindWire" wordmark — the same treatment
-// the marketing site uses (OblienLogo + "MindWire"). MindWire is built by Oblien, so the mark stays
+// The product lockup: the Oblien parent-brand glyph next to the "Mindwire" wordmark — the same treatment
+// the marketing site uses (OblienLogo + "Mindwire"). Mindwire is built by Oblien, so the mark stays
 // Oblien's ring glyph and the wordmark carries the product name. Monochrome ink, so it flips with theme.
 export function BrandMark({
   size = 22,
@@ -14,9 +14,9 @@ export function BrandMark({
   wordClassName?: string;
 }) {
   return (
-    <span className={cn("inline-flex items-center gap-2 select-none", className)}>
+    <span className={cn("inline-flex items-center gap-2.5 select-none text-xl", className)}>
       <OblienMark showWord={false} size={size} />
-      <span className={cn("font-semibold tracking-tight", wordClassName)}>MindWire</span>
+      <span className={cn("font-semibold tracking-tight", wordClassName)}>Mindwire</span>
     </span>
   );
 }

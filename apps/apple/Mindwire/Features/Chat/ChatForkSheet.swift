@@ -96,7 +96,7 @@ struct ChatForkSheet: View {
                         editing = false
                         Task { if let id = await draft.send() { onSent(id) } }
                     } label: {
-                        if draft.submitting { ProgressView() }
+                        if draft.submitting { ProgressView().chatActivityTint() }
                         else { Text(t(draft.error == nil ? "common.send" : "common.retry")) }
                     }
                     .disabled(draft.canSubmit == false)

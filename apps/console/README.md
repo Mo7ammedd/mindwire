@@ -6,7 +6,7 @@ Console is not a self-hosted Mindwire client. Personal computers run the release
 
 ## Development
 
-From the repository root, run `bun install` then `bun dev`. Open http://127.0.0.1:5174 and create a development account. The API runs on port 8787 with SQLite; no Go compiler, Docker engine, agent runtime or provider credentials are required to open the portal. Set server-only reseller credentials to exercise Cloud purchases against an appropriate provider environment.
+From the repository root, run `bun install` then `bun dev` to start the landing site (http://localhost:3000), account API, and SaaS console together. Open http://127.0.0.1:5174 and create a development account. Use `bun dev console` to start only the console and API. The API runs on port 8787 with SQLite; no Go compiler, Docker engine, agent runtime or provider credentials are required to open the portal. Set server-only reseller credentials to exercise Cloud purchases against an appropriate provider environment.
 
 Run `bun --filter=@mindwire/console run check`, `run test`, and `run build` to validate changes. Cloud ownership, billing reconciliation, push migration and account management tests use a local provider fixture. Set `CLOUD_TEST_POSTGRES_URL` to run the Cloud tests against PostgreSQL.
 
@@ -25,3 +25,17 @@ See [Cloud Computers](../web/content/docs/guides/cloud-computers.mdx) and [sourc
 - `/api/computer-directory/v1`: encrypted personal computer discovery, independent from browser login.
 
 Console does not expose agent execution, chat, SSH or local Docker APIs. Existing database records are retained; this refactor does not erase stored account, Cloud, directory or notification data.
+
+## Visual theme
+
+The portal and sign-in screens share the website palette in
+[`packages/theme/tokens.css`](../../packages/theme/tokens.css). Console primitives
+map their semantic tokens in `src/index.css`; feature CSS owns layout and
+illustrations. The light default and stored `mw-theme` preference are applied
+before paint. Both themes use the same rounded controls and Gellix typeface.
+
+The account shell uses an inset desktop sidebar and an expandable mobile menu.
+Check empty and populated accounts, error states, form focus, plan selection,
+and confirmation dialogs at narrow widths. For visual review, intercept API
+requests in a browser test with local fixtures; never use a real account change,
+checkout, session revocation, or provider operation to test appearance.

@@ -28,6 +28,7 @@ type TaskRequest struct {
 	Message   string `json:"message"`
 	ChatID    string `json:"chatId,omitempty"`
 	Title     string `json:"title,omitempty"`
+	ProjectID string `json:"projectId,omitempty"`
 }
 
 type TaskInput struct {
@@ -117,7 +118,7 @@ func (s *Service) Delegate(actor registry.Bot, botID string, in TaskRequest) (Ta
 		if title == "" {
 			title = clip(strings.TrimSpace(in.Message), 80)
 		}
-		if _, err = s.db.CreateBotChat(bot.ID, chatID, title); err != nil {
+		if _, err = s.db.CreateBotChat(bot.ID, chatID, title, in.ProjectID); err != nil {
 			return Task{}, err
 		}
 	}
@@ -127,6 +128,9 @@ func (s *Service) Delegate(actor registry.Bot, botID string, in TaskRequest) (Ta
 	}
 	if chat == nil || chat.BotID != bot.ID {
 		return Task{}, fmt.Errorf("%w: choose a chat belonging to this bot", registry.ErrInvalid)
+	}
+	if in.ProjectID != "" && chat.ProjectID != in.ProjectID {
+		return Task{}, fmt.Errorf("%w: the chat belongs to a different project", registry.ErrInvalid)
 	}
 	if err := s.db.CheckWorkPath(project.Path); err != nil {
 		return Task{}, err

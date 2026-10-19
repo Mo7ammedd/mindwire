@@ -38,6 +38,13 @@
 	<true/>
 	<key>MindwireDesktopDownloadURL</key>
 	<string>$(MINDWIRE_DESKTOP_DOWNLOAD_URL)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Saved apps and forwarded development sites have user-chosen HTTP origins.
+		     Keep this exception in WebKit; API URLSession traffic retains ATS. -->
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Take photos to attach to your chats, and scan pairing QR codes from your computers.</string>
 	<key>NSLocalNetworkUsageDescription</key>

@@ -35,6 +35,10 @@ type Notification struct {
 	WorkspaceID string    `json:"workspaceId,omitempty"`
 	ChatID      string    `json:"chatId,omitempty"`
 	RunID       string    `json:"runId,omitempty"`
+	AppID       string    `json:"appId,omitempty"`
+	AppName     string    `json:"appName,omitempty"`
+	AppIcon     string    `json:"appIcon,omitempty"`
+	EventID     string    `json:"eventId,omitempty"`
 	Actions     []Action  `json:"actions,omitempty"`
 }
 
