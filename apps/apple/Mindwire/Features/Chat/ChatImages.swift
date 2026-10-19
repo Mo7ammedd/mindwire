@@ -170,7 +170,7 @@ struct ChatImageThumbnail: View {
             Group {
                 if let thumbnail { Image(uiImage: thumbnail).resizable().scaledToFill() }
                 else if attachment.isImage {
-                    if loading { ProgressView() }
+                    if loading { ProgressView().chatActivityTint() }
                     else { AppIcon(.filePicture).foregroundStyle(.secondary) }
                 } else {
                     HStack(spacing: Spacing.sm) {
@@ -181,7 +181,7 @@ struct ChatImageThumbnail: View {
                             Text(ByteCountFormatter.string(fromByteCount: Int64(attachment.bytes ?? attachment.data?.count ?? 0), countStyle: .file))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                        if loading { ProgressView().controlSize(.small) }
+                        if loading { ProgressView().chatActivityTint().controlSize(.small) }
                     }
                     .padding(.horizontal, Spacing.md)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -261,7 +261,7 @@ struct ChatImageDraftStrip: View {
                             .buttonStyle(.plain).accessibilityLabel("Remove attachment")
                         }
                 }
-                if draft.importing { ProgressView().frame(width: 80, height: 80) }
+                if draft.importing { ProgressView().chatActivityTint().frame(width: 80, height: 80) }
             }
         }
         .scrollIndicators(.hidden)

@@ -1,557 +1,77 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowDown,
-  ArrowRight,
-  ArrowUpRight,
-  Check,
-  ChevronRight,
-  Cloud,
-  Code2,
-  FileCode2,
-  GitBranch,
-  Laptop,
-  LockKeyhole,
-  Monitor,
-  MoveRight,
-  ScanLine,
-  Server,
-  ShieldCheck,
-  Smartphone,
-  Terminal,
-} from "lucide-react";
+import { ArrowDown, ArrowUpRight } from "lucide-react";
 import AgentLogo from "@/components/marketing/AgentLogo";
-import WireDiagram from "@/components/WireDiagram";
-import Corners from "@/components/Corners";
-import ProductPreview from "@/components/marketing/ProductPreview";
-import WorkflowShowcase from "@/components/marketing/WorkflowShowcase";
-import InstallCommand from "@/components/marketing/InstallCommand";
-import styles from "@/components/marketing/marketing.module.css";
-import { consoleUrl } from "@/lib/console-url";
-import { downloadUrl, githubUrl, productAgents } from "@/lib/product";
+import HeroWorkspace from "@/components/landing/HeroWorkspace";
+import ModeExplorer from "@/components/landing/ModeExplorer";
+import PersonalSection from "@/components/landing/PersonalSection";
+import BotAvatar from "@/components/landing/BotAvatar";
+import ContinuitySection from "@/components/landing/ContinuitySection";
+import SDKSection from "@/components/landing/SDKSection";
+import Questions from "@/components/landing/Questions";
+import FinalInvite from "@/components/landing/FinalInvite";
+import styles from "@/components/landing/landing.module.css";
+import product from "@/components/landing/product.module.css";
 
 export const metadata: Metadata = {
-  title: "Mindwire — Your personal assistant, on your terms",
+  title: "Mindwire — Powerful agents. Personal by design.",
   description:
-    "Meet Mindwire, your personal agent for everyday work and coding. Bring your supported AI subscriptions, connect your computer, and get things done from your phone.",
-  alternates: { canonical: "/" },
+    "Turn Codex, Claude Code and OpenCode into your own personal bots. Bring your AI accounts, give each bot a purpose, and work your way in General or Developer mode.",
 };
-
-const questions = [
-  {
-    question: "Is Mindwire only for coding?",
-    answer:
-      "Mindwire helps with everyday work as well as coding. Organize files, process data, prepare documents, automate repetitive tasks, or build software. Your connected computer gives Mindwire a place to work, and you control the access it has.",
-  },
-  {
-    question: "Which Apple apps are available?",
-    answer:
-      "The native client currently targets iPhone and iPad. Its source is available for inspection and private personal builds; publishing a derivative app requires written permission. A native Mac app and support for other Apple platforms, including visionOS, are planned and are not available yet. Check Get started for the current download status.",
-  },
-  {
-    question: "Does my phone need to be on the same Wi-Fi?",
-    answer:
-      "No. Connect from another Wi-Fi network or mobile data. The default computer setup uses a Cloudflare tunnel and Mindwire’s encrypted address directory, with no Mindwire or Oblien account required. You can also use your own tunnel or VPN.",
-  },
-  {
-    question: "Can my agent keep working when I close the app?",
-    answer:
-      "Yes, while its workspace stays online and Mindwire is running. Closing the iPhone app doesn’t stop an agent. A sleeping laptop can’t keep working; switch the project to an online server or cloud workspace before closing it.",
-  },
-  {
-    question: "What travels when I switch workspaces?",
-    answer:
-      "Project files, uncommitted changes, supported Git state, and selected Codex or Claude conversations travel together. Both copies remain. Compatible changes can come back on your next switch, and conflicts stop before applying. Finish active turns and terminals first. Agent logins stay local to each workspace.",
-  },
-  {
-    question: "Do I need to buy another AI subscription?",
-    answer:
-      "Bring a supported AI subscription you already have, or use your own API credentials. Sign in through the supported provider flow and put Mindwire to work. Your provider’s usage limits still apply, and optional cloud workspace pricing is separate.",
-  },
-  {
-    question: "What is open source?",
-    answer:
-      "The runtime, SDKs, website, and web Console are open source under Apache-2.0. The Apple client is source-available: inspection and private personal builds are allowed, while redistribution and publishing derivative apps require written permission. Each component includes its license and third-party notices.",
-  },
-];
 
 export default function Home() {
   return (
-    <div className={styles.marketing}>
-      <section
-        className={`${styles.wrap} ${styles.heroSection}`}
-        aria-labelledby="hero-title"
-      >
-        <div className={styles.hero}>
-          <Corners />
-          <div className={styles.heroCopy}>
-            <span className={styles.kicker}>
-              <Smartphone size={15} /> Your Mindwire agent, connected
-            </span>
-            <h1 id="hero-title" className={styles.heroTitle}>
-              Get things done.
-              <br />
-              <span>On your terms.</span>
-            </h1>
-            <p className={styles.heroDescription}>
-              Bring your supported AI subscriptions and put Mindwire to work.
-              Turn files into a report, automate a repetitive task, or build
-              something new. Stay connected to your computer from your phone.
-            </p>
-            <div className={styles.actions}>
-              <Link href={downloadUrl} className={styles.primaryButton}>
-                <Smartphone size={18} /> Download app <ArrowUpRight size={17} />
-              </Link>
-              <a href="#features" className={styles.textButton}>
-                Explore the app <ArrowDown size={16} />
-              </a>
-            </div>
-            <a href={githubUrl} className={styles.openSourceNote}>
-              <Code2 size={15} />
-              <span>Open-source runtime. Source-available Apple app.</span>
-              <ArrowUpRight size={13} />
-            </a>
-            <div className={styles.heroFootnote}>
-              <span /> Your computer, your server, or the cloud.
+    <div className={styles.landing}>
+      <section className={styles.hero} aria-labelledby="hero-title">
+        <div className={styles.heroCopy}>
+          <div className={`${styles.heroCompanion} ${styles.companionLeft}`} aria-hidden="true">
+            <svg className={styles.companionTrail} viewBox="0 0 180 210" fill="none"><path d="M20 14c100-10 136 22 107 60S18 92 39 142s70 33 109 50" /><circle cx="20" cy="14" r="3" /><circle cx="148" cy="192" r="3" /></svg>
+            <BotAvatar size={92} />
+            <span>A little less on your mind.</span>
+          </div>
+          <div className={`${styles.heroCompanion} ${styles.companionRight}`} aria-hidden="true">
+            <BotAvatar character="robot" size={94} />
+            <BotAvatar character="sprout" size={57} />
+            <span>A little more possible.</span>
+            <svg className={styles.companionTrail} viewBox="0 0 180 210" fill="none"><path d="M20 14c90 0 127 25 127 78s-87 27-87 73 58 19 93 30" /><circle cx="20" cy="14" r="3" /><circle cx="153" cy="195" r="3" /></svg>
+          </div>
+          <h1 id="hero-title">Powerful agents.<br /><span>Personal by design.</span></h1>
+          <p>Make a little team for your big ideas. Personal bots that know your work,
+            use your computer, and turn “what if” into done.</p>
+          <div className={styles.heroActions}>
+            <Link href="/get-started" className={styles.primaryButton}>Make it yours <ArrowUpRight size={19} /></Link>
+            <Link href="#modes" className={styles.secondaryButton}>Find your mode <ArrowDown size={17} /></Link>
+          </div>
+          <div className={styles.agentLine}>
+            <span>The agents you love. The accounts you already have.</span>
+            <div>
+              <Link href="/docs/reference/agents/codex"><AgentLogo agent="codex" size={19} />Codex</Link>
+              <Link href="/docs/reference/agents/claude"><AgentLogo agent="claude" size={21} />Claude Code</Link>
+              <Link href="/docs/reference/agents/opencode"><AgentLogo agent="opencode" size={18} />OpenCode</Link>
             </div>
           </div>
-          <ProductPreview />
+        </div>
+        <HeroWorkspace />
+        <div className={styles.heroCaption}>
+          <span>One for your ideas. One for your projects. All yours.</span>
+          <span>Interactive examples · No account needed</span>
         </div>
       </section>
-
-      <section className={styles.wrap} aria-label="Technology behind Mindwire">
-        <div className={styles.agentStrip}>
-          <Corners />
-          {productAgents.map((agent) => (
-            <Link key={agent.id} href={agent.href}>
-              <AgentLogo agent={agent.id} size={24} />
-              <span>{agent.name}</span>
-            </Link>
-          ))}
-        </div>
+      <PersonalSection />
+      <ModeExplorer />
+      <ContinuitySection />
+      <SDKSection />
+      <section className={`${product.section} ${product.faqSection}`} aria-labelledby="home-questions">
+        <div className={product.sectionCopy}><span className={product.eyebrow}>A few good questions</span><h2 id="home-questions">Before you<br /><em>say hello.</em></h2><p>Getting a little team of your own should feel simple.</p><Link href="/get-started" className={product.textLink}>Walk me through it <ArrowUpRight size={17} /></Link></div>
+        <Questions items={[
+          { question: "Is this another AI subscription?", answer: <>Mindwire connects to supported agent accounts you already have. Your agent provider’s subscription or API usage stays separate. Use your own computer with no Mindwire runtime fee, or choose an optional <Link href="/pricing">monthly Cloud Computer</Link>.</> },
+          { question: "What makes a bot mine?", answer: "Give it a name, a purpose and instructions. Add memory, reference material and reusable skills so it can work with your context. Your saved bots stay with your workspace." },
+          { question: "Do I need to know how to code?", answer: "No. General mode focuses on conversations, files and the things your bots make for you. Developer mode brings projects, code changes, Git and terminals forward. Switch modes without starting over." },
+          { question: "Where does the work actually happen?", answer: "On the computer you connect: your own machine, a server or a Mindwire Cloud Computer. Your agent uses that computer’s files and tools. Local computers need to stay awake and online during work." },
+          { question: "Can I use Mindwire inside my own app?", answer: <>Yes. <Link href="/sdk">Mindwire SDK</Link> gives your product the same runtime: start tasks, stream progress and results, handle supported approvals and keep conversations going across agents.</> },
+        ]} />
       </section>
-
-      <section
-        id="features"
-        className={`${styles.wrap} ${styles.section}`}
-        aria-labelledby="features-title"
-      >
-        <div id="how" className={styles.sectionHeader}>
-          <div>
-            <span className={styles.kicker}>
-              Everyday work. Developer depth.
-            </span>
-            <h2 id="features-title" className={styles.sectionTitle}>
-              From the first request.
-              <br />
-              <span>To work you can use.</span>
-            </h2>
-          </div>
-          <p>
-            Describe the result you need, follow the work, and answer questions
-            along the way. Keep the tools for coding close when you need them.
-          </p>
-        </div>
-        <WorkflowShowcase />
-        <div className={styles.toolsRibbon}>
-          <span>
-            <FileCode2 size={18} /> Files & search
-          </span>
-          <span>
-            <Monitor size={18} /> Desktop on supported workspaces
-          </span>
-          <span>
-            <ArrowUpRight size={18} /> Ports & web previews
-          </span>
-        </div>
-      </section>
-
-      <section
-        id="agents"
-        className={`${styles.wrap} ${styles.section}`}
-        aria-labelledby="agents-title"
-      >
-        <div className={styles.harnessSection}>
-          <Corners />
-          <div className={styles.harnessCopy}>
-            <span className={styles.kicker}>Bring your subscriptions</span>
-            <h2 id="agents-title" className={styles.sectionTitle}>
-              Your subscriptions.
-              <br />
-              <span>One Mindwire agent.</span>
-            </h2>
-            <p className={styles.sectionDescription}>
-              Put the AI access you already have to work with your files,
-              projects, and everyday tasks. Mindwire brings it together in one
-              personal agent.
-            </p>
-            <a href="#workspaces" className={styles.textButton}>
-              Choose where you work <ArrowRight size={16} />
-            </a>
-          </div>
-          <div className={styles.harnessVisual}>
-            <WireDiagram />
-          </div>
-        </div>
-      </section>
-
-      <section
-        id="switching"
-        className={`${styles.wrap} ${styles.section}`}
-        aria-labelledby="switching-title"
-      >
-        <div className={styles.switchSection}>
-          <Corners />
-          <div className={styles.switchCopy}>
-            <span className={styles.kicker}>Workspace switching</span>
-            <h2 id="switching-title" className={styles.sectionTitle}>
-              New workspace.
-              <br />
-              <span>Same train of thought.</span>
-            </h2>
-            <p>
-              Start on your laptop. Continue in the cloud. Bring the work back
-              when you’re ready.
-            </p>
-            <p>
-              Your project files, local changes, and supported agent history
-              travel together. Both project copies stay yours, with conflicts
-              checked before changes are applied.
-            </p>
-            <Link
-              href="/docs/guides/project-sync"
-              className={styles.textButton}
-            >
-              See how switching works <ArrowUpRight size={16} />
-            </Link>
-            <span className={styles.switchSupport}>
-              Codex & Claude Code · macOS & Linux
-            </span>
-          </div>
-          <div className={styles.switchVisual}>
-            <div className={styles.switchVisualHeader}>
-              <span>atlas</span>
-              <span>
-                <GitBranch size={13} /> feature/dark-mode
-              </span>
-            </div>
-            <div className={styles.switchRoute}>
-              <div className={styles.switchMachine}>
-                <Laptop size={30} strokeWidth={1.4} />
-                <strong>My MacBook</strong>
-                <span>Original kept</span>
-              </div>
-              <div className={styles.switchConnector}>
-                <MoveRight size={25} />
-                <span>Pick up here</span>
-              </div>
-              <div
-                className={`${styles.switchMachine} ${styles.switchDestination}`}
-              >
-                <Cloud size={31} strokeWidth={1.4} />
-                <strong>Cloud workspace</strong>
-                <span>
-                  <span className={styles.smallDot} /> Ready to continue
-                </span>
-              </div>
-            </div>
-            <div className={styles.switchContents}>
-              <div>
-                <FileCode2 size={17} />
-                <span>Files & local changes</span>
-                <Check size={15} />
-              </div>
-              <div>
-                <GitBranch size={17} />
-                <span>Commits & staging</span>
-                <Check size={15} />
-              </div>
-              <div>
-                <AgentLogo agent="codex" size={17} />
-                <span>Conversations & context</span>
-                <Check size={15} />
-              </div>
-            </div>
-            <div className={styles.switchVisualFooter}>
-              <ShieldCheck size={15} /> Finish active work, then switch safely.
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section
-        id="workspaces"
-        className={`${styles.wrap} ${styles.section}`}
-        aria-labelledby="workspaces-title"
-      >
-        <div className={styles.sectionHeader}>
-          <div>
-            <span className={styles.kicker}>You choose where it runs</span>
-            <h2 id="workspaces-title" className={styles.sectionTitle}>
-              One app.
-              <br />
-              <span>All your workspaces.</span>
-            </h2>
-          </div>
-          <p>
-            Same chats, same tools, same flow. Connect a machine you own or give
-            your agent a place in the cloud.
-          </p>
-        </div>
-        <div className={styles.workspaceGrid}>
-          <Corners />
-          <article className={styles.workspaceCard}>
-            <div className={styles.workspaceCardTop}>
-              <Laptop size={30} strokeWidth={1.4} />
-              <span>Your hardware</span>
-            </div>
-            <h3>Your computer</h3>
-            <p>
-              Scan a QR code and continue with the projects already on your Mac,
-              Windows PC, or Linux computer.
-            </p>
-            <ul>
-              <li>
-                <Check size={15} /> Connect across Wi-Fi and mobile data
-              </li>
-              <li>
-                <Check size={15} /> No Mindwire account required
-              </li>
-              <li>
-                <Check size={15} /> Your agent accounts and tools
-              </li>
-            </ul>
-            <Link href="/get-started#computer" className={styles.textButton}>
-              Connect a computer <ArrowRight size={16} />
-            </Link>
-          </article>
-          <article className={styles.workspaceCard}>
-            <div className={styles.workspaceCardTop}>
-              <Server size={30} strokeWidth={1.4} />
-              <span>Your infrastructure</span>
-            </div>
-            <h3>Your server</h3>
-            <p>
-              Bring a server over SSH. Work directly on the host or create a
-              separate Docker workspace.
-            </p>
-            <ul>
-              <li>
-                <Check size={15} /> Native SSH connection
-              </li>
-              <li>
-                <Check size={15} /> Optional container isolation
-              </li>
-              <li>
-                <Check size={15} /> Files, agents, and terminal together
-              </li>
-            </ul>
-            <Link href="/get-started#server" className={styles.textButton}>
-              Bring a server <ArrowRight size={16} />
-            </Link>
-          </article>
-          <article className={`${styles.workspaceCard} ${styles.cloudCard}`}>
-            <div className={styles.workspaceCardTop}>
-              <Cloud size={30} strokeWidth={1.4} />
-              <span>Powered by Oblien</span>
-            </div>
-            <h3>A cloud workspace</h3>
-            <p>
-              Give your agent its own machine. Keep working with your laptop
-              closed and manage it from your phone.
-            </p>
-            <ul>
-              <li>
-                <Check size={15} /> Linux and available macOS images
-              </li>
-              <li>
-                <Check size={15} /> Compute, disks, and network controls
-              </li>
-              <li>
-                <Check size={15} /> Usage and lifecycle in the app
-              </li>
-            </ul>
-            <Link href="/pricing" className={styles.textButton}>
-              Explore workspace pricing <ArrowRight size={16} />
-            </Link>
-          </article>
-        </div>
-        <p className={styles.workspaceNote}>
-          <LockKeyhole size={15} /> Computer connections use encrypted SSH and
-          device approval. Your machine stays under your control.
-        </p>
-      </section>
-
-      <section
-        id="get-started"
-        className={`${styles.wrap} ${styles.section}`}
-        aria-labelledby="setup-title"
-      >
-        <div className={styles.setupSection}>
-          <Corners />
-          <div>
-            <span className={styles.kicker}>
-              Connect the computer doing the work
-            </span>
-            <h2 id="setup-title" className={styles.sectionTitle}>
-              A QR code.
-              <br />
-              <span>And you’re connected.</span>
-            </h2>
-            <p className={styles.sectionDescription}>
-              Install Mindwire on your computer, scan with the iPhone app, and
-              approve your phone. Open a project and pick your agent.
-            </p>
-            <Link href="/get-started" className={styles.textButton}>
-              Get set up <ArrowRight size={16} />
-            </Link>
-          </div>
-          <div>
-            <InstallCommand />
-            <div className={styles.setupSteps}>
-              <span>
-                <ScanLine size={18} /> Scan
-              </span>
-              <ChevronRight size={13} />
-              <span>
-                <ShieldCheck size={18} /> Approve
-              </span>
-              <ChevronRight size={13} />
-              <span>
-                <Code2 size={18} /> Start a task
-              </span>
-            </div>
-            <p className={styles.setupNote}>
-              Mac, Windows, or Linux · Keep your computer awake and online.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section
-        id="open-source"
-        className={`${styles.wrap} ${styles.section}`}
-        aria-labelledby="source-title"
-      >
-        <div id="console" className={styles.sourceSection}>
-          <Corners />
-          <div className={styles.sourceCopy}>
-            <span className={styles.kicker}>
-              <Code2 size={15} /> Open-source runtime · Self-hostable
-            </span>
-            <h2 id="source-title" className={styles.sectionTitle}>
-              An app for you.
-              <br />
-              <span>A foundation for everyone.</span>
-            </h2>
-            <p>
-              Build on the Apache-2.0 runtime and SDKs, and run agents on your
-              own infrastructure. The Apple client’s source is available for
-              inspection and private personal builds under its separate license.
-            </p>
-            <div className={styles.actions}>
-              <a href={githubUrl} className={styles.primaryButton}>
-                Explore the source <ArrowUpRight size={16} />
-              </a>
-              <Link href="/docs" className={styles.textButton}>
-                Developer docs <ArrowRight size={16} />
-              </Link>
-            </div>
-            <div className={styles.sourceTags}>
-              <span>TypeScript</span>
-              <span>Go</span>
-              <span>HTTP + SSE</span>
-              <span>Self-hostable</span>
-            </div>
-          </div>
-          <div className={styles.consolePreview}>
-            <a href={consoleUrl} aria-label="Manage your Mindwire account">
-              <div className={styles.consoleCaption}>
-                <span>
-                  <span /> Your Mindwire account
-                </span>
-                <ArrowUpRight size={16} />
-              </div>
-              <div className="grid gap-px bg-line p-px">
-                {[
-                  [
-                    "Your account",
-                    "Profile, sign-in security and connected devices.",
-                  ],
-                  [
-                    "Cloud Computers",
-                    "Choose Linux or Mac and manage monthly capacity.",
-                  ],
-                  [
-                    "Plans & billing",
-                    "Subscriptions, payment methods and invoices.",
-                  ],
-                ].map(([title, description]) => (
-                  <div key={title} className="bg-background p-6">
-                    <h3 className="text-sm font-semibold">{title}</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </a>
-            <p>
-              Manage your account on the web. Work with your computers in the
-              Mindwire app.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section
-        className={`${styles.wrap} ${styles.section} ${styles.faqSection}`}
-        aria-labelledby="faq-title"
-      >
-        <div>
-          <span className={styles.kicker}>A few things to know</span>
-          <h2 id="faq-title" className={styles.sectionTitle}>
-            Before you
-            <br />
-            <span>head out.</span>
-          </h2>
-        </div>
-        <div className={styles.faqList}>
-          {questions.map((item) => (
-            <details key={item.question}>
-              <summary>
-                {item.question}
-                <ChevronRight size={18} />
-              </summary>
-              <p>{item.answer}</p>
-            </details>
-          ))}
-        </div>
-      </section>
-
-      <section
-        className={`${styles.wrap} ${styles.finalCta}`}
-        aria-labelledby="cta-title"
-      >
-        <div className={styles.ctaPanel}>
-          <Corners />
-          <span className={styles.kicker}>Make room for your next idea</span>
-          <h2 id="cta-title">
-            Good work doesn’t
-            <br />
-            have to stay at your desk.
-          </h2>
-          <div className={styles.actions}>
-            <Link href={downloadUrl} className={styles.primaryButton}>
-              <Smartphone size={18} /> Download app <ArrowUpRight size={16} />
-            </Link>
-            <Link href="/pricing" className={styles.textButton}>
-              Find your workspace <ArrowRight size={16} />
-            </Link>
-          </div>
-        </div>
-      </section>
+      <FinalInvite />
     </div>
   );
 }

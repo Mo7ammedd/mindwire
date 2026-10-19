@@ -162,6 +162,12 @@ func (a *API) terminalInput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := t.Input(r.Context(), req); err != nil {
+		// Cancellation before writing has no receipt and is safe to retry with
+		// the same sequence. A partial PTY write remains a non-retryable conflict.
+		if errors.Is(err, workspaceexec.ErrTerminalInputInterrupted) {
+			writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "terminal input was interrupted before delivery; retry the same receipt"})
+			return
+		}
 		writeJSON(w, 409, map[string]string{"error": err.Error()})
 		return
 	}

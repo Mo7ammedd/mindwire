@@ -36,15 +36,15 @@ struct ChatTranscriptRow: Identifiable, Equatable {
     static func make(messages: [DaemonMessage], live: LiveTurn?, runID: String?,
                      animatesLiveUpdates: Bool = false, autoExpandedToolIDs: Set<String> = [],
                      expandedCommandGroups: Set<ID> = [], expandedTools: Set<ID> = [],
-                     reconnecting: Bool = false, canForkHistory: Bool = false) -> [Self] {
+                     reconnecting: Bool = false, canForkHistory: Bool = false, generalMode: Bool = false) -> [Self] {
         var rows: [Self] = []
 
         func appendParts(_ parts: [DaemonMessagePart], messageID: String,
                          message: DaemonMessage?, isLive: Bool) {
-            for group in ChatPartGroup.make(parts) {
+            for group in ChatPartGroup.make(parts, generalMode: generalMode) {
                 let id = ID(messageID: messageID, partIndex: group.startIndex)
                 if group.isCommandGroup {
-                    let expanded = expandedCommandGroups.contains(id)
+                    let expanded = !generalMode && expandedCommandGroups.contains(id)
                     rows.append(.init(id: id, message: message,
                                       content: .commands(group.parts, expanded: expanded), isLive: isLive,
                                       isLast: group.startIndex + group.parts.count == parts.count,

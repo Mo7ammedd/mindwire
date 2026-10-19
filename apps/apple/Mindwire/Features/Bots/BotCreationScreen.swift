@@ -15,6 +15,7 @@ struct BotCreationScreen: View {
     @State private var instructions = ""
     @State private var appearance: AssistantBotIcon
     @State private var setup: Setup = .plain
+    @State private var rawAgent = false
     @State private var appearanceExpanded = false
     @State private var selectedAgent: Agent?
     @State private var readyAgent: Agent?
@@ -65,9 +66,9 @@ struct BotCreationScreen: View {
         .interactiveDismissDisabled(saving)
         .task(id: experienceMode) { if experienceMode == .developer { await model.loadCatalog() } }
         .task { reconcile(); await repository.refreshIfNeeded(); reconcile() }
-        .task(id: "\(model.workspaceId ?? ""):\(experienceMode.rawValue)") {
+        .task(id: "\(model.workspaceId ?? ""):\(experienceMode.rawValue):\(rawAgent)") {
             generalAgent = nil
-            choseBaseAgent = false
+            if resolvedEngineWorkspaceID != model.workspaceId { choseBaseAgent = false }
             resolvedEngineWorkspaceID = nil
             reloadAgents()
             if let workspace = model.workspaceId.flatMap(repository.get) {
@@ -82,7 +83,7 @@ struct BotCreationScreen: View {
                     await model.loadBotCatalog(stores: stores)
                     guard !Task.isCancelled, model.workspaceId == workspace.id else { return }
                     reloadAgents()
-                    await connections.load(workspace: workspace, stores: stores, catalog: engines)
+                    await connections.load(workspace: workspace, stores: stores, catalog: engines, requiresBotSupport: !rawAgent)
                     guard !Task.isCancelled, model.workspaceId == workspace.id else { return }
                     selectAuthenticatedEngine()
                     resolvedEngineWorkspaceID = workspace.id
@@ -102,6 +103,7 @@ struct BotCreationScreen: View {
             selectAuthenticatedEngine()
         }
         .onChange(of: model.agentType) { selectAuthenticatedEngine() }
+        .onChange(of: rawAgent) { if rawAgent { setup = .plain } }
         .observeWorkspaceCache(reloadAgents)
         .onChange(of: repository.revision) { reconcile() }
         .onDisappear { task?.cancel() }
@@ -152,7 +154,7 @@ struct BotCreationScreen: View {
         }
         .font(.system(size: 13))
         .background(AssistantDesktopStyle.canvas)
-        .frame(width: 560, height: choosingConnection || selectedAgent != nil || setup == .instructions ? 560 : 460)
+        .frame(width: 580, height: experienceMode == .developer ? 620 : choosingConnection || selectedAgent != nil || setup == .instructions ? 560 : 460)
         .presentationSizing(.fitted)
         #else
         NavigationStack {
@@ -213,14 +215,15 @@ struct BotCreationScreen: View {
                     }
                 }
                 connection
-                VStack(alignment: .leading, spacing: 12) {
+                if experienceMode == .developer { plainAgentChoice }
+                if !isRaw { VStack(alignment: .leading, spacing: 12) {
                     Text(t("bots.create.setup")).font(.system(size: 12)).foregroundStyle(.secondary)
                     Picker(t("bots.create.setup"), selection: $setup) {
                         ForEach(Setup.allCases) { option in Text(option.title).tag(option) }
                     }
                     .pickerStyle(.segmented).labelsHidden().controlSize(.regular)
                     setupDetail
-                }
+                } }
                 catalogFailure
             }
             .padding(24).padding(.top, 2)
@@ -261,11 +264,12 @@ struct BotCreationScreen: View {
                     sectionHeading(t(experienceMode == .general ? "bots.create.connection" : "bots.create.runtime"))
                     connection
                 }
-                VStack(alignment: .leading, spacing: 10) {
+                if experienceMode == .developer { plainAgentChoice }
+                if !isRaw { VStack(alignment: .leading, spacing: 10) {
                     sectionHeading(t("bots.create.setup"))
                     setupChoices
                     setupDetail
-                }
+                } }
                 catalogFailure
             }
         } footer: {
@@ -286,6 +290,20 @@ struct BotCreationScreen: View {
 
     private func sectionHeading(_ title: String) -> some View {
         Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.leading, 4)
+    }
+
+    private var isRaw: Bool { experienceMode == .developer && rawAgent }
+
+    private var plainAgentChoice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(t("bots.raw.title"), isOn: $rawAgent)
+                .font(ApplePlatform.isDesktop ? .system(size: 13, weight: .medium) : .subheadline.weight(.medium))
+            Text(t("bots.raw.description"))
+                .font(ApplePlatform.isDesktop ? .system(size: 11) : .footnote).foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .background(AssistantStyle.surface, in: .rect(cornerRadius: ApplePlatform.isDesktop ? 12 : 18))
+        .accessibilityIdentifier("bots.create.raw")
     }
 
     private var setupChoices: some View {
@@ -365,15 +383,18 @@ struct BotCreationScreen: View {
         VStack(spacing: 0) {
             Menu {
                 ForEach(engines) { engine in
-                    Button(engineName(engine)) {
+                    Button {
                         choseBaseAgent = true
                         model.agentType = engine.id
+                    } label: {
+                        Label { Text(engineName(engine)) } icon: { AgentLogo(id: engine.id, size: 20) }
                     }
                 }
             } label: {
                 selectionRow(title: t("bots.create.engine"), value: selectedEngineName, icon: Icon.agents,
                              accessory: .chevronDown,
-                             checking: !choseBaseAgent && resolvedEngineWorkspaceID != model.workspaceId)
+                             checking: !choseBaseAgent && resolvedEngineWorkspaceID != model.workspaceId,
+                             agentType: model.agentType)
             }
             .disabled(engines.isEmpty)
             connectionDivider
@@ -438,11 +459,11 @@ struct BotCreationScreen: View {
             ?? t("bots.create.chooseComputer")
         if model.fixedWorkspaceId == nil {
             Button { sheet = repository.all.isEmpty ? .addComputer : .computers } label: {
-                selectionRow(title: t("bots.create.computer"), value: name, icon: .laptop)
+                selectionRow(title: t(experienceMode == .developer ? "bots.detail.workspace" : "bots.create.computer"), value: name, icon: .laptop)
             }
             .accessibilityIdentifier("bots.create.computer")
         } else {
-            selectionRow(title: t("bots.create.computer"), value: name, icon: .laptop, accessory: nil)
+            selectionRow(title: t(experienceMode == .developer ? "bots.detail.workspace" : "bots.create.computer"), value: name, icon: .laptop, accessory: nil)
         }
     }
 
@@ -499,10 +520,13 @@ struct BotCreationScreen: View {
     }
 
     private func selectionRow(title: String, value: String, icon: AppIconName,
-                              accessory: AppIconName? = .chevronRight, checking: Bool = false) -> some View {
+                              accessory: AppIconName? = .chevronRight, checking: Bool = false,
+                              agentType: AgentID? = nil) -> some View {
         HStack(spacing: 12) {
-            AppIcon(icon, size: ApplePlatform.isDesktop ? 18 : 20, decorative: true)
-                .foregroundStyle(.secondary).frame(width: 24)
+            Group {
+                if let agentType { AgentLogo(id: agentType, size: ApplePlatform.isDesktop ? 20 : 22) }
+                else { AppIcon(icon, size: ApplePlatform.isDesktop ? 18 : 20, decorative: true).foregroundStyle(.secondary) }
+            }.frame(width: 24).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 if !title.isEmpty {
                     Text(title).font(ApplePlatform.isDesktop ? .system(size: 11) : .caption).foregroundStyle(.secondary)
@@ -519,7 +543,7 @@ struct BotCreationScreen: View {
     }
 
     private var engines: [AgentDescriptor] {
-        model.botEngines(existingAgents: agents)
+        model.botEngines(existingAgents: agents, raw: isRaw)
     }
     private var selectedEngineName: String {
         engines.first(where: { $0.id == model.agentType }).map(engineName) ?? model.agentType.rawValue
@@ -580,7 +604,7 @@ struct BotCreationScreen: View {
                 try Task.checkCancellation()
                 let bot = try await stores.workspaceData.createBot(.init(agentId: agent.id, projectId: project.id,
                     name: name.trimmingCharacters(in: .whitespacesAndNewlines), id: botId, icon: appearance.id,
-                    instructions: setup == .instructions ? instructions : ""))
+                    instructions: !isRaw && setup == .instructions ? instructions : "", raw: isRaw ? true : nil))
                 try Task.checkCancellation()
                 if setup == .mindwire { onAskMindwire(bot) } else { onCreated(bot) }
                 dismiss()
@@ -620,7 +644,7 @@ struct BotCreationScreen: View {
               }) else { return }
         if model.agentType != preferred.agent.agentType { model.agentType = preferred.agent.agentType }
     }
-    private var createTitle: String { t(setup == .mindwire ? "bots.create.withMindwire" : "assistant.bots.create") }
+    private var createTitle: String { t(isRaw ? "bots.raw.create" : setup == .mindwire ? "bots.create.withMindwire" : "assistant.bots.create") }
     private var canCreate: Bool {
         guard !saving, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let workspaceID = model.workspaceId else { return false }
         if experienceMode == .general {

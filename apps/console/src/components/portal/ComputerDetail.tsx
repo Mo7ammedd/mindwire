@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Cpu, HardDrive, Loader2, MemoryStick, RefreshCw } from "lucide-react";
+import { ArrowLeft, Cpu, HardDrive, Loader2, MemoryStick, RefreshCw } from "lucide-react";
 import { request } from "@/lib/api";
 import { useCloud, computerState } from "@/lib/cloud";
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,7 @@ export function ComputerDetail() {
       setBusy(false);
     }
   }
-  if (!cloud.loaded) return <Loading />;
+  if (!cloud.loaded) return cloud.error ? null : <Loading />;
   if (!computer)
     return (
       <div className="space-y-4">
@@ -85,6 +85,7 @@ export function ComputerDetail() {
   );
   return (
     <div className="space-y-7">
+      <Button asChild size="sm" variant="ghost"><Link to="/computers"><ArrowLeft />All computers</Link></Button>
       <PageTitle
         title={computer.name}
         description={`${computer.plan.name} · ${computer.image} · ${computerState(computer)}`}
@@ -125,7 +126,7 @@ export function ComputerDetail() {
                 <item.icon className="size-4" />
                 {item.label}
               </p>
-              <p className="text-2xl font-semibold">{item.value}</p>
+              <p className="text-3xl font-medium">{item.value}</p>
             </CardContent>
           </Card>
         ))}
@@ -135,7 +136,7 @@ export function ComputerDetail() {
           <CardContent className="space-y-5 p-6">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium">Computer</h2>
-              <span className="text-xs capitalize text-muted-foreground">
+              <span className="rounded-full bg-[var(--mw-mint-soft)] px-3 py-1.5 text-xs capitalize text-[var(--mw-mint)]">
                 {status ?? computerState(computer)}
               </span>
             </div>
@@ -182,7 +183,7 @@ export function ComputerDetail() {
         <Card>
           <CardContent className="space-y-5 p-6">
             <h2 className="text-sm font-medium">Monthly subscription</h2>
-            <p className="text-2xl font-semibold">
+            <p className="text-3xl font-medium">
               {money(computer.plan.monthlyCents)}
               <span className="text-sm font-normal text-muted-foreground">
                 {" "}

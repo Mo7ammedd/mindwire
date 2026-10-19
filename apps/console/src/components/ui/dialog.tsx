@@ -22,7 +22,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-[#222]/80 backdrop-blur-sm dark:bg-[#333]/75",
+        "fixed inset-0 z-50 bg-black/35 backdrop-blur-sm dark:bg-black/60",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
         className,
       )}
@@ -42,7 +42,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border border-border bg-background p-5 shadow-lg",
+          "fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg rounded-3xl -translate-x-1/2 -translate-y-1/2 gap-4 border border-border bg-popover p-7 shadow-lg",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95",
           className,
         )}
@@ -51,7 +51,7 @@ function DialogContent({
         {children}
         <DialogPrimitive.Close
           className={cn(
-            "absolute right-3 top-3 opacity-70 transition-opacity hover:opacity-100",
+            "absolute right-4 top-4 grid size-8 place-items-center rounded-full bg-secondary text-muted-foreground opacity-80 transition-opacity hover:opacity-100",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
           )}
         >
@@ -93,7 +93,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-base font-semibold leading-none", className)}
+      className={cn("pr-7 text-xl font-medium leading-snug", className)}
       {...props}
     />
   );

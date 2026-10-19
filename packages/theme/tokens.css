@@ -1,0 +1,46 @@
+/* Mindwire's shared website, documentation and account palette. Import once in each app. */
+:root {
+  --mw-bg: #fcfbf9;
+  --mw-surface: #ffffff;
+  --mw-subtle: #f5f3ef;
+  --mw-inset: #eeece7;
+  --mw-ink: #252622;
+  --mw-muted: #686b62;
+  --mw-faint: #686b62;
+  --mw-line: #e7e5df;
+  --mw-peach: #9e582f;
+  --mw-peach-soft: #f8e9de;
+  --mw-blue: #3766a9;
+  --mw-blue-soft: #eaf0fb;
+  --mw-mint: #386f60;
+  --mw-mint-soft: #e8f1ed;
+  --mw-danger: #b7443f;
+  --mw-danger-soft: #f9eae6;
+  --mw-shadow: 0 24px 80px -35px #5e4c3d35, 0 2px 8px #42301d05;
+  --mw-shadow-popover: 0 12px 45px -16px #382c3233;
+  --mw-radius-control: 12px;
+  --mw-radius-card: 22px;
+  --mw-radius-panel: 28px;
+  --mw-radius-pill: 999px;
+}
+
+.dark {
+  --mw-bg: #10110f;
+  --mw-surface: #1a1c19;
+  --mw-subtle: #21231f;
+  --mw-inset: #2b2e28;
+  --mw-ink: #f1f1e9;
+  --mw-muted: #a3a69b;
+  --mw-faint: #999e91;
+  --mw-line: #30332c;
+  --mw-peach: #ecaa7d;
+  --mw-peach-soft: #34291f;
+  --mw-blue: #8dacdf;
+  --mw-blue-soft: #232c3a;
+  --mw-mint: #8abdae;
+  --mw-mint-soft: #24312b;
+  --mw-danger: #ee9186;
+  --mw-danger-soft: #382421;
+  --mw-shadow: 0 24px 80px -30px #0008, 0 2px 8px #0002;
+  --mw-shadow-popover: 0 12px 45px -16px #0009;
+}

@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
+import { ArrowUpRight, Plus } from "lucide-react";
+import { githubUrl } from "@/lib/product";
+import base from "@/components/landing/landing.module.css";
+import styles from "@/components/landing/resource-pages.module.css";
 
 export const metadata: Metadata = {
-  title: "Changelog — MindWire",
-  description: "What's new in MindWire.",
+  title: "Changelog — Mindwire",
+  description: "What's new in Mindwire.",
 };
 
 const releases = [
@@ -20,36 +24,14 @@ const releases = [
   },
 ];
 
-const heading = "text-neutral-950 dark:text-white font-semibold tracking-tight";
-
 export default function Changelog() {
-  return (
-    <section className="mx-auto max-w-3xl px-4 pb-24 pt-16 sm:px-6 sm:pt-24">
-      <span className="eyebrow">Changelog</span>
-      <h1 className={`mt-5 text-4xl sm:text-5xl ${heading}`}>Changelog</h1>
-      <p className="mt-5 text-lg text-neutral-600 dark:text-neutral-400">What's new in MindWire.</p>
-
-      <div className="mt-14 space-y-14">
-        {releases.map((r) => (
-          <div key={r.version} className="grid gap-4 border-t border-neutral-200 pt-8 dark:border-neutral-800 sm:grid-cols-[150px_1fr]">
-            <div>
-              <div className="font-mono text-sm font-medium text-neutral-950 dark:text-white">{r.version}</div>
-              <div className="font-mono text-xs text-neutral-400 dark:text-neutral-600">{r.date}</div>
-            </div>
-            <div>
-              <span className="chip mb-4 inline-flex">{r.tag}</span>
-              <ul className="space-y-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-                {r.changes.map((c, i) => (
-                  <li key={i} className="flex gap-3">
-                    <span className="mt-0.5 shrink-0 font-mono text-neutral-400 dark:text-neutral-600">+</span>
-                    <span>{c}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        ))}
-      </div>
+  return <div className={base.landing}>
+    <header className={styles.hero}><p className={styles.kicker}>The changelog</p><h1>A little better.<br /><span>With every release.</span></h1><p>New tools, thoughtful improvements, and the details behind each Mindwire release.</p><a href={`${githubUrl}/releases`} className={styles.textLink}>Releases on GitHub<ArrowUpRight size={16} /></a></header>
+    <section className={styles.journal} aria-label="Release notes">
+      {releases.map(release => <article className={styles.release} key={release.version}>
+        <div className={styles.releaseMeta}><span>{release.version}</span><time dateTime={release.date}>{release.date}</time></div>
+        <div className={styles.releaseBody}><span className={styles.releaseTag}>{release.tag} release</span><h2>The foundations of Mindwire.</h2><ul>{release.changes.map(change => <li key={change}><Plus size={15} /><span>{change}</span></li>)}</ul></div>
+      </article>)}
     </section>
-  );
+  </div>;
 }

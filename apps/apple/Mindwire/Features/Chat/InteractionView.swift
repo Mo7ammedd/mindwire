@@ -15,6 +15,7 @@ final class InteractionDraft {
 /// completed history are read-only except for daemon-owned async questions. Passive notices
 /// use the same quiet disclosure as thinking; errors have bounded, on-demand details.
 struct InteractionView: View {
+    @Environment(\.chatAccent) private var accent
     let interaction: DaemonInteraction
     var showsTitle = true
     var actionable = false
@@ -132,7 +133,7 @@ struct InteractionView: View {
                                 AppIcon(question.multiSelect == true
                                       ? (selected ? .checkSquare : .square)
                                       : (selected ? .checkCircleFilled : .circle))
-                                    .foregroundStyle(selected ? Palette.accent : .secondary)
+                                    .foregroundStyle(selected ? accent : .secondary)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(option.label).foregroundStyle(.primary)
                                     if let description = option.description, !description.isEmpty {
@@ -246,7 +247,7 @@ struct InteractionView: View {
     private func todoTint(_ s: String?) -> Color {
         switch s {
         case "completed":   return .green
-        case "in_progress": return Palette.accent
+        case "in_progress": return accent
         default:            return .secondary
         }
     }

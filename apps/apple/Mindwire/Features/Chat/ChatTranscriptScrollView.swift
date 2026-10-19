@@ -224,6 +224,7 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
                 || self.app !== parent.app
             self.app = parent.app
             self.environment = environment
+            olderIndicator.color = UIColor(environment.chatAccent)
             let restore = restorationRevision != parent.restorationRevision
             let jump = jumpRevision != parent.jumpRevision
             let revealLatest = latestRequestRevision != parent.latestRequestRevision

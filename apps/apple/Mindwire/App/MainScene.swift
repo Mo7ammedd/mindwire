@@ -4,6 +4,7 @@ import SwiftUI
 struct MainScene: View {
     var repository: WorkspaceRepository = .shared
     @Environment(\.stores) private var stores
+    @Environment(AppModel.self) private var app
 
     var body: some View {
         Group {
@@ -19,6 +20,10 @@ struct MainScene: View {
             }
         }
         .environment(\.appExperienceMode, stores.experience.mode ?? .general)
+        .sheet(item: Binding(get: { app.presentedAppShortcut }, set: { app.presentedAppShortcut = $0 })) {
+            AppShortcutDestination(shortcut: $0)
+        }
+        .onChange(of: stores.apps.revision) { app.resolvePendingAppShortcut() }
         #if targetEnvironment(macCatalyst)
         .task { await LocalComputer.shared.prepare(stores: stores, repository: repository) }
         #endif

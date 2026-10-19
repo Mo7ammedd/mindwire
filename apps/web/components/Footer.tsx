@@ -1,6 +1,7 @@
 import Link from "next/link";
 import OblienLogo from "./OblienLogo";
 import { downloadUrl } from "@/lib/product";
+import { consoleUrl } from "@/lib/console-url";
 
 type FooterLink = { href: string; label: string; soon?: boolean };
 
@@ -10,7 +11,7 @@ const cols: { title: string; links: FooterLink[] }[] = [
     links: [
       { href: "/#features", label: "Features" },
       { href: downloadUrl, label: "Download app" },
-      { href: "/#open-source", label: "Console" },
+      { href: consoleUrl, label: "Console" },
       { href: "/sandboxing", label: "Sandboxing" },
       { href: "/pricing", label: "Pricing" },
       { href: "/changelog", label: "Changelog" },

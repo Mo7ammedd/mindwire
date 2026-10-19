@@ -23,6 +23,9 @@ import (
 const TerminalVersion = 1
 const terminalReplayBytes = 2 << 20
 
+// No PTY bytes or receipt were written: replaying this same input is safe.
+var ErrTerminalInputInterrupted = errors.New("terminal input interrupted before delivery")
+
 type TerminalRequest struct {
 	ID        string `json:"id"`
 	Directory string `json:"directory,omitempty"`
@@ -408,7 +411,7 @@ func (t *Terminal) Input(ctx context.Context, input TerminalInput) error {
 	t.inputMu.Lock()
 	defer t.inputMu.Unlock()
 	if ctx.Err() != nil {
-		return ctx.Err()
+		return errors.Join(ErrTerminalInputInterrupted, ctx.Err())
 	}
 	t.mu.Lock()
 	previous, exists := t.inputs[input.Writer]
@@ -451,6 +454,11 @@ func (t *Terminal) Resize(columns, rows int) error {
 	defer t.mu.Unlock()
 	if !t.state.Running {
 		return errors.New("terminal has exited")
+	}
+	// Reattachment reapplies dimensions. An unchanged size must not send SIGWINCH
+	// and make a shell redraw an in-progress command on every brief reconnect.
+	if t.state.Columns == columns && t.state.Rows == rows {
+		return nil
 	}
 	if err := t.pty.Resize(columns, rows); err != nil {
 		return err

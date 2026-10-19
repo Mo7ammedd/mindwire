@@ -794,6 +794,10 @@ export interface Notification {
   botId?: string;
   botName?: string;
   botIcon?: string;
+  appId?: string;
+  appName?: string;
+  appIcon?: string;
+  eventId?: string;
   workspaceId?: string;
   chatId?: string;
   runId?: string;
@@ -1247,6 +1251,8 @@ export interface Health {
   /** Workspace registry protocol version; absent on daemons predating workspace metadata. */
   workspaceMetadataVersion?: number;
   botsVersion?: number;
+  appsVersion?: number;
+  integrationsVersion?: number;
   /** Native installed-harness discovery and atomic workspace.ensureAgent(). */
   agentDiscoveryVersion?: number;
   /** Durable project folders, membership and ordering, with conditional edits. */

@@ -4,9 +4,12 @@ struct AssistantBotDetails: View {
     let edit: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.stores) private var stores
+    @Environment(\.appExperienceMode) private var experienceMode
     @State private var bot: AssistantBot
     @State private var changingIcon = false
     @State private var editing = false
+    @State private var showingEngineSettings = false
+    @State private var showingIntegrations = false
 
     init(bot: AssistantBot, edit: @escaping () -> Void) {
         _bot = State(initialValue: bot)
@@ -25,6 +28,7 @@ struct AssistantBotDetails: View {
                     .frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.vertical, 16)
                 }
                 .listRowBackground(Color.clear)
+                Section { Button { showingIntegrations = true } label: { Label("Integrations", systemImage: "bubble.left.and.bubble.right") }.tint(.primary) }
                 if !bot.instructions.isEmpty {
                     Section(t("assistant.bots.instructions")) { Text(bot.instructions).textSelection(.enabled) }
                 }
@@ -43,9 +47,17 @@ struct AssistantBotDetails: View {
                 }
                 Section {
                     Button(t("bots.edit.title")) { editing = true }
-                    Button(t("bots.edit.withMindwire"), action: edit)
+                    if !bot.isRaw { Button(t("bots.edit.withMindwire"), action: edit) }
                 }
                 .tint(.primary)
+                if experienceMode == .developer {
+                    Section(t("bots.detail.runtime")) { BotRuntimeRows(bot: bot, navigates: false) }
+                    if let agent = stores.agents.get(bot.agentId) {
+                        Section {
+                            Button { showingEngineSettings = true } label: { BotBaseAgentLabel(agent: agent) }
+                        }.tint(.primary)
+                    }
+                }
             }
             .navigationTitle(bot.name).navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -61,6 +73,9 @@ struct AssistantBotDetails: View {
             }
             .sheet(isPresented: $changingIcon) { AssistantBotIconPicker(bot: bot) }
             .sheet(isPresented: $editing) { BotEditorScreen(bot: bot) }
+            .sheet(isPresented: $showingEngineSettings) { AgentSettingsScreen(agentId: bot.agentId) }
+            .sheet(isPresented: $showingIntegrations) { BotIntegrationsScreen(bot: bot) }
         }
+        .frame(width: ApplePlatform.isDesktop ? 580 : nil, height: ApplePlatform.isDesktop ? 640 : nil)
     }
 }

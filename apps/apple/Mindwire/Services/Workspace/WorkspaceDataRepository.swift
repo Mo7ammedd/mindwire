@@ -66,6 +66,7 @@ final class WorkspaceDataRepository {
     }
 
     func supportsGitAccess(workspaceId: String) -> Bool { remotes[workspaceId]?.supportsGitAccess == true }
+    func supportsBotSkills(workspaceId: String) -> Bool { remotes[workspaceId]?.supportsBotSkills == true }
 
     func agentCatalog(workspaceId: String) async throws -> DaemonCatalog {
         try await withProjectRemote(workspaceId, allowInstall: false) { remote, _ in
@@ -80,6 +81,34 @@ final class WorkspaceDataRepository {
             let result = try await remote.ensureBots(agentId: agentId, projectId: projectId)
             guard generation == self.generations[project.workspaceId, default: 0] else { throw CancellationError() }
             try self.apply(result.snapshot, workspaceId: project.workspaceId)
+            // Presets are ordinary profiles configured by this consumer. SDK users
+            // calling /bots/ensure only receive the generic manager profile.
+            @MainActor func accept(_ value: AssistantBotMutation) throws {
+                guard generation == self.generations[project.workspaceId, default: 0] else { throw CancellationError() }
+                try self.apply(value.snapshot, workspaceId: project.workspaceId)
+            }
+            if let edit = try AssistantBotPresets.profileEdit(result.bot, supportsSkills: remote.supportsBotSkills) {
+                try accept(try await remote.editBot(result.bot.id, edit: edit))
+            }
+            if remote.supportsApps {
+                let id = AssistantBotPresets.appBuilderID(projectId: projectId)
+                if let builder = self.stores.bots.get(id) {
+                    if !builder.archived {
+                        var edit = try AssistantBotPresets.profileEdit(builder, supportsSkills: remote.supportsBotSkills)
+                        if builder.agentId != agentId, remote.supportsBotRebinding {
+                            if edit == nil { edit = .init(expectedRevision: builder.revision) }
+                            edit?.agentId = agentId
+                        }
+                        if let edit { try accept(try await remote.editBot(id, edit: edit)) }
+                    }
+                } else {
+                    let names = Set(self.stores.bots.list().filter { $0.projectId == projectId && !$0.archived }.map { $0.name.lowercased() })
+                    var name = "App builder", suffix = 2
+                    while names.contains(name.lowercased()) { name = "App builder \(suffix)"; suffix += 1 }
+                    let preset = try AssistantBotPresets.appBuilder(agentId: agentId, projectId: projectId, name: name, supportsSkills: remote.supportsBotSkills)
+                    try accept(try await remote.createBot(preset))
+                }
+            }
             guard let saved = self.stores.bots.get(result.bot.id) else { throw WorkspaceRegistryError.missing }
             return saved
         }
@@ -93,6 +122,54 @@ final class WorkspaceDataRepository {
             let result = try await remote.editBot(bot.id, edit: edit)
             guard generation == self.generations[bot.workspaceId, default: 0] else { throw CancellationError() }
             try self.apply(result.snapshot, workspaceId: bot.workspaceId)
+        }
+    }
+
+    func openApp(_ app: AppShortcut) async throws -> AppShortcut {
+        let generation = generations[app.workspaceId, default: 0]
+        let http = try await appAutomationHTTP(workspaceId: app.workspaceId)
+        // Preparing the shared transport is ordered; waiting for the app's service
+        // must not hold up chat history, source control or other workspace work.
+        let result: AppShortcut = try await http.decode("POST", "/apps/\(http.encQuery(app.id))/open", json: [:])
+        guard generation == generations[app.workspaceId, default: 0] else { throw CancellationError() }
+        return result
+    }
+
+    func appAutomationHTTP(workspaceId: String) async throws -> DaemonHTTP {
+        try await withConversationRemote(workspaceId) { remote, _ in try await remote.appsHTTP() }
+    }
+
+    func integrationsHTTP(workspaceId: String) async throws -> DaemonHTTP {
+        try await withConversationRemote(workspaceId) { remote, _ in
+            guard remote.supportsIntegrations else { throw WorkspaceRegistryError.updateRequired }
+            return try await remote.appsHTTP()
+        }
+    }
+
+    func prepareAppPublication(_ app: AppShortcut) async throws -> AppPublicationPlan {
+        let http = try await withConversationRemote(app.workspaceId) { remote, _ in
+            guard remote.supportsAppPublishing else { throw WorkspaceRegistryError.updateRequired }
+            return try await remote.appsHTTP()
+        }
+        return try await http.decode("POST", "/apps/\(http.encQuery(app.id))/publication/prepare", json: [:])
+    }
+
+    func editApp(_ app: AppShortcut, edit: AppShortcutEdit) async throws {
+        try await withConversationRemote(app.workspaceId) { remote, generation in
+            let http = try await remote.appsHTTP()
+            let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(edit)) as? [String: Any] ?? [:]
+            let result: AppShortcutMutation
+            do { result = try await http.decode("PATCH", "/apps/\(http.encQuery(app.id))", json: object) }
+            catch {
+                if let failure = error as? DaemonHTTPError, failure.status == 409 || failure.status == 410,
+                   generation == self.generations[app.workspaceId, default: 0],
+                   let snapshot = try? await remote.snapshot(refreshSessions: false) {
+                    try? self.apply(snapshot, workspaceId: app.workspaceId)
+                }
+                throw error
+            }
+            guard generation == self.generations[app.workspaceId, default: 0] else { throw CancellationError() }
+            try self.apply(result.snapshot, workspaceId: app.workspaceId)
         }
     }
 
@@ -415,6 +492,7 @@ final class WorkspaceDataRepository {
     func forget(_ workspaceId: String) {
         botConnections.forget(workspaceId, remaining: WorkspaceRepository.shared.all)
         forgotten.insert(workspaceId)
+        stores.apps.replaceAll(stores.apps.list().filter { $0.workspaceId != workspaceId })
         jobs.removeValue(forKey: workspaceId)?.cancel()
         refreshIDs[workspaceId] = nil
         forcedJobs.remove(workspaceId)
@@ -557,7 +635,7 @@ final class WorkspaceDataRepository {
             if checkpoint.identity != snapshot.workspaceId && !snapshot.full { throw BackendError.message(t("workspace.sync.invalid")) }
             if !snapshot.full && checkpoint.identity == snapshot.workspaceId && checkpoint.revision == snapshot.revision
                 && snapshot.agents.isEmpty && snapshot.projects.isEmpty && snapshot.chats.isEmpty && snapshot.deleted.isEmpty
-                && snapshot.projectLibrary == nil && (snapshot.bots?.isEmpty ?? true) { return }
+                && snapshot.projectLibrary == nil && (snapshot.bots?.isEmpty ?? true) && (snapshot.apps?.isEmpty ?? true) { return }
         } else if !snapshot.full { throw BackendError.message(t("workspace.sync.invalid")) }
 
         let allAgents = stores.agents.list(), allProjects = stores.projects.list(), allChats = stores.chats.list()
@@ -614,19 +692,27 @@ final class WorkspaceDataRepository {
             .map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         for var bot in snapshot.bots ?? [] {
             guard bot.revision > 0, bot.revision <= snapshot.revision,
-                  agentIDs.contains(bot.agentId), projectIDs.contains(bot.projectId),
+                  agentIDs.contains(bot.agentId), bot.projectId.isEmpty || projectIDs.contains(bot.projectId),
                   !allBots.contains(where: { $0.id == bot.id && $0.workspaceId != workspaceId }) else {
                 throw BackendError.message(t("workspace.sync.invalid"))
             }
             bot.workspaceId = workspaceId
             bots[bot.id] = bot
         }
-        bots = bots.filter { agentIDs.contains($0.value.agentId) && projectIDs.contains($0.value.projectId) }
-        for chat in chats.values {
-            if let botId = chat.botId, let bot = bots[botId], bot.projectId != chat.projectId {
+        bots = bots.filter { agentIDs.contains($0.value.agentId) && ($0.value.projectId.isEmpty || projectIDs.contains($0.value.projectId)) }
+        let allApps = stores.apps.list()
+        var apps = Dictionary(allApps.filter { $0.workspaceId == workspaceId && (!snapshot.full || snapshot.apps == nil) }
+            .map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        for var shortcut in snapshot.apps ?? [] {
+            guard shortcut.revision > 0, shortcut.revision <= snapshot.revision,
+                  projectIDs.contains(shortcut.projectId), shortcut.destination != nil || shortcut.automation == true,
+                  !allApps.contains(where: { $0.id == shortcut.id && $0.workspaceId != workspaceId }) else {
                 throw BackendError.message(t("workspace.sync.invalid"))
             }
+            shortcut.workspaceId = workspaceId
+            apps[shortcut.id] = shortcut
         }
+        apps = apps.filter { projectIDs.contains($0.value.projectId) }
         let newChatIDs = Set(chats.keys)
         let acknowledgedProjects = projectIDs.union(snapshot.deleted.filter { $0.kind == "projects" }.map(\.id))
         // A completed creation may have been acknowledged by reconciliation after
@@ -664,6 +750,7 @@ final class WorkspaceDataRepository {
         stores.projectPresentation.reconcile(projects: Array(projects.values), workspaceId: workspaceId, registryId: snapshot.workspaceId)
         stores.chats.replaceAll(allChats.filter { !oldChatIDs.contains($0.id) } + chats.values.sorted { ($0.lastActivityAt, $0.id) > ($1.lastActivityAt, $1.id) })
         stores.bots.replaceAll(allBots.filter { $0.workspaceId != workspaceId } + bots.values.sorted { $0.id < $1.id })
+        stores.apps.replaceAll(allApps.filter { $0.workspaceId != workspaceId } + apps.values.sorted { $0.id < $1.id })
         if remainingRequests != projectRequestIDs {
             projectRequestIDs = remainingRequests
             stores.defaults.set(projectRequestIDs, forKey: Self.projectRequestKey)
@@ -836,6 +923,13 @@ final class WorkspaceDataRepository {
         }
     }
 
+    func uploadProjectIcon(_ projectId: String, icon: ProjectIconData) async throws -> ProjectIconData {
+        guard let project = stores.projects.get(projectId) else { throw WorkspaceRegistryError.missing }
+        return try await withProjectRemote(project.workspaceId, allowInstall: false) { remote, _ in
+            try await remote.uploadProjectIcon(projectId, icon: icon)
+        }
+    }
+
     func setProjectIcon(_ projectId: String, path: String?) async throws {
         guard let project = stores.projects.get(projectId) else { throw WorkspaceRegistryError.missing }
         let generation = generations[project.workspaceId, default: 0]
@@ -857,7 +951,7 @@ final class WorkspaceDataRepository {
     func createChat(agentId: String, projectId: String, title: String = "New chat", botId: String? = nil) async throws -> Chat {
         guard let project = stores.projects.get(projectId), stores.agents.get(agentId)?.workspaceId == project.workspaceId else { throw WorkspaceRegistryError.missing }
         if let botId {
-            guard let bot = stores.bots.get(botId), bot.projectId == projectId, !bot.archived else { throw WorkspaceRegistryError.missing }
+            guard let bot = stores.bots.get(botId), bot.workspaceId == project.workspaceId, !bot.archived else { throw WorkspaceRegistryError.missing }
         }
         let key = [agentId, projectId, title, botId ?? ""].joined(separator: "\u{1f}")
         let record = pendingChats[key] ?? Chat(id: newId(), agentId: agentId, projectId: projectId,
@@ -865,6 +959,9 @@ final class WorkspaceDataRepository {
         pendingChats[key] = record
         let saved = try await mutation(project.workspaceId) { remote, workspace in
             if botId != nil && !remote.supportsBots { throw WorkspaceRegistryError.botsUnavailable }
+            if let botId, self.stores.bots.get(botId)?.projectId != projectId, !remote.supportsWorkspaceBots {
+                throw WorkspaceRegistryError.botsUnavailable
+            }
             try await self.put(record, kind: "chats", id: record.id, workspace: workspace, expected: nil, remote: remote)
             guard let saved = self.stores.chats.get(record.id) else { throw WorkspaceRegistryError.missing }
             return saved

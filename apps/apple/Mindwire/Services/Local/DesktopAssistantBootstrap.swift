@@ -69,7 +69,8 @@ final class DesktopAssistantBootstrap {
         }
         let master: AssistantBot
         if let existing = stores.bots.list().first(where: {
-            $0.isMaster && !$0.archived && $0.agentId == agent.id && $0.projectId == project.id
+            $0.isMaster && !$0.archived && $0.agentId == agent.id && $0.projectId == project.id && !$0.instructions.isEmpty &&
+                ($0.skills != nil || !stores.workspaceData.supportsBotSkills(workspaceId: workspace.id))
         }) { master = existing }
         else { master = try await stores.workspaceData.ensureGeneralBots(agentId: agent.id, projectId: project.id) }
         try Task.checkCancellation()

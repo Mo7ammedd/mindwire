@@ -30,6 +30,7 @@ import (
 	"github.com/oblien/mindwire/packages/daemon/internal/gitaccess"
 	"github.com/oblien/mindwire/packages/daemon/internal/gitauthor"
 	"github.com/oblien/mindwire/packages/daemon/internal/gitops"
+	"github.com/oblien/mindwire/packages/daemon/internal/integrations"
 	"github.com/oblien/mindwire/packages/daemon/internal/notify"
 	"github.com/oblien/mindwire/packages/daemon/internal/orchestrator"
 	"github.com/oblien/mindwire/packages/daemon/internal/projecticon"
@@ -180,6 +181,9 @@ func main() {
 		log.Fatalf("recover project operations: %v", err)
 	}
 	defer workspaceAPI.Close()
+	if err := workspaceAPI.SetAppsAddress(listener.Addr().String()); err != nil {
+		log.Fatalf("configure app notifications: %v", err)
+	}
 	localDesktopVersion := 0
 	if computerMode && runtime.GOOS == "darwin" && os.Geteuid() != 0 {
 		secret := make([]byte, 32)
@@ -211,7 +215,7 @@ func main() {
 	}
 	health.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "nativeAuthSource": true, "agent": sup.Default(), "version": agent.Version, "historyPageVersion": api.HistoryPageVersion, "workspaceMetadataVersion": registry.Version, "botsVersion": registry.BotsVersion, "agentDiscoveryVersion": registry.AgentDiscoveryVersion, "projectLibraryVersion": registry.ProjectLibraryVersion, "projectOperationsVersion": registry.ProjectOperationsVersion, "projectIconsVersion": projecticon.Version, "projectSyncVersion": projectsync.ProtocolVersion(), "conversationBrowserVersion": conversations.BrowserVersion, "surfaceProtocolVersion": surface.Version, "localDesktopVersion": localDesktopVersion, "notificationPreferencesVersion": registry.NotificationPreferencesVersion, "gitAccessVersion": gitaccess.Version, "gitOperationsVersion": gitops.Version, "gitIdentityVersion": gitauthor.Version, "harnessPolicyVersion": toolchain.PolicyVersion, "serviceUpdateVersion": orchestrator.ServiceUpdateVersion, "workspaceIsolationVersion": agent.WorkspaceIsolationVersion, "workspaceIsolation": agent.WorkspaceIsolation(), "workspaceExecutionVersion": workspaceexec.Version, "terminalProtocolVersion": workspaceexec.TerminalVersion, "turnRequestVersion": orchestrator.TurnRequestVersion, "queuedInputVersion": orchestrator.QueuedInputVersion, "nativeSessionVersion": agent.NativeSessionVersion, "chatForkVersion": agent.ChatForkVersion, "imageAttachmentsVersion": agent.ImageAttachmentsVersion, "attachmentUploadVersion": artifact.UploadVersion, "computerConnectionVersion": computerVersion})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "nativeAuthSource": true, "agent": sup.Default(), "version": agent.Version, "historyPageVersion": api.HistoryPageVersion, "workspaceMetadataVersion": registry.Version, "botsVersion": registry.BotsVersion, "appsVersion": registry.AppsVersion, "integrationsVersion": integrations.Version, "agentDiscoveryVersion": registry.AgentDiscoveryVersion, "projectLibraryVersion": registry.ProjectLibraryVersion, "projectOperationsVersion": registry.ProjectOperationsVersion, "projectIconsVersion": projecticon.Version, "projectSyncVersion": projectsync.ProtocolVersion(), "conversationBrowserVersion": conversations.BrowserVersion, "surfaceProtocolVersion": surface.Version, "localDesktopVersion": localDesktopVersion, "notificationPreferencesVersion": registry.NotificationPreferencesVersion, "gitAccessVersion": gitaccess.Version, "gitOperationsVersion": gitops.Version, "gitIdentityVersion": gitauthor.Version, "harnessPolicyVersion": toolchain.PolicyVersion, "serviceUpdateVersion": orchestrator.ServiceUpdateVersion, "workspaceIsolationVersion": agent.WorkspaceIsolationVersion, "workspaceIsolation": agent.WorkspaceIsolation(), "workspaceExecutionVersion": workspaceexec.Version, "terminalProtocolVersion": workspaceexec.TerminalVersion, "turnRequestVersion": orchestrator.TurnRequestVersion, "queuedInputVersion": orchestrator.QueuedInputVersion, "nativeSessionVersion": agent.NativeSessionVersion, "chatForkVersion": agent.ChatForkVersion, "imageAttachmentsVersion": agent.ImageAttachmentsVersion, "attachmentUploadVersion": artifact.UploadVersion, "computerConnectionVersion": computerVersion})
 	})
 	root.Handle("/healthz", api.Auth(token, health))
 
@@ -245,6 +249,8 @@ func main() {
 		}
 		defer connection.Close()
 	}
+	root.HandleFunc("POST /apps/{id}/notify", workspaceAPI.AppNotify)
+	root.HandleFunc("POST /integrations/{id}/webhook", workspaceAPI.IntegrationWebhook)
 	root.Handle("/", api.Auth(token, apiMux))
 
 	// DEV_CORS=1 allows a cross-origin browser app (e.g. the preview app's Vite dev server) to
@@ -262,6 +268,11 @@ func main() {
 		IdleTimeout:       120 * time.Second,
 	}
 
+	// This long-lived host explicitly owns persisted application jobs. Creating a
+	// library Client or an API handler alone does not start background execution.
+	if err := workspaceAPI.StartScheduledJobs(); err != nil {
+		log.Fatalf("start scheduled jobs: %v", err)
+	}
 	log.Printf("agent-daemon: default-agent=%s addr=%s state=%s", sup.Default(), addr, statePath)
 	serve(srv, listener, sup)
 }

@@ -79,6 +79,7 @@ type appServer struct {
 	config                map[string]any
 	instructions          string
 	developerInstructions string
+	skillsRoot            string
 	images                []string
 	audio                 []agent.Attachment
 	files                 []agent.Attachment
@@ -208,6 +209,8 @@ func sessionConflictText(message string) string {
 	}
 	return ""
 }
+
+func (e *rpcErr) Error() string { return e.text() }
 
 type pendingResp struct {
 	result json.RawMessage
@@ -826,7 +829,7 @@ func (a appServer) converse(ctx context.Context, w io.Writer, r io.Reader, inbou
 		case resp = <-ch:
 		}
 		if resp.err != nil {
-			return nil, errors.New(resp.err.text())
+			return nil, resp.err
 		}
 		return resp.result, nil
 	}
@@ -884,6 +887,24 @@ func (a appServer) converse(ctx context.Context, w io.Writer, r io.Reader, inbou
 	// 2. initialized notification.
 	if err := writeJSON(rpcNotification{Method: "initialized"}); err != nil {
 		return agent.TurnResult{Text: err.Error()}, false
+	}
+	if a.skillsRoot != "" {
+		// Scoped to this app-server process; never writes Codex's config or skills.
+		ch, err = call("skills/extraRoots/set", map[string]any{"extraRoots": []string{a.skillsRoot}})
+		if err != nil {
+			return startupFailure("load assigned skills", err)
+		}
+		skillCtx, cancelSkills := context.WithTimeout(startupCtx, 2*time.Second)
+		_, err = awaitWithContext(skillCtx, ch)
+		cancelSkills()
+		if err != nil {
+			var rpc *rpcErr
+			unsupported := errors.As(err, &rpc) && (rpc.Code == -32601 || rpc.Code == -32602)
+			if !unsupported && !(errors.Is(err, context.DeadlineExceeded) && startupCtx.Err() == nil) {
+				return startupFailure("load assigned skills", err)
+			}
+			// Older servers still have the same on-demand skills_read tool and index.
+		}
 	}
 	// Preserve native user/project developer instructions when adding the bot's
 	// current context. Built-in model instructions remain owned by Codex.

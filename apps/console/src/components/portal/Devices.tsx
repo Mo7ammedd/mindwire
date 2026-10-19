@@ -55,9 +55,9 @@ export function Devices({ onSignedOut }: { onSignedOut: () => void }) {
         <Loading />
       ) : (
         <>
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="grid items-start gap-6 min-[1250px]:grid-cols-[minmax(0,1fr)_19rem]">
             <section className="space-y-4">
-              <h2 className="text-sm font-medium">Signed-in devices</h2>
+              <h2 className="text-base font-medium">Signed-in devices</h2>
               <Card>
                 <CardContent className="divide-y divide-border p-0">
                   {sessions.map((session) => (
@@ -65,7 +65,7 @@ export function Devices({ onSignedOut }: { onSignedOut: () => void }) {
                       key={session.id}
                       className="flex flex-wrap items-center gap-4 p-5"
                     >
-                      <span className="grid size-10 place-items-center bg-secondary">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[var(--mw-blue-soft)] text-[var(--mw-blue)]">
                         {/iPhone|iPad|Android/i.test(session.userAgent) ? (
                           <Smartphone className="size-4" />
                         ) : (
@@ -73,7 +73,7 @@ export function Devices({ onSignedOut }: { onSignedOut: () => void }) {
                         )}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">
+                        <p className="text-base font-medium">
                           {deviceName(session.userAgent)}
                           {session.current && (
                             <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -118,8 +118,8 @@ export function Devices({ onSignedOut }: { onSignedOut: () => void }) {
             <aside>
               <Card>
                 <CardContent className="space-y-4 p-6">
-                  <ShieldCheck className="size-5 text-muted-foreground" />
-                  <h2 className="text-sm font-medium">
+                  <span className="grid size-11 place-items-center rounded-2xl bg-[var(--mw-mint-soft)] text-[var(--mw-mint)]"><ShieldCheck className="size-5" /></span>
+                  <h2 className="text-base font-medium">
                     Your account stays with you
                   </h2>
                   <p className="text-sm leading-relaxed text-muted-foreground">
@@ -132,7 +132,7 @@ export function Devices({ onSignedOut }: { onSignedOut: () => void }) {
             </aside>
           </div>
           <section className="space-y-4">
-            <h2 className="text-sm font-medium">Notification devices</h2>
+            <h2 className="text-base font-medium">Notification devices</h2>
             <Card>
               <CardContent className="divide-y divide-border p-0">
                 {devices
@@ -144,7 +144,7 @@ export function Devices({ onSignedOut }: { onSignedOut: () => void }) {
                     >
                       <Smartphone className="size-5 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">
+                        <p className="text-base font-medium">
                           {device.platform === "ios"
                             ? "Apple device"
                             : device.platform || "Mobile device"}

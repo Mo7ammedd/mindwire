@@ -25,7 +25,7 @@ struct SourceControlScreen: View {
     @State private var search = ""
     @State private var searching = false
     @State private var stagedExpanded = true
-    @AppStorage("mindwire.git.fileLayout") private var fileLayout: GitFileLayout = .list
+    @AppStorage("mindwire.git.fileLayout") private var fileLayout: GitFileLayout = .tree
     @State private var collapsedFolders: [String: Set<String>] = [:]
     @State private var searchCollapsedFolders: [String: Set<String>] = [:]
     @State private var commitMessage = ""

@@ -19,6 +19,7 @@ import (
 	"github.com/oblien/mindwire/packages/daemon/internal/artifact"
 	botservice "github.com/oblien/mindwire/packages/daemon/internal/bots"
 	"github.com/oblien/mindwire/packages/daemon/internal/conversations"
+	"github.com/oblien/mindwire/packages/daemon/internal/integrations"
 	"github.com/oblien/mindwire/packages/daemon/internal/inventory"
 	"github.com/oblien/mindwire/packages/daemon/internal/notify"
 	"github.com/oblien/mindwire/packages/daemon/internal/orchestrator"
@@ -27,6 +28,7 @@ import (
 	"github.com/oblien/mindwire/packages/daemon/internal/projectsync"
 	"github.com/oblien/mindwire/packages/daemon/internal/registry"
 	"github.com/oblien/mindwire/packages/daemon/internal/session"
+	"github.com/oblien/mindwire/packages/daemon/internal/shortcuts"
 	"github.com/oblien/mindwire/packages/daemon/internal/stream"
 	"github.com/oblien/mindwire/packages/daemon/internal/surface"
 	"github.com/oblien/mindwire/packages/daemon/internal/toolchain"
@@ -55,6 +57,12 @@ type Options struct {
 	// Notifier, if set, receives turn notifications alongside the built-in env-configured channels
 	// (a webhook, notify/file, notify/exec). nil = just the built-ins.
 	Notifier Notifier
+	// RunScheduledJobs explicitly makes this embedded runtime the owner of saved
+	// background jobs. Default false: reading/configuring Apps never starts jobs.
+	// Use one scheduler owner for a state directory. The standalone daemon owns its scheduler.
+	RunScheduledJobs bool
+	// RunIntegrations opts this host into resuming and executing incoming messaging events.
+	RunIntegrations bool
 }
 
 // core is the state shared by a Client and every WithAgent view of it: the one supervisor/store/hub
@@ -72,6 +80,8 @@ type core struct {
 	projectSync   *projectsync.Service
 	surfaces      *surface.Service
 	execution     *workspaceexec.Service
+	apps          *shortcuts.Service
+	integrations  *integrations.Service
 	registryMu    sync.Mutex
 
 	mu     sync.Mutex
@@ -106,10 +116,12 @@ type Client struct {
 	// Reachable as client.Providers.
 	Providers *Providers
 	// Workspace owns saved workspace metadata shared across all harness views.
-	Workspace *Workspace
-	Bots      *Bots
-	Surfaces  *Surfaces
-	Execution *WorkspaceExecution
+	Workspace    *Workspace
+	Bots         *Bots
+	Apps         *Apps
+	Integrations *Integrations
+	Surfaces     *Surfaces
+	Execution    *WorkspaceExecution
 }
 
 // New constructs a Client, wiring the engine exactly as packages/daemon/cmd/daemon/main.go does minus the HTTP
@@ -179,12 +191,30 @@ func New(opts Options) (*Client, error) {
 		return nil, err
 	}
 	c := &Client{core: co, defaultAgent: opts.Agent}
+	co.apps = shortcuts.New(workspaceRegistry, co.execution)
+	co.apps.SetAdmission(sup.BeginServiceOperation)
+	co.apps.ConfigureNotifications(store)
+	sup.BotService().SetApps(co.apps)
+	co.integrations = integrations.New(workspaceRegistry, sup.BotService(), hub)
+	co.apps.SetIntegrationChannels(co.integrations)
+	sup.AddNotifier(co.integrations)
+	if opts.RunIntegrations {
+		co.integrations.Start()
+	}
+	if opts.RunScheduledJobs {
+		if err := co.apps.StartScheduler(); err != nil {
+			c.Close()
+			return nil, err
+		}
+	}
 	c.Auth = &Auth{c: c}
 	c.Prompts = &Prompts{c: c}
 	c.MCP = &MCP{c: c}
 	c.Providers = &Providers{c: c}
 	c.Workspace = newWorkspace(c)
 	c.Bots = &Bots{c: c}
+	c.Apps = &Apps{c: c}
+	c.Integrations = &Integrations{c: c}
 	c.Surfaces = &Surfaces{c: c}
 	c.Execution = co.execution
 	return c, nil
@@ -201,6 +231,8 @@ func (c *Client) WithAgent(agentType string) *Client {
 	view.Providers = &Providers{c: view}
 	view.Workspace = newWorkspace(view)
 	view.Bots = &Bots{c: view}
+	view.Apps = &Apps{c: view}
+	view.Integrations = &Integrations{c: view}
 	view.Surfaces = &Surfaces{c: view}
 	view.Execution = c.core.execution
 	return view
@@ -225,6 +257,8 @@ func (c *Client) Close() error {
 		ids = append(ids, id)
 	}
 	c.core.mu.Unlock()
+	c.core.integrations.Close()
+	c.core.apps.Close()
 
 	if service := c.core.sup.BotService(); service != nil {
 		service.Close()
@@ -280,6 +314,8 @@ type Health struct {
 	Version                        string `json:"version"`
 	WorkspaceMetadataVersion       int    `json:"workspaceMetadataVersion"`
 	BotsVersion                    int    `json:"botsVersion"`
+	AppsVersion                    int    `json:"appsVersion"`
+	IntegrationsVersion            int    `json:"integrationsVersion"`
 	AgentDiscoveryVersion          int    `json:"agentDiscoveryVersion"`
 	ProjectLibraryVersion          int    `json:"projectLibraryVersion"`
 	ProjectOperationsVersion       int    `json:"projectOperationsVersion"`
@@ -308,7 +344,7 @@ func (c *Client) Health() Health {
 	if runtime.GOOS == "darwin" && os.Geteuid() != 0 {
 		localDesktopVersion = surface.LocalDesktopVersion
 	}
-	return Health{OK: true, NativeAuthSource: true, Agent: c.core.sup.Default(), Version: agent.Version, WorkspaceMetadataVersion: registry.Version, BotsVersion: registry.BotsVersion, AgentDiscoveryVersion: registry.AgentDiscoveryVersion, ProjectLibraryVersion: registry.ProjectLibraryVersion, ProjectOperationsVersion: registry.ProjectOperationsVersion, ProjectIconsVersion: projecticon.Version, ProjectSyncVersion: projectsync.ProtocolVersion(), ConversationBrowserVersion: conversations.BrowserVersion, SurfaceProtocolVersion: surface.Version, LocalDesktopVersion: localDesktopVersion, NotificationPreferencesVersion: registry.NotificationPreferencesVersion, HarnessPolicyVersion: toolchain.PolicyVersion, WorkspaceIsolationVersion: agent.WorkspaceIsolationVersion, WorkspaceIsolation: agent.WorkspaceIsolation(), WorkspaceExecutionVersion: workspaceexec.Version, TerminalProtocolVersion: workspaceexec.TerminalVersion, TurnRequestVersion: orchestrator.TurnRequestVersion, QueuedInputVersion: orchestrator.QueuedInputVersion, NativeSessionVersion: agent.NativeSessionVersion, ChatForkVersion: agent.ChatForkVersion, ImageAttachmentsVersion: agent.ImageAttachmentsVersion, AttachmentUploadVersion: artifact.UploadVersion}
+	return Health{OK: true, NativeAuthSource: true, Agent: c.core.sup.Default(), Version: agent.Version, WorkspaceMetadataVersion: registry.Version, BotsVersion: registry.BotsVersion, AppsVersion: registry.AppsVersion, IntegrationsVersion: integrations.Version, AgentDiscoveryVersion: registry.AgentDiscoveryVersion, ProjectLibraryVersion: registry.ProjectLibraryVersion, ProjectOperationsVersion: registry.ProjectOperationsVersion, ProjectIconsVersion: projecticon.Version, ProjectSyncVersion: projectsync.ProtocolVersion(), ConversationBrowserVersion: conversations.BrowserVersion, SurfaceProtocolVersion: surface.Version, LocalDesktopVersion: localDesktopVersion, NotificationPreferencesVersion: registry.NotificationPreferencesVersion, HarnessPolicyVersion: toolchain.PolicyVersion, WorkspaceIsolationVersion: agent.WorkspaceIsolationVersion, WorkspaceIsolation: agent.WorkspaceIsolation(), WorkspaceExecutionVersion: workspaceexec.Version, TerminalProtocolVersion: workspaceexec.TerminalVersion, TurnRequestVersion: orchestrator.TurnRequestVersion, QueuedInputVersion: orchestrator.QueuedInputVersion, NativeSessionVersion: agent.NativeSessionVersion, ChatForkVersion: agent.ChatForkVersion, ImageAttachmentsVersion: agent.ImageAttachmentsVersion, AttachmentUploadVersion: artifact.UploadVersion}
 }
 
 // processStarted anchors the daemon-process uptime the /stats snapshot reports; set once at package

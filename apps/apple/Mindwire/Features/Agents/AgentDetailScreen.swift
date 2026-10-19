@@ -12,13 +12,13 @@ struct AgentDetailScreen: View {
 
     @State private var agent: Agent?
     @State private var chats: [Chat] = []
-    @State private var projects: [Project] = []
     @State private var auth: DaemonSession?
     @State private var workspaceImages: [WorkspaceImage] = []
 
     @State private var showingServiceInfo = false
     @State private var showAllChats = false
-    @State private var noProjectAlert = false    // 0 projects → guide the user to create one
+    @State private var showingNewChat = false
+    @State private var pendingChat: Chat?
     @State private var activity = ChatActivityStore.shared
     @State private var actions = WorkspaceActions()
     @State private var loaded = false
@@ -48,16 +48,15 @@ struct AgentDetailScreen: View {
             .sheet(isPresented: $showAllChats) {
                 ChatHistorySheet(agentId: agentId)
             }
-            // 0 projects → can't chat yet; point the user at the workspace to make one.
-            .alert(t("agentDetail.newChat.noProject.title"), isPresented: $noProjectAlert) {
-                if let sid = agent?.workspaceId, WorkspaceRepository.shared.get(sid) != nil {
-                    Button(t("agentDetail.newChat.openWorkspace")) {
-                        app.push(.workspaceDetail(id: sid))
+            .sheet(isPresented: $showingNewChat, onDismiss: {
+                reload()
+                if let chat = pendingChat { pendingChat = nil; app.push(.chat(chatId: chat.id)) }
+            }) {
+                if let workspaceId = agent?.workspaceId {
+                    ChatAgentPicker(workspaceId: workspaceId) { chat in
+                        pendingChat = chat; showingNewChat = false
                     }
                 }
-                Button(t("common.ok"), role: .cancel) {}
-            } message: {
-                Text(t("agentDetail.newChat.noProject.body"))
             }
     }
 
@@ -192,42 +191,13 @@ struct AgentDetailScreen: View {
         loaded = true
         agent = stores.agents.get(agentId)
         chats = stores.chats(forAgentId: agentId)
-        projects = stores.projects(forAgentId: agentId)
     }
 
     /// A chat needs a project: open it directly when there is one, otherwise offer a native menu.
     private var newChatAction: some View {
-        Group {
-            if projects.count > 1 {
-                AppMenu {
-                    Section(t("agentDetail.newChat.pickProject")) {
-                        ForEach(projects) { project in
-                            Button(project.name) { openNewChat(projectId: project.id) }
-                        }
-                    }
-                } label: {
-                    Label(t("agentDetail.newChat"), icon: Icon.plus)
-                }
-            } else {
-                Button {
-                    if let project = projects.first { openNewChat(projectId: project.id) }
-                    else { noProjectAlert = true }
-                } label: {
-                    Label(t("agentDetail.newChat"), icon: Icon.plus)
-                }
-            }
-        }
+        Button { showingNewChat = true } label: { Label(t("agentDetail.newChat"), icon: Icon.edit) }
         .tint(.primary)
         .disabled(auth?.phase != .ready || actions.running)
-    }
-
-    private func openNewChat(projectId: String) {
-        guard auth?.phase == .ready else { return }
-        actions.run {
-            let chat = try await stores.workspaceData.createChat(agentId: agentId, projectId: projectId)
-            reload()
-            app.push(.chat(chatId: chat.id))
-        }
     }
 
     /// Load local data, then run the connectivity + auth check (cached per agent).

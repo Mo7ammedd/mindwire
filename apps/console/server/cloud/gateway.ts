@@ -9,6 +9,7 @@ import type { ComputerService } from "./service";
 import { monthlyComputerImage } from "./images";
 import { forwardComputer } from "./proxy";
 import { computerCollection } from "./collections";
+import { publishComputerPage } from "./pages";
 
 const MANAGEMENT = "/api/cloud/provider";
 function relativePath(url: URL, prefix: string): string {
@@ -59,6 +60,10 @@ export function registerComputerGateway(app: Hono, service: ComputerService) {
       // Personal legacy tokens are only used after the provider confirms that
       // this exact computer belongs to that linked customer.
       if (legacy) await legacy.workspaces.get(match[1]);
+      if (match[2] === "/pages" && c.req.method === "POST") {
+        const client = row ? await service.provider.scoped(row.namespace) : legacy!;
+        return publishComputerPage(c, client, match[1], row?.namespace);
+      }
       const token = row ? await service.provider.scopedToken(row.namespace) : (await legacyCredential(user.id))!;
       if (row && !match[2] && c.req.method === "DELETE") {
         return service.store.locked(user.id, row.id, async (current, save) => {

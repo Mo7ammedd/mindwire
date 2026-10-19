@@ -1,5 +1,6 @@
 import type { Mindwire } from "./client.js";
 import type { Bot } from "./bots.js";
+import type { AppShortcut } from "./apps.js";
 import { readSSE } from "./sse.js";
 import { ProjectSyncApi } from "./project-sync.js";
 import { ConversationsApi } from "./conversations.js";
@@ -278,6 +279,7 @@ export interface ProjectLibraryEdit {
 }
 
 export interface WorkspaceSnapshot {
+  apps?: AppShortcut[];
   bots?: Bot[];
   version: number;
   workspaceId: string;
@@ -359,6 +361,13 @@ export class WorkspaceApi {
   /** Read the saved icon, or preview a candidate relative path within the project. Requires projectIconsVersion >= 1. */
   projectIcon(projectId: string, path?: string): Promise<ProjectIcon> {
     return this.mw.http.request("GET", `/workspace/projects/${encodeURIComponent(projectId)}/icon`, { query: { path } });
+  }
+
+  /** Upload a validated image (base64 content, at most 1 MB). Requires projectIconsVersion >= 2.
+   * Stores the image inside the project; set projects.put(..., { iconPath: result.path }) to select it.
+   */
+  uploadProjectIcon(projectId: string, image: { name: string; content: string }): Promise<ProjectIcon> {
+    return this.mw.http.request("POST", `/workspace/projects/${encodeURIComponent(projectId)}/icon`, { body: image });
   }
 
   /** Start an operation owned by the daemon. The same ID/payload returns the existing operation. */

@@ -62,10 +62,10 @@ func (b *Bots) Chats(id string) ([]WorkspaceChat, error) {
 	value, err := b.c.core.registry.BotChats(id)
 	return value, workspaceError("Bots.Chats", err)
 }
-func (b *Bots) CreateChat(id, chatID, title string) (WorkspaceChat, error) {
+func (b *Bots) CreateChat(id, chatID, title string, projectIDs ...string) (WorkspaceChat, error) {
 	b.c.core.registryMu.Lock()
 	defer b.c.core.registryMu.Unlock()
-	value, err := b.c.core.registry.CreateBotChat(id, chatID, title)
+	value, err := b.c.core.registry.CreateBotChat(id, chatID, title, projectIDs...)
 	return value, workspaceError("Bots.CreateChat", err)
 }
 func (b *Bots) result(bot Bot, err error) (BotMutation, error) {

@@ -1,7 +1,4 @@
-// Theme state for the console. The app is dark by default (its signature look — pure black with
-// white-at-opacity films), with an opt-in light theme (the mirror: black ink on white). A pre-paint
-// script in index.html sets the initial `.dark` class from localStorage so there's never a flash;
-// this provider keeps React in sync with that class and persists the user's choice going forward.
+// Shared Mindwire palette, with a persisted theme choice and light as the default.
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 export type Theme = "dark" | "light";

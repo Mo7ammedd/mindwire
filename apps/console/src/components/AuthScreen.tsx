@@ -7,7 +7,9 @@ import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { AccountArtwork } from "./AccountArtwork";
+import { ThemeButton } from "./ThemeButton";
+import styles from "./auth.module.css";
 
 type Mode = "signin" | "signup";
 
@@ -41,7 +43,7 @@ export function AuthScreen({
     };
   }, []);
 
-  const appName = cfg?.appName ?? "MindWire";
+  const appName = !cfg?.appName || cfg.appName === "MindWire" ? "Mindwire" : cfg.appName;
   const socials = cfg?.socials ?? [];
   const docsUrl = cfg?.docsUrl ?? DOCS_FALLBACK;
   const githubUrl = cfg?.githubUrl ?? GITHUB_FALLBACK;
@@ -107,58 +109,21 @@ export function AuthScreen({
   }
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      {/* Clean top bar: the product lockup as home, Docs on the right. */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-5">
-        <BrandMark size={20} wordClassName="text-sm" />
-        <a
-          href={docsUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Docs
-          <ArrowUpRight className="size-3.5" />
-        </a>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <a href="https://mindwire.sh" aria-label="Mindwire home"><BrandMark size={26} /></a>
+        <div className="flex items-center gap-3"><ThemeButton /><a href={docsUrl} className={styles.docsLink}>Documentation<ArrowUpRight className="size-4" /></a></div>
       </header>
-
-      <main className="mx-auto grid w-full max-w-5xl flex-1 lg:grid-cols-2">
-        {/* Value panel — desktop only. Speaks the landing's voice and carries the page so the canvas
-            never reads as empty. No brand lockup here: the mark already lives in the top bar. */}
-        <section className="hidden flex-col justify-center gap-10 px-10 py-16 lg:flex">
-          <div className="space-y-5">
-            <span className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <span aria-hidden className="size-1.5 bg-ink/40" />
-              Your Mindwire account
-            </span>
-            <h1 className="text-4xl font-semibold leading-[1.03] tracking-tight lg:text-5xl">
-              Your computers.
-              <br />
-              Your account.
-            </h1>
-            <p className="max-w-md text-base leading-relaxed text-muted-foreground">
-              Manage connected devices, choose a Cloud Computer and keep your
-              subscriptions in order. Your work stays with you in the Mindwire
-              app.
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-xs text-muted-foreground">
-            {["Your account", "Your devices", "Your compute"].map((label) => (
-              <div
-                key={label}
-                className="border border-border bg-card px-4 py-6"
-              >
-                {label}
-              </div>
-            ))}
-          </div>
+      <main className={styles.main}>
+        <section className={styles.welcome} aria-label="Your Mindwire account">
+          <AccountArtwork className={styles.art} />
+          <div><h1>Your ideas.<br />A place to go further.</h1><p>Give your bots a home, keep your devices connected, and pick up wherever life takes you.</p></div>
+          <a href="https://mindwire.sh/use-cases">A few things you could do<ArrowUpRight className="size-4" /></a>
         </section>
-
-        {/* Auth card. */}
-        <section className="flex flex-col justify-center px-6 py-12 lg:border-l lg:border-border lg:px-10">
-          <div className="mx-auto w-full max-w-sm">
+        <section className={styles.formSection}>
+          <div className={styles.form}>
             <div className="mb-6 space-y-1.5">
-              <h2 className="text-xl font-semibold tracking-tight">
+              <h2 className="text-[28px] font-medium leading-tight tracking-tight">
                 {isSignup
                   ? `Create your ${appName} account`
                   : `Sign in to ${appName}`}
@@ -170,8 +135,7 @@ export function AuthScreen({
               </p>
             </div>
 
-            <Card>
-              <CardContent className="space-y-5 p-6">
+            <div className="space-y-6">
                 {socials.length > 0 && (
                   <>
                     <div className="space-y-2">
@@ -204,7 +168,7 @@ export function AuthScreen({
                       <Label htmlFor="name">Name</Label>
                       <Input
                         id="name"
-                        className="h-10"
+                        className="h-12"
                         autoComplete="name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -217,7 +181,7 @@ export function AuthScreen({
                     <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
-                      className="h-10"
+                      className="h-12"
                       type="email"
                       autoComplete="email"
                       required
@@ -231,7 +195,7 @@ export function AuthScreen({
                     <Label htmlFor="password">Password</Label>
                     <Input
                       id="password"
-                      className="h-10"
+                      className="h-12"
                       type="password"
                       autoComplete={
                         isSignup ? "new-password" : "current-password"
@@ -246,24 +210,24 @@ export function AuthScreen({
                     />
                   </div>
 
-                  {error && <p className="text-xs text-destructive">{error}</p>}
+                  {error && <p role="alert" className="rounded-xl bg-destructive/8 p-3 text-sm text-destructive">{error}</p>}
 
                   <Button
                     type="submit"
-                    className="h-10 w-full"
+                    className="h-12 w-full"
                     disabled={locked}
                   >
                     {busy && <Loader2 className="size-4 animate-spin" />}
                     {isSignup ? "Create account" : "Sign in"}
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
+            </div>
 
-            <p className="mt-5 text-center text-xs text-muted-foreground">
+            <p className="mt-7 text-center text-sm text-muted-foreground">
               {isSignup ? "Already have an account?" : "Need an account?"}{" "}
               <button
                 type="button"
+                disabled={locked}
                 onClick={() => switchMode(isSignup ? "signin" : "signup")}
                 className="font-medium text-foreground underline-offset-4 hover:underline"
               >
@@ -275,7 +239,7 @@ export function AuthScreen({
       </main>
 
       {/* Account service links. */}
-      <footer className="shrink-0 border-t border-border">
+      <footer className={styles.footer}>
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-5 pb-5 pt-4 text-xs text-muted-foreground lg:pt-5">
           <FooterLink href={docsUrl}>Docs</FooterLink>
           <Dot />
@@ -311,7 +275,7 @@ function SocialButton({
     <Button
       type="button"
       variant="outline"
-      className="h-10 w-full justify-center gap-2.5"
+      className="h-12 w-full justify-center gap-2.5"
       disabled={disabled}
       onClick={onClick}
     >
@@ -325,7 +289,7 @@ function Divider({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-3">
       <span className="h-px flex-1 bg-border" />
-      <span className="text-[0.7rem] uppercase tracking-wider text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         {children}
       </span>
       <span className="h-px flex-1 bg-border" />

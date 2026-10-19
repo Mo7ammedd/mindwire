@@ -18,7 +18,8 @@ export default function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label="Toggle theme"
-      className="grid h-9 w-9 place-items-center text-neutral-500 transition-colors hover:text-neutral-950 dark:hover:text-white"
+      type="button"
+      className="grid h-9 w-9 place-items-center rounded-full text-[var(--mw-muted)] transition-colors hover:bg-[var(--mw-subtle)] hover:text-[var(--mw-ink)]"
     >
       <svg className={`${icon} dark:hidden`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
         <circle cx="12" cy="12" r="4" />

@@ -330,6 +330,9 @@ func buildCommand(in agent.TurnInput, files materialized, tr transport) string {
 	if files.settingsPath != "" {
 		cli += " --settings " + agent.ShellQuote(files.settingsPath)
 	}
+	if in.Options.SkillsRoot != "" {
+		cli += " --plugin-dir " + agent.ShellQuote(in.Options.SkillsRoot)
+	}
 	// Subagents: --agents takes INLINE JSON (verified — a file path is not loaded), so the raw object is
 	// single-quoted onto the command directly. These are subagent definitions (descriptions/prompts),
 	// never secrets, so the shell-string invariant (no secrets on argv) is preserved.

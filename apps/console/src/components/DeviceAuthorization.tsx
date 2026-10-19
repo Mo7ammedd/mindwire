@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Loader2, Monitor } from "lucide-react";
+import { ThemeButton } from "./ThemeButton";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,14 +34,14 @@ export function DeviceAuthorization({ email }: { email: string }) {
   }
   return <main className="grid min-h-dvh place-items-center p-5">
     <Card className="w-full max-w-md">
-      <CardHeader className="space-y-5"><BrandMark size={24} /><CardTitle className="flex items-center gap-2">
+      <CardHeader className="space-y-5"><div className="flex items-center justify-between"><BrandMark size={24} /><ThemeButton /></div><CardTitle className="flex items-center gap-2">
         {done ? <Check className="size-5" /> : <Monitor className="size-5" />}
         {done ? "Return to Mindwire" : "Sign in on your device"}
       </CardTitle></CardHeader>
       <CardContent className="space-y-5">
-        {done ? <p className="text-sm text-muted-foreground">Your choice is saved. You can close this window.</p> : <>
-          <p className="text-sm text-muted-foreground">Continue as {email}. Approve only if you started this request in Mindwire and the code matches your device.</p>
-          <p className="text-center text-2xl font-semibold tracking-widest" aria-label="Verification code">{code || "Missing code"}</p>
+        {done ? <p className="break-words text-sm leading-relaxed text-muted-foreground">Your choice is saved. You can close this window.</p> : <>
+          <p className="break-words text-sm leading-relaxed text-muted-foreground">Continue as {email}. Approve only if you started this request in Mindwire and the code matches your device.</p>
+          <p className="rounded-2xl bg-secondary px-4 py-6 text-center text-2xl font-medium tracking-widest" aria-label="Verification code">{code || "Missing code"}</p>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-3"><Button className="flex-1" disabled={busy || !verified} onClick={() => void decide(true)}>
             {busy && <Loader2 className="size-4 animate-spin" />}Sign in

@@ -73,7 +73,7 @@ final class NewAgentModel {
         botCatalog = response.agents
     }
 
-    func botEngines(existingAgents: [Agent]) -> [AgentDescriptor] {
+    func botEngines(existingAgents: [Agent], raw: Bool = false) -> [AgentDescriptor] {
         let live = botCatalogWorkspaceID == workspaceId ? botCatalog : nil
         var choices = live ?? catalog
         if live == nil {
@@ -81,7 +81,7 @@ final class NewAgentModel {
                 choices.append(.init(id: agent.agentType, name: agent.typeDisplayName, tagline: ""))
             }
         }
-        return choices.filter { BotEngineSupport.supports($0.id, catalog: choices) }
+        return raw ? choices : choices.filter { BotEngineSupport.supports($0.id, catalog: choices) }
     }
 
     private func use(_ value: DaemonCatalog) {

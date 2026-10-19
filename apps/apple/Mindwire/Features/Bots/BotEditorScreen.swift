@@ -6,11 +6,14 @@ struct BotEditorScreen: View {
     let bot: AssistantBot
     @Environment(\.stores) private var stores
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appExperienceMode) private var experienceMode
     @State private var name: String
     @State private var purpose: String
     @State private var instructions: String
     @State private var memory: String
     @State private var knowledge: [AssistantBotKnowledge]
+    @State private var agentId: String
+    @State private var showingEngineSettings = false
     @State private var saving = false
     @State private var error: String?
 
@@ -21,6 +24,7 @@ struct BotEditorScreen: View {
         _instructions = State(initialValue: bot.instructions)
         _memory = State(initialValue: bot.memory)
         _knowledge = State(initialValue: bot.knowledge)
+        _agentId = State(initialValue: bot.agentId)
     }
 
     var body: some View {
@@ -36,26 +40,46 @@ struct BotEditorScreen: View {
                 Section(t("assistant.bots.purpose")) {
                     TextField(t("bots.edit.purposePlaceholder"), text: $purpose, axis: .vertical).lineLimit(2...4)
                 }
-                Section(t("assistant.bots.instructions")) {
-                    TextField(t("bots.create.instructionsPlaceholder"), text: $instructions, axis: .vertical).lineLimit(5...12)
-                }
-                Section(t("assistant.bots.memory")) {
-                    TextField(t("bots.edit.memoryPlaceholder"), text: $memory, axis: .vertical).lineLimit(3...10)
-                }
-                Section(t("assistant.bots.knowledge")) {
-                    ForEach($knowledge) { $source in
-                        VStack(alignment: .leading, spacing: 10) {
-                            TextField(t("bots.edit.knowledgeTitle"), text: $source.title).font(.headline)
-                            TextField(t("bots.edit.knowledgeContent"), text: $source.content, axis: .vertical).lineLimit(3...10)
-                            Button(t("common.delete"), role: .destructive) { knowledge.removeAll { $0.id == source.id } }
-                                .font(.subheadline)
+                if bot.isRaw {
+                    Section { Text(t("bots.raw.settingsHint")).font(.footnote).foregroundStyle(.secondary) }
+                } else {
+                    Section(t("assistant.bots.instructions")) {
+                        TextField(t("bots.create.instructionsPlaceholder"), text: $instructions, axis: .vertical).lineLimit(5...12)
+                    }
+                    Section(t("assistant.bots.memory")) {
+                        TextField(t("bots.edit.memoryPlaceholder"), text: $memory, axis: .vertical).lineLimit(3...10)
+                    }
+                    Section(t("assistant.bots.knowledge")) {
+                        ForEach($knowledge) { $source in
+                            VStack(alignment: .leading, spacing: 10) {
+                                TextField(t("bots.edit.knowledgeTitle"), text: $source.title).font(.headline)
+                                TextField(t("bots.edit.knowledgeContent"), text: $source.content, axis: .vertical).lineLimit(3...10)
+                                Button(t("common.delete"), role: .destructive) { knowledge.removeAll { $0.id == source.id } }
+                                    .font(.subheadline)
+                            }
+                            .padding(.vertical, 6)
                         }
-                        .padding(.vertical, 6)
+                        Button(t("bots.edit.addKnowledge")) {
+                            knowledge.append(.init(id: UUID().uuidString.lowercased(), title: "", content: ""))
+                        }
+                        .disabled(knowledge.count >= 32)
                     }
-                    Button(t("bots.edit.addKnowledge")) {
-                        knowledge.append(.init(id: UUID().uuidString.lowercased(), title: "", content: ""))
-                    }
-                    .disabled(knowledge.count >= 32)
+                }
+                if experienceMode == .developer {
+                    Section {
+                        BotRuntimeRows(bot: bot, navigates: false)
+                        if let agent = stores.agents.get(agentId) {
+                            Picker(t("bots.create.engine"), selection: $agentId) {
+                                ForEach(availableAgents) { candidate in
+                                    Label { Text(candidate.typeDisplayName) } icon: { AgentLogo(id: candidate.agentType, size: 20) }
+                                        .tag(candidate.id)
+                                }
+                            }
+                            Button { showingEngineSettings = true } label: { BotBaseAgentLabel(agent: agent) }
+                        }
+                    } header: { Text(t("bots.detail.runtime")) }
+                      footer: { Text(t("bots.edit.engineHint")) }
+                    .tint(.primary)
                 }
             }
             .disabled(saving)
@@ -75,6 +99,14 @@ struct BotEditorScreen: View {
                 Button(t("common.ok"), role: .cancel) {}
             } message: { Text(error ?? "") }
         }
+        .frame(width: ApplePlatform.isDesktop ? 580 : nil, height: ApplePlatform.isDesktop ? 640 : nil)
+        .sheet(isPresented: $showingEngineSettings) { AgentSettingsScreen(agentId: agentId) }
+    }
+
+    private var availableAgents: [Agent] {
+        stores.agents(forWorkspaceId: bot.workspaceId).filter {
+            $0.id == bot.agentId || bot.isRaw || BotEngineSupport.supports($0.agentType)
+        }
     }
 
     private func save() async {
@@ -84,8 +116,10 @@ struct BotEditorScreen: View {
             // Use the revision at the start of editing: a concurrent master edit must conflict,
             // rather than silently overwriting newer memory with this screen's old draft.
             try await stores.workspaceData.editBot(bot, edit: .init(expectedRevision: bot.revision,
+                agentId: agentId == bot.agentId ? nil : agentId,
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines), purpose: purpose,
-                instructions: instructions, memory: memory, knowledge: knowledge))
+                instructions: bot.isRaw ? nil : instructions, memory: bot.isRaw ? nil : memory,
+                knowledge: bot.isRaw ? nil : knowledge))
             dismiss()
         } catch { self.error = error.localizedDescription }
     }

@@ -28,7 +28,7 @@ struct AssistantBotToolContent: View {
                     Text(t(statusKey)).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if syncing { ProgressView().controlSize(.small) }
+                if syncing { ProgressView().chatActivityTint().controlSize(.small) }
                 else if result.archived != true {
                     Button(t("common.open")) {
                         if let savedChatID { app.openChat(savedChatID) }

@@ -1,6 +1,7 @@
 import Foundation
 
-/// Presentation only: keep the daemon's ordered parts intact and group adjacent shell calls.
+/// Presentation only: keep ordered parts intact. Developer mode groups shell
+/// calls; General mode wraps adjacent tool steps in bounded groups for virtualization.
 /// Source indexes are stable as a run grows and when older messages are prepended.
 struct ChatPartGroup: Identifiable, Equatable {
     let startIndex: Int
@@ -10,11 +11,14 @@ struct ChatPartGroup: Identifiable, Equatable {
     var id: Int { startIndex }
     var isCommandGroup: Bool { parts.count > 1 }
 
-    static func make(_ parts: [DaemonMessagePart]) -> [Self] {
+    static func make(_ parts: [DaemonMessagePart], generalMode: Bool = false) -> [Self] {
         var groups: [Self] = []
         for (index, part) in parts.enumerated() {
             let previous = index > 0 ? parts[index - 1] : nil
-            if part.isShellCommand, previous?.isShellCommand == true, !groups.isEmpty {
+            let adjacentTools = generalMode
+                ? part.kind == .tool && previous?.kind == .tool && (groups.last?.parts.count ?? 0) < 12
+                : part.isShellCommand && previous?.isShellCommand == true
+            if adjacentTools, !groups.isEmpty {
                 groups[groups.count - 1].parts.append(part)
             } else {
                 groups.append(.init(startIndex: index, parts: [part],

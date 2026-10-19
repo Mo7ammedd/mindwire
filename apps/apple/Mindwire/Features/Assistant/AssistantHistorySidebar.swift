@@ -13,6 +13,8 @@ struct AssistantHistorySidebar<Content: View>: View {
     var developerSection: Binding<AppTab>?
     var newProject: (() -> Void)?
     var newComputer: (() -> Void)?
+    var apps: (() -> Void)? = nil
+    var appsSelected = false
     @ViewBuilder let content: () -> Content
     @FocusState private var searching: Bool
     @State private var auth = MindwireAuth.shared
@@ -29,6 +31,10 @@ struct AssistantHistorySidebar<Content: View>: View {
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+            if apps != nil {
+                appsButton.padding(.horizontal, 12)
+                    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
             Section {
                 content()
             } header: {
@@ -82,6 +88,9 @@ struct AssistantHistorySidebar<Content: View>: View {
                 .padding(.horizontal, AssistantDesktopStyle.sidebarInset).padding(.bottom, 10)
             }
 
+            if apps != nil {
+                appsButton.padding(.horizontal, compact ? 14 : AssistantDesktopStyle.sidebarInset).padding(.bottom, 8)
+            }
             List { content() }
                 .listStyle(.plain).listRowSpacing(compact ? 6 : 4)
                 .contentMargins(.top, 0, for: .scrollContent)
@@ -139,6 +148,25 @@ struct AssistantHistorySidebar<Content: View>: View {
         .buttonStyle(.plain).tint(.primary).foregroundStyle(.primary)
         .background(AssistantDesktopStyle.sidebar)
         .onChange(of: compact) { if compact { searching = false } }
+    }
+
+    private var appsButton: some View {
+        Button { apps?() } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "square.grid.2x2").font(.system(size: 18))
+                    .frame(width: compact ? 44 : 30, height: 44)
+                if !compact {
+                    Text("Apps").font(.subheadline.weight(.medium))
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.horizontal, compact ? 0 : 8)
+            .background(appsSelected ? AssistantStyle.surface : .clear, in: .rect(cornerRadius: 14))
+            .contentShape(.rect(cornerRadius: 14))
+        }
+        .buttonStyle(.plain).foregroundStyle(appsSelected ? .primary : .secondary)
+        .accessibilityLabel("Apps").accessibilityIdentifier("assistant.apps")
+        .accessibilityAddTraits(appsSelected ? .isSelected : [])
     }
 
     @ViewBuilder private var desktopHeader: some View {
@@ -307,7 +335,7 @@ struct AssistantConversationLabel: View {
             Text(title).font(.body).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if busy || status == .running {
-                ProgressView().controlSize(.mini)
+                ProgressView().chatActivityTint().controlSize(.mini)
                     .accessibilityLabel(t(busy ? "chat.history.loading" : "chat.running"))
             } else if status == .error {
                 AppIcon(.warning, size: 16).foregroundStyle(.secondary)
@@ -336,6 +364,7 @@ struct AssistantBotConversationRow: View {
     @State private var activity = ChatActivityStore.shared
     @State private var hovered = false
     @Environment(\.desktopSidebarCompact) private var compact
+    private var botColor: BotColor { AssistantBotIcon.resolve(botId: bot.id, icon: bot.icon).color }
 
     var body: some View {
         Group {
@@ -348,6 +377,7 @@ struct AssistantBotConversationRow: View {
         }
         .onHover { hovered = $0 }
         .accessibilityAddTraits(selected ? .isSelected : [])
+        .environment(\.chatBotColor, botColor)
     }
 
     private var avatar: some View {
@@ -358,7 +388,7 @@ struct AssistantBotConversationRow: View {
                         Circle().fill(.red).frame(width: 9, height: 9)
                             .accessibilityLabel(t("chat.error.title"))
                     } else if compact, activity.status(chat.id) == .running {
-                        Circle().fill(Palette.accent).frame(width: 7, height: 7)
+                        Circle().fill(botColor.fill).frame(width: 7, height: 7)
                     }
                 }
             }
@@ -377,7 +407,7 @@ struct AssistantBotConversationRow: View {
                     }
                 }
                 HStack(spacing: 6) {
-                    if let chat, activity.status(chat.id) == .running { ProgressView().controlSize(.mini) }
+                    if let chat, activity.status(chat.id) == .running { ProgressView().chatActivityTint().controlSize(.mini) }
                     Text(preview).font(ApplePlatform.isDesktop ? .system(size: 13) : .subheadline)
                         .foregroundStyle(.secondary).lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)

@@ -16,6 +16,11 @@ protocol; this package is a thin, dependency-free client over its REST + SSE sur
 
 ## Install
 
+Connect saved bots to Slack, Microsoft Teams, Discord, or Telegram through
+`mw.integrations`: chat with streamed replies, run commands, trigger tasks, or send notifications.
+Connections are shared with the app and Go SDK. See the
+[messaging integrations guide](https://mindwire.sh/docs/guides/integrations) for setup and examples.
+
 ```bash
 npm i mindwire
 # or: bun add mindwire / pnpm add mindwire
@@ -153,6 +158,93 @@ blocks running chats/overlapping projects and recovers removal across restarts.
 Cancellation returns 409 after the `deleting` phase; cleanup then affects only the
 owned quarantine, even if someone recreates the original directory.
 
+Create a plain harness profile with `mw.bots.create({ agentId, projectId, name, raw: true })`
+(Go: `Bot.Raw`). Requires `health().botsVersion >= 7`. It keeps a named conversation
+group and the existing harness authentication, settings and native tools, without
+Mindwire bot instructions, memory, knowledge, skills or bot MCP tools. `raw` is
+creation-only; create a separate profile to change modes without carrying an old
+persona into a resumed conversation.
+
+With `botsVersion >= 8`, bots belong to a workspace and can work in any of its
+projects. `projectId` is only their optional default working folder. Start a chat
+in another project with `mw.bots.createChat(bot.id, { projectId })` (Go:
+`Bots.CreateChat(bot.ID, chatID, title, projectID)`). The profile, memory and skills
+stay shared; each chat retains its own project, native session and permissions.
+Deleting a project clears a matching default folder while preserving the bot and
+its conversations in other projects.
+
+### Bot skills
+
+Bots keep standing identity in `instructions`, durable facts in `memory`, and
+reference material in `knowledge`. Assign reusable workflows separately with
+`skills`, an array containing complete portable `SKILL.md` documents:
+
+```ts
+import { readFile } from "node:fs/promises";
+
+await mw.bots.update(bot.id, {
+  expectedRevision: bot.revision,
+  skills: [await readFile("./skills/reports/SKILL.md", "utf8")],
+});
+```
+
+Requires `health().botsVersion >= 6`. The Go equivalent is `BotEdit.Skills`.
+Each document needs YAML `name` and `description` frontmatter and a Markdown body.
+Limits are 16 skills, 32 KiB each, 128 KiB total, with unique names. The portable
+frontmatter supports `license`, `compatibility` and string-valued `metadata`;
+native permission overrides, hooks and dynamic shell substitutions are rejected. Omit `skills` when updating
+unrelated fields; an explicit empty array removes assignments.
+
+The daemon supplies a private bundle for the current turn. Codex discovers it
+through process-scoped extra roots; Claude loads it through `--plugin-dir`.
+Other harnesses load the same content through `skills_list` / `skills_read` on
+the existing scoped tool bridge. Older Codex versions without extra-root support
+also use that fallback. Only skill metadata enters standing context; bodies are
+read on demand. Assignments retain the turn's starting revision. Skills grant no
+additional permissions and never alter global harness configuration. Product
+presets and skill content belong to the client; the Go core supplies the generic
+validation, storage, delivery and permission checks.
+
+### Applications and scheduled work
+
+`mw.apps` saves application resources on their owning host. Clients can present
+these as shortcuts, launchers or other application catalogs. Consumer bot presets
+and General-mode UI are outside the Go registry; no new AI runtime is created.
+
+```ts
+const { app } = await mw.apps.register({
+  projectId, name: "Reports", icon: "chart.bar", url: "http://127.0.0.1:3000",
+  startupCommand: "./scripts/ensure-reports.sh", healthPath: "/health",
+});
+await mw.apps.open(app.id); // bounded readiness check/startup; returns the saved URL
+await mw.apps.channels(); // labels/IDs only, no provider credentials
+await mw.apps.notifications(app.id); // protected credentialFile path on the computer
+await mw.apps.saveSchedule(app.id, {
+  name: "Morning report", localTime: "09:00", timeZone: "Europe/London",
+  weekdays: [1, 2, 3, 4, 5], command: "./scripts/build-report.sh",
+  title: "Reports", body: "Your morning report is ready.",
+});
+const schedules = await mw.apps.schedules(app.id);
+```
+
+Check `health().appsVersion >= 1`. Phone delivery must already be configured.
+Schedules persist across restarts and run while the owning computer is awake;
+notifications retry without rerunning a completed command. Backend credentials
+can only send as one app through its saved destinations. See the
+[Apps contract](../../docs/apple/Apps.md) for native tools, private forwarding,
+calendar rules, removal and recovery. The Go SDK shares `client.Apps` for saved
+records, readiness, notification delivery and schedules; backend credential files
+are provisioned through the running daemon's HTTP/native tool service.
+
+The standalone daemon explicitly owns scheduling. The embedded Go SDK does not
+run scheduled commands merely because a client is constructed; opt in with
+`mindwire.Options{RunScheduledJobs: true}` when hosting a long-lived runtime.
+Native agent tools request owner approval before enabling background commands,
+using the existing interaction stream. Direct owner API/SDK requests explicitly
+authorize their work. Pausing remains available when notifications are muted or
+unconfigured. Commands use the host OS permissions; the working directory does
+not provide a sandbox.
+
 ## Targets — where the daemon runs
 
 **One `new Mindwire` = one instance = one daemon = one environment.** Every agent that instance runs
@@ -289,3 +381,6 @@ bun test               # client + SSE parser tests (mocked fetch)
 ```
 
 License: Apache-2.0.
+
+
+Public hosting adapters can check `health().appsVersion >= 2`, then call `mw.apps.preparePublication(appId)` (Go: `client.Apps.PreparePublication(ctx, appID)`). This validates a port or static build plan without deploying it. After the adapter confirms hosting, save its HTTPS link using `apps.update(..., { expectedRevision, publicUrl })`. The original private URL stays intact. Provider credentials and billing belong in the host application, outside the generic runtime.

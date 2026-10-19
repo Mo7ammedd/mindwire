@@ -9,6 +9,11 @@ directly. Run it standalone when you want a shared/remote runtime or the plain R
 
 ## Run it
 
+The daemon also hosts signed messaging webhooks for Slack, Microsoft Teams, Discord, and Telegram.
+Configure connections through `/integrations`, either SDK, or a bot's **Integrations** settings.
+Connections reuse native bot execution and can also serve as app notification destinations.
+See the [setup and delivery guide](https://mindwire.sh/docs/guides/integrations).
+
 Requires Go (see [`go.mod`](./go.mod)) and the agent CLI you want to drive (Claude Code: Node.js +
 `npm i -g @anthropic-ai/claude-code`).
 

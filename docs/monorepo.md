@@ -65,8 +65,12 @@ Folder consolidation does not make iOS-only dependencies work on another Apple p
 
 ## Local development
 
-`bun dev` starts the daemon and console from this checkout. `./dev.sh` delegates to the same
-launcher. The Apple app no longer requires a sibling runtime checkout for local development.
+`bun dev` starts the landing/docs site at http://localhost:3000, the account API at
+http://127.0.0.1:8787, and the SaaS console at http://127.0.0.1:5174. The landing site's Console
+links point to the local console. `./dev.sh` delegates to the same launcher. Use `bun dev console`
+or `bun dev web` to run one target, and `bun run dev:all` to include the agent runtime.
+Set `WEB_PORT` to change the website port and `PORT` to change the account API port.
+The Apple app no longer requires a sibling runtime checkout for local development.
 Regenerate Xcode projects with `bun run apple:generate`. Generated projects, dependencies, build
 output, local credentials, and untracked captures are not imported.
 

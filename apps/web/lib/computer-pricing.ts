@@ -1,4 +1,6 @@
 import { cloudDashboardUrl } from "./product";
+// Pure retail data, shared with Console checkout. Never duplicate amounts in the website.
+import { COMPUTER_CATALOG_VERSION, COMPUTER_PLANS } from "../../console/shared/cloud";
 
 export interface ComputerPricingPlan {
   id: string;
@@ -8,7 +10,7 @@ export interface ComputerPricingPlan {
   memoryMb: number;
   diskGb: number;
 }
-export interface ComputerPricing { version: string; available: boolean; plans: ComputerPricingPlan[] }
+export interface ComputerPricing { version: string; available: boolean; plans: ComputerPricingPlan[]; source?: "live" | "catalog" }
 
 function record(value: unknown): value is Record<string, unknown> { return !!value && typeof value === "object" && !Array.isArray(value); }
 export function parseComputerPricing(value: unknown): ComputerPricing | null {
@@ -26,13 +28,15 @@ export function parseComputerPricing(value: unknown): ComputerPricing | null {
 }
 
 /** The same Mindwire catalog powers checkout, Console, the native app and this page. */
-export async function getComputerPricing(): Promise<ComputerPricing | null> {
+export async function getComputerPricing(): Promise<ComputerPricing> {
+  const published: ComputerPricing = { version: COMPUTER_CATALOG_VERSION, plans: COMPUTER_PLANS.map(plan => ({ ...plan })), available: false, source: "catalog" };
   try {
     const response = await fetch(new URL("/api/cloud/catalog", cloudDashboardUrl), {
       next: { revalidate: 60 }, redirect: "error", signal: AbortSignal.timeout(5000),
     });
-    return response.ok ? parseComputerPricing(await response.json()) : null;
-  } catch { return null; }
+    const live = response.ok ? parseComputerPricing(await response.json()) : null;
+    return live ? { ...live, source: "live" } : published;
+  } catch { return published; }
 }
 
-export const usd = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(cents / 100);
+export const usd = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: cents % 100 === 0 ? 0 : 2, maximumFractionDigits: 2 }).format(cents / 100);

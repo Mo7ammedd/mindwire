@@ -102,6 +102,7 @@ func (s *Supervisor) prepareTurn(ctx context.Context, a *Agent, turn runner.Turn
 			return turn, func() {}, nil
 		}
 	}
+	turn = s.attachServiceEmitter(turn)
 	turn, desktopCleanup, err := s.desktopTurn(ctx, a, turn)
 	if err != nil {
 		return turn, desktopCleanup, err

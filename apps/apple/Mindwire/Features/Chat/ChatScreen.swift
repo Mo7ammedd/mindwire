@@ -108,7 +108,6 @@ struct ChatScreen: View {
             .sensoryFeedback(.impact(weight: .medium), trigger: sendCount)
         .environment(\.desktopWorkspaceID, agent?.workspaceId)
         .environment(\.chatAttachmentSession, model.session)
-        .environment(\.chatBotColor, botColor)
         .toolbar(.hidden, for: .tabBar) // immersive thread — no bottom tab bar
         .navigationTitle(chat?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
@@ -305,6 +304,7 @@ struct ChatScreen: View {
                 model.lastFailedAttachments = []
             }
         }
+        .environment(\.chatBotColor, botColor)
     }
 
     // MARK: - Thread
@@ -487,7 +487,7 @@ struct ChatScreen: View {
             }
             if !images.items.isEmpty || images.importing { ChatImageDraftStrip(draft: images) }
             if let progress = model.attachmentProgress {
-                ProgressView(value: progress).tint(.secondary)
+                ProgressView(value: progress).chatActivityTint()
                     .accessibilityLabel("Uploading attachments").accessibilityValue("\(Int(progress * 100))%")
             }
             ChatInteractionButton(requests: model.pendingInteractions) {
@@ -633,7 +633,7 @@ struct ChatScreen: View {
             .transition(.scale.combined(with: .opacity))
           }
           if model.submittingInput || model.cancelling || images.importing {
-            ProgressView().controlSize(.small).frame(width: composerControlSize, height: composerControlSize)
+            ProgressView().controlSize(.small).chatActivityTint().frame(width: composerControlSize, height: composerControlSize)
           } else {
             if canSend {
                 Button(action: sendMessage) {
@@ -740,7 +740,7 @@ struct ChatScreen: View {
                 VStack(spacing: 0) {
                     if commandPicker.loading && matches.isEmpty {
                         HStack(spacing: Spacing.sm) {
-                            ProgressView().controlSize(.small)
+                            ProgressView().controlSize(.small).chatActivityTint()
                             Text(t("chat.commands.loading")).font(.caption).foregroundStyle(.secondary)
                             Spacer()
                         }.padding(Spacing.md)
@@ -1077,6 +1077,8 @@ struct AgentQuickSettingsSheet: View {
 /// continuous clock (TimelineView) rather than a toggled @State, so it stays perfectly smooth and
 /// never restarts/glitches when the surrounding live turn re-renders on every streamed delta.
 private struct TypingDots: View {
+    @Environment(\.chatAccent) private var accent
+
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
@@ -1084,7 +1086,7 @@ private struct TypingDots: View {
                 ForEach(0..<3, id: \.self) { i in
                     let p = (sin(t * 3.1 - Double(i) * 0.7) + 1) / 2   // 0…1, staggered wave
                     Circle()
-                        .fill(Palette.accent)
+                        .fill(accent)
                         .frame(width: 6, height: 6)
                         .opacity(0.3 + 0.7 * p)
                         .scaleEffect(0.72 + 0.28 * p)
@@ -1112,6 +1114,7 @@ struct ChatTranscriptView: View {
 }
 
 private struct ChatTranscriptContent: View {
+    @Environment(\.appExperienceMode) private var experienceMode
     let model: ChatModel
     var agentType: AgentID?
     var onSelectPart: ((ChatTranscriptSelection) -> Void)?
@@ -1122,12 +1125,17 @@ private struct ChatTranscriptContent: View {
     @State private var expandedTools: Set<ChatTranscriptRow.ID> = []
     @State private var expansion: ChatTranscriptExpansion<ChatTranscriptRow.ID>?
 
-    var body: some View {
-        ChatTranscriptScrollView(rows: ChatTranscriptRow.make(messages: model.transcriptMessages, live: model.transcriptLive,
+    private var rows: [ChatTranscriptRow] {
+        ChatTranscriptRow.make(messages: model.transcriptMessages, live: model.transcriptLive,
             runID: model.transcriptRunID, animatesLiveUpdates: model.animatesLiveUpdates,
             autoExpandedToolIDs: model.autoExpandedToolIDs, expandedCommandGroups: expandedCommandGroups,
             expandedTools: expandedTools,
-            reconnecting: model.reconnecting, canForkHistory: model.canForkHistory && onEditMessage != nil), isRunning: model.thinking,
+            reconnecting: model.reconnecting, canForkHistory: model.canForkHistory && onEditMessage != nil,
+            generalMode: experienceMode == .general)
+    }
+
+    var body: some View {
+        ChatTranscriptScrollView(rows: rows, isRunning: model.thinking,
             isRestoring: model.loadingHistory || model.restoringRun,
             loadingOlder: model.loadingOlder,
             hasNewerHistory: model.hasNewerHistory,

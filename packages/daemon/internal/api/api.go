@@ -28,6 +28,7 @@ import (
 	"github.com/oblien/mindwire/packages/daemon/internal/gitaccess"
 	"github.com/oblien/mindwire/packages/daemon/internal/gitauthor"
 	"github.com/oblien/mindwire/packages/daemon/internal/gitops"
+	"github.com/oblien/mindwire/packages/daemon/internal/integrations"
 	"github.com/oblien/mindwire/packages/daemon/internal/inventory"
 	"github.com/oblien/mindwire/packages/daemon/internal/notify"
 	"github.com/oblien/mindwire/packages/daemon/internal/orchestrator"
@@ -36,6 +37,7 @@ import (
 	"github.com/oblien/mindwire/packages/daemon/internal/projectsync"
 	"github.com/oblien/mindwire/packages/daemon/internal/registry"
 	"github.com/oblien/mindwire/packages/daemon/internal/session"
+	"github.com/oblien/mindwire/packages/daemon/internal/shortcuts"
 	"github.com/oblien/mindwire/packages/daemon/internal/stream"
 	"github.com/oblien/mindwire/packages/daemon/internal/surface"
 	"github.com/oblien/mindwire/packages/daemon/internal/toolchain"
@@ -52,6 +54,8 @@ const (
 )
 
 type API struct {
+	integrations             *integrations.Service
+	apps                     *shortcuts.Service
 	execution                *workspaceexec.Service
 	connectionActivity       func() int
 	connectionUpdateForce    func() bool
@@ -81,8 +85,12 @@ func New(store *session.Store, hub *stream.Hub, sup *orchestrator.Supervisor, re
 	if len(registries) > 0 {
 		a.registry = registries[0]
 		if a.registry != nil {
-			sup.SetBots(bots.New(a.registry, store, &a.registryMu))
+			a.apps = shortcuts.New(a.registry, a.execution)
+			a.apps.SetAdmission(sup.BeginServiceOperation)
 			a.execution.SetMutationGuard(&a.registryMu, a.registry.CheckSyncPath)
+			botService := bots.New(a.registry, store, &a.registryMu)
+			botService.SetApps(a.apps)
+			sup.SetBots(botService)
 			a.conversations = conversations.New(a.registry, store, agent.All(), &a.registryMu, sup.Busy)
 			a.agents = inventory.NewAgents(a.registry, agent.All(), &a.registryMu)
 			a.gitAuthors = gitauthor.New(a.registry)
@@ -105,6 +113,13 @@ func New(store *session.Store, hub *stream.Hub, sup *orchestrator.Supervisor, re
 					sup.SetSurfaces(a.surfaces)
 				}
 			}
+			if a.initError == nil {
+				a.apps.ConfigureNotifications(store)
+				a.integrations = integrations.New(a.registry, botService, hub)
+				a.apps.SetIntegrationChannels(a.integrations)
+				sup.AddNotifier(a.integrations)
+				a.integrations.Start()
+			}
 		}
 	}
 	return a
@@ -112,6 +127,12 @@ func New(store *session.Store, hub *stream.Hub, sup *orchestrator.Supervisor, re
 
 func (a *API) InitError() error { return a.initError }
 func (a *API) Close() {
+	if a.integrations != nil {
+		a.integrations.Close()
+	}
+	if a.apps != nil {
+		a.apps.Close()
+	}
 	if a.sup != nil {
 		if service := a.sup.BotService(); service != nil {
 			service.Close()
@@ -152,6 +173,26 @@ type Route struct {
 // Routes is the full authenticated API surface. Every agent-specific route accepts ?agent=<type>.
 func (a *API) Routes() []Route {
 	return []Route{
+		{"GET", "/integrations", a.integrationsList},
+		{"POST", "/integrations", a.integrationSave},
+		{"GET", "/integrations/{id}", a.integrationGet},
+		{"PUT", "/integrations/{id}", a.integrationSave},
+		{"DELETE", "/integrations/{id}", a.integrationDelete},
+		{"POST", "/integrations/{id}/send", a.integrationSend},
+		{"GET", "/integrations/{id}/events", a.integrationEvents},
+		{"POST", "/integrations/{id}/events/{eventId}/retry", a.integrationRetry},
+		{"GET", "/apps", a.appsList},
+		{"POST", "/apps", a.appRegister},
+		{"GET", "/apps/{id}", a.appGet},
+		{"PATCH", "/apps/{id}", a.appUpdate},
+		{"POST", "/apps/{id}/open", a.appOpen},
+		{"POST", "/apps/{id}/publication/prepare", a.appPublication},
+		{"GET", "/apps/channels", a.appChannels},
+		{"POST", "/apps/{id}/notifications", a.appNotificationSetup},
+		{"DELETE", "/apps/{id}/notifications/token", a.appNotificationRevoke},
+		{"GET", "/apps/{id}/schedules", a.appSchedules},
+		{"POST", "/apps/{id}/schedules", a.appScheduleSave},
+		{"DELETE", "/apps/{id}/schedules/{jobId}", a.appScheduleDelete},
 		{"GET", "/workspace/project-library", a.projectLibrary},
 		{"PATCH", "/workspace/project-library", a.projectLibrary},
 		{"GET", "/workspace/host", a.workspaceHost},
@@ -251,6 +292,7 @@ func (a *API) Routes() []Route {
 		{"GET", "/workspace/git/operations/{id}/stream", a.gitOperationStream},
 		{"POST", "/workspace/projects", a.projectStart},
 		{"GET", "/workspace/projects/{id}/icon", a.projectIcon},
+		{"POST", "/workspace/projects/{id}/icon", a.projectIconUpload},
 		{"POST", "/workspace/projects/{id}/remove", a.projectRemoveFiles},
 		{"GET", "/workspace/operations", a.projectOperations},
 		{"GET", "/workspace/operations/{id}", a.projectOperation},
@@ -357,7 +399,9 @@ func (a *API) Routes() []Route {
 // PublicRoutes are served OUTSIDE the auth middleware (registered directly in cmd/daemon, not
 // here). Listed as data so the OpenAPI parity test can cover them.
 var PublicRoutes = []Route{
+	{Method: "POST", Pattern: "/integrations/{id}/webhook"},
 	{Method: "GET", Pattern: "/healthz"},
+	{Method: "POST", Pattern: "/apps/{id}/notify"},
 }
 
 func (a *API) Register(mux *http.ServeMux) {
@@ -659,10 +703,6 @@ func (a *API) respondRun(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		return
 	}
-	if ag, ok := a.sup.Resolve(run.Agent); ok && !ag.Adapter.Capabilities().Respond {
-		badRequest(w, "this agent does not support responding to interactions")
-		return
-	}
 	var req struct {
 		respondReq
 		GitAuth *gitaccess.Auth `json:"gitAuth,omitempty"`
@@ -670,6 +710,12 @@ func (a *API) respondRun(w http.ResponseWriter, r *http.Request) {
 	if err := decode(w, r, &req); err != nil {
 		badRequest(w, "invalid request body")
 		return
+	}
+	if !a.sup.IsServiceInteraction(id, req.InteractionID) {
+		if ag, ok := a.sup.Resolve(run.Agent); ok && !ag.Adapter.Capabilities().Respond {
+			badRequest(w, "this agent does not support responding to interactions")
+			return
+		}
 	}
 	if err := a.sup.RespondInteractionWithGitAuth(id, req.respondReq, req.GitAuth); err != nil {
 		if errors.Is(err, orchestrator.ErrInteractionNotPending) || errors.Is(err, orchestrator.ErrInteractionSending) || errors.Is(err, orchestrator.ErrChatBusy) || errors.Is(err, registry.ErrConflict) {

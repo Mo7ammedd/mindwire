@@ -74,7 +74,7 @@ struct ChatCommandsSheet: View {
                         AppLogo(size: 24)
                         Text(t("chat.commands.loading")).foregroundStyle(.secondary)
                         Spacer()
-                        ProgressView().controlSize(.small)
+                        ProgressView().chatActivityTint().controlSize(.small)
                     }
                 } else {
                     let matches = model.matches(search)
@@ -167,7 +167,7 @@ struct ChatCompactSheet: View {
                         working = true
                         Task { if await chat.compact(instructions: instructions) { dismiss() }; working = false }
                     } label: {
-                        if working { ProgressView().controlSize(.small) } else { Text(t("chat.commands.compact")) }
+                        if working { ProgressView().chatActivityTint().controlSize(.small) } else { Text(t("chat.commands.compact")) }
                     }
                     .disabled(working || !chat.canCompact)
                     .accessibilityIdentifier("chat.commands.compact.confirm")

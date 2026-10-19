@@ -32,6 +32,11 @@ struct ChatListRow: View {
         return NotificationScope.chat(chat.id).isMuted(in: stores)
     }
     private var busy: Bool { actions.pending.contains(chat.id) }
+    private var botColor: BotColor? {
+        _ = stores.bots.revision
+        guard let bot = chat.botId.flatMap(stores.bots.get) else { return nil }
+        return AssistantBotIcon.resolve(botId: bot.id, icon: bot.icon).color
+    }
 
     var body: some View {
         Group {
@@ -75,6 +80,7 @@ struct ChatListRow: View {
         .alert(t("chat.actionFailed"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button(t("common.done"), role: .cancel) { error = nil }
         } message: { Text(error ?? "") }
+        .environment(\.chatBotColor, botColor)
     }
 
     @ViewBuilder private var label: some View {
@@ -94,7 +100,7 @@ struct ChatListRow: View {
                     AppIcon(.bellOff).font(.caption).foregroundStyle(.secondary)
                         .accessibilityLabel(t("notifications.muted"))
                 }
-                if busy { ProgressView().controlSize(.mini) }
+                if busy { ProgressView().chatActivityTint().controlSize(.mini) }
             }
         }
     }
@@ -140,7 +146,7 @@ struct ChatRowLabel: View {
                 } else {
                     if !compact, let date { RelativeTimestamp(date: date) }
                     if loading {
-                        ProgressView().controlSize(.mini)
+                        ProgressView().chatActivityTint().controlSize(.mini)
                             .accessibilityLabel(t("chat.history.loading"))
                             .accessibilityIdentifier("chat-row-loading")
                     } else {
@@ -160,7 +166,7 @@ struct ChatRunStatusLabel: View {
         switch status {
         case .running:
             HStack(spacing: Spacing.xs) {
-                ProgressView().controlSize(.mini).accessibilityLabel(t("chat.running"))
+                ProgressView().chatActivityTint().controlSize(.mini).accessibilityLabel(t("chat.running"))
                 if let startedAt {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(RelativeTime.elapsed(startedAt, now: context.date))

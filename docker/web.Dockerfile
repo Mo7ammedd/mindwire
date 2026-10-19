@@ -9,8 +9,10 @@ ENV PATH=/usr/local/go/bin:${PATH}
 RUN node --version && bun --version && go version
 ARG NEXT_PUBLIC_CONSOLE_URL=https://console.mindwire.sh
 ARG NEXT_PUBLIC_IOS_APP_URL=
+ARG NEXT_PUBLIC_MAC_APP_URL=
 ENV NEXT_PUBLIC_CONSOLE_URL=${NEXT_PUBLIC_CONSOLE_URL}
 ENV NEXT_PUBLIC_IOS_APP_URL=${NEXT_PUBLIC_IOS_APP_URL}
+ENV NEXT_PUBLIC_MAC_APP_URL=${NEXT_PUBLIC_MAC_APP_URL}
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HarnessVoiceSheet: View {
+    @Environment(\.chatAccent) private var accent
     let agentType: AgentID?
     let agentId: String?
     let name: String
@@ -31,7 +32,7 @@ struct HarnessVoiceSheet: View {
                         Text(t("chat.voice.native.title", ["agent": name])).font(.title3.weight(.semibold))
                         if voice.phase == .checking || voice.phase == .starting {
                             HStack(spacing: Spacing.sm) {
-                                ProgressView().controlSize(.small)
+                                ProgressView().chatActivityTint().controlSize(.small)
                                 Text(t(voice.phase == .checking ? "chat.voice.native.checking" : "chat.voice.native.connecting"))
                             }.font(.subheadline).foregroundStyle(.secondary)
                         } else {
@@ -101,7 +102,7 @@ struct HarnessVoiceSheet: View {
                     Button { voice.start() } label: {
                         Label(t("chat.voice.native.start"), icon: .microphone).font(.body.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 38)
                     }
-                    .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(Palette.accent)
+                    .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(accent)
                     .disabled(!voice.canStart)
                     .accessibilityIdentifier("chat.voice.native.start")
                     .padding(Spacing.lg).frame(maxWidth: 560).frame(maxWidth: .infinity)

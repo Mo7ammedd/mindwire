@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Recording, review and file fallback share one sheet. Nothing sends until the user sends the draft.
 struct ChatVoiceSheet: View {
+    @Environment(\.chatAccent) private var accent
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var voice: ChatVoiceModel
@@ -109,7 +110,7 @@ struct ChatVoiceSheet: View {
             Text(t("chat.voice.hint")).font(.subheadline).foregroundStyle(.secondary)
         case .requestingPermission:
             HStack(spacing: Spacing.sm) {
-                ProgressView().controlSize(.small)
+                ProgressView().chatActivityTint().controlSize(.small)
                 Text(t("chat.voice.starting")).font(.subheadline).foregroundStyle(.secondary)
             }
         case .recording:
@@ -118,7 +119,7 @@ struct ChatVoiceSheet: View {
         case .transcribing:
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.sm) {
-                    ProgressView().controlSize(.small)
+                    ProgressView().chatActivityTint().controlSize(.small)
                     Text(t(voice.progress.preparing ? "chat.voice.preparingSpeech" : "chat.voice.transcribing"))
                         .font(.subheadline).foregroundStyle(.secondary)
                     if let fraction = voice.progress.fraction {
@@ -127,7 +128,7 @@ struct ChatVoiceSheet: View {
                             .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
                 }
-                if let fraction = voice.progress.fraction { ProgressView(value: fraction).tint(.primary) }
+                if let fraction = voice.progress.fraction { ProgressView(value: fraction).chatActivityTint() }
                 if !voice.transcript.isEmpty {
                     Text(voice.transcript).font(.body).naturalChatDirection(voice.transcript, fillWidth: true).lineLimit(4)
                 }
@@ -145,7 +146,7 @@ struct ChatVoiceSheet: View {
                     .accessibilityIdentifier("chat.voice.transcript")
                 if !voice.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !voice.includeRecording {
                     Toggle(t("chat.voice.attachRecording"), isOn: $voice.includeRecording)
-                        .font(.subheadline).tint(Palette.accent)
+                        .font(.subheadline).tint(accent)
                         .accessibilityIdentifier("chat.voice.attachRecording")
                 }
                 if voice.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -171,7 +172,7 @@ struct ChatVoiceSheet: View {
                 Label(t("chat.voice.stop"), icon: .stop).font(.body.weight(.semibold))
                     .frame(maxWidth: .infinity, minHeight: 38)
             }
-            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(Palette.accent)
+            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(accent)
             .accessibilityIdentifier("chat.voice.stop")
         case .transcribing:
             Button(t("chat.voice.useRecording")) { voice.keepRecordingInstead() }
@@ -194,7 +195,7 @@ struct ChatVoiceSheet: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 38)
                 }
-                .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(Palette.accent)
+                .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(accent)
                 .disabled(!voice.canAdd || adding)
                 .accessibilityIdentifier("chat.voice.add")
             }
@@ -204,12 +205,12 @@ struct ChatVoiceSheet: View {
                 else { voice.start() }
             }
             .font(.body.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 44)
-            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(Palette.accent)
+            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(accent)
             .accessibilityIdentifier("chat.voice.retry")
         case .idle:
             Button(t("chat.voice.record")) { voice.start() }
                 .font(.body.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 44)
-                .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(Palette.accent)
+                .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(accent)
         case .requestingPermission:
             EmptyView()
         }
@@ -232,6 +233,7 @@ struct ChatVoiceSheet: View {
 }
 
 struct ChatVoiceWaveformView: View {
+    @Environment(\.chatAccent) private var accent
     let levels: [Float]
     var playback: Double?
 
@@ -248,7 +250,7 @@ struct ChatVoiceWaveformView: View {
                                   width: width, height: height)
                 let played = playback.map { Double(index) / Double(count) < $0 } ?? false
                 context.fill(Path(roundedRect: rect, cornerRadius: width / 2),
-                             with: .color(played ? Palette.accent : .primary.opacity(playback == nil ? 0.8 : 0.3)))
+                             with: .color(played ? accent : .primary.opacity(playback == nil ? 0.8 : 0.3)))
             }
         }
         .allowsHitTesting(false)

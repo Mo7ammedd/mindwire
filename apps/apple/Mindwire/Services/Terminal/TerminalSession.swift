@@ -1,11 +1,22 @@
 import Foundation
 
+enum TerminalConnectionState: Equatable {
+    case connected
+    case connecting
+    case reconnecting
+    case failed(String)
+    case ended
+}
+
 /// A bidirectional PTY stream for a terminal view: raw bytes arrive via `onOutput` (SwiftTerm
 /// parses the ANSI/escape sequences natively) and the user's keystrokes go back via `send`.
 /// `SSHTerminalSession` connects to a real SSH shell; `NullTerminalSession` is the honest
 /// fallback when a target has no shell wired yet.
 protocol TerminalSession: AnyObject {
     var onOutput: ((Data) -> Void)? { get set }
+    /// Transport/UI status is never part of the PTY's byte stream.
+    var connectionState: TerminalConnectionState { get }
+    var onConnectionChange: ((TerminalConnectionState) -> Void)? { get set }
     /// Persistent daemon terminals answer terminal device queries while detached.
     /// The view must suppress its own parser-generated replies, including replay.
     var handlesDeviceQueries: Bool { get }
@@ -17,11 +28,18 @@ protocol TerminalSession: AnyObject {
     func stop()
     /// Permanently terminate the terminal (closes a cloud PTY via the API). Defaults to `stop()`.
     func kill()
+    func retryConnection()
 }
 
 extension TerminalSession {
+    var connectionState: TerminalConnectionState { .connected }
+    var onConnectionChange: ((TerminalConnectionState) -> Void)? {
+        get { nil }
+        set {}
+    }
     var handlesDeviceQueries: Bool { false }
     func kill() { stop() }
+    func retryConnection() {}
 }
 
 /// Supplies the terminals for a `TerminalScreen`. Cloud workspaces restore existing PTYs (with

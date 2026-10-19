@@ -10,8 +10,8 @@ export const cloudDashboardUrl = consoleOrigin() + "/computers";
 export const cloudPricingUrl = "/pricing";
 export const cloudRatesUrl = "https://console.mindwire.sh/computers";
 
-// Add the public iOS URL at deployment time. Until then, download buttons lead
-// to the iPhone setup section, which clearly marks the download as coming soon.
+// Native download buttons only appear once a public release URL is configured.
+// The download page offers setup guidance and the CLI while a release is pending.
 function iosDownload() {
   const value = process.env.NEXT_PUBLIC_IOS_APP_URL?.trim();
   if (!value) return null;
@@ -31,7 +31,18 @@ function iosDownload() {
 }
 
 export const iosApp = iosDownload();
-export const downloadUrl = iosApp?.href ?? "/get-started#iphone";
+function macDownload() {
+  const value = process.env.NEXT_PUBLIC_MAC_APP_URL?.trim();
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    return { href: url.href, label: url.hostname === "apps.apple.com" ? "Download on the Mac App Store" : "Download for Mac" };
+  } catch { return null; }
+}
+
+export const macApp = macDownload();
+export const downloadUrl = "/download";
 
 export const productAgents = [
   { id: "codex", name: "Codex", href: "/docs/reference/agents/codex" },

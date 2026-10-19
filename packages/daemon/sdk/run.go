@@ -136,8 +136,10 @@ func (r *Run) Cancel() error {
 func (r *Run) Respond(in RespondInput) error {
 	r.core.registryMu.Lock()
 	defer r.core.registryMu.Unlock()
-	if err := r.capGate(func(c Capabilities) bool { return c.Respond }, "this agent does not support responding to interactions", "Run.Respond"); err != nil {
-		return err
+	if !r.core.sup.IsServiceInteraction(r.data.ID, in.InteractionID) {
+		if err := r.capGate(func(c Capabilities) bool { return c.Respond }, "this agent does not support responding to interactions", "Run.Respond"); err != nil {
+			return err
+		}
 	}
 	if err := r.core.sup.RespondInteraction(r.data.ID, in); err != nil {
 		status := http.StatusBadRequest

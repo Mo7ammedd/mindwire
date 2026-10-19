@@ -2,6 +2,8 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
+
 	"github.com/oblien/mindwire/packages/daemon/internal/agent"
 	"github.com/oblien/mindwire/packages/daemon/internal/runner"
 	"github.com/oblien/mindwire/packages/daemon/internal/surface"
@@ -22,44 +24,14 @@ func (s *Supervisor) approveDesktop(ctx context.Context, actor surface.Actor, ti
 		Detail:        "The agent can see this desktop, type, use its clipboard and click until this session ends. You can take control from Desktop at any time.",
 		Options:       []agent.Action{{ID: "allow", Label: "Allow for this session"}, {ID: "deny", Label: "Don't allow"}},
 		NeedsResponse: true, Meta: map[string]any{"origin": "surface", "surfaceId": "desktop"}}
-	response := make(chan agent.InteractionResponse, 1)
-	s.mu.Lock()
-	emit := s.serviceEmit[actor.RunID]
-	if emit == nil || s.cancels[actor.RunID] == nil {
-		s.mu.Unlock()
+	err := s.requestServiceApproval(ctx, actor.RunID, interaction)
+	if errors.Is(err, errServiceRunEnded) {
 		return &surface.Error{Code: "run_ended", Message: "This agent run is no longer active."}
 	}
-	if s.serviceReplies[actor.RunID] == nil {
-		s.serviceReplies[actor.RunID] = map[string]chan agent.InteractionResponse{}
+	if errors.Is(err, errServiceApprovalDenied) {
+		return &surface.Error{Code: "denied", Message: "Desktop access was not approved."}
 	}
-	if s.pending[actor.RunID] == nil {
-		s.pending[actor.RunID] = map[string]agent.Interaction{}
-	}
-	s.pending[actor.RunID][id] = interaction
-	s.serviceReplies[actor.RunID][id] = response
-	s.mu.Unlock()
-	emit(agent.Event{Type: agent.EventInteraction, Interaction: &interaction})
-	decision := "interrupted"
-	defer func() {
-		s.mu.Lock()
-		delete(s.pending[actor.RunID], id)
-		delete(s.serviceReplies[actor.RunID], id)
-		s.mu.Unlock()
-		resolved := interaction
-		resolved.NeedsResponse = false
-		resolved.Meta = map[string]any{"origin": "surface", "surfaceId": "desktop", "decision": decision}
-		emit(agent.Event{Type: agent.EventInteraction, Interaction: &resolved})
-	}()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case reply := <-response:
-		decision = reply.Decision
-		if decision != "allow" {
-			return &surface.Error{Code: "denied", Message: "Desktop access was not approved."}
-		}
-		return nil
-	}
+	return err
 }
 
 func (s *Supervisor) desktopTurn(ctx context.Context, a *Agent, turn runner.Turn) (runner.Turn, func(), error) {
@@ -89,17 +61,6 @@ func (s *Supervisor) desktopTurn(ctx context.Context, a *Agent, turn runner.Turn
 	}
 	if env["MINDWIRE_DESKTOP_HELPER"] != "" {
 		turn.Message += surface.FallbackInstructions()
-	}
-	turn.AttachEmitter = func(emit agent.Emit) func() {
-		s.mu.Lock()
-		s.serviceEmit[turn.RunID] = emit
-		s.mu.Unlock()
-		return func() {
-			s.mu.Lock()
-			delete(s.serviceEmit, turn.RunID)
-			delete(s.serviceReplies, turn.RunID)
-			s.mu.Unlock()
-		}
 	}
 	return turn, cleanup, nil
 }

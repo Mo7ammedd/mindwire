@@ -171,6 +171,7 @@ func shape(t agent.NotifyChannelType, n agent.Notification) ([]byte, error) {
 		}
 		for key, value := range map[string]string{
 			"botId": n.BotID, "botName": n.BotName, "botIcon": n.BotIcon, "workspaceId": n.WorkspaceID,
+			"appId": n.AppID, "appName": n.AppName, "appIcon": n.AppIcon, "eventId": n.EventID,
 		} {
 			if value != "" {
 				data[key] = value
@@ -181,6 +182,9 @@ func shape(t agent.NotifyChannelType, n agent.Notification) ([]byte, error) {
 		}
 		if n.RunID != "" {
 			data["runId"] = n.RunID
+		}
+		if n.AppID != "" {
+			data["target_type"], data["target_id"] = "app", n.AppID
 		}
 		if len(n.Actions) > 0 {
 			actions, err := json.Marshal(n.Actions)

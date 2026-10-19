@@ -11,6 +11,10 @@ hands it to whatever channels are enabled, with no per-channel knowledge in the 
 
 ## Workspace notification preferences
 
+For bot conversations, commands, triggers, and notifications in Slack, Microsoft Teams, Discord,
+or Telegram, use [messaging integrations](/docs/guides/integrations). Enabled connections also
+appear as notification destinations for saved apps and schedules.
+
 Saved workspace agent profiles and chats support an optional `notificationsMuted` boolean.
 The supervisor reads the current preference before every notification, including completion,
 errors, approvals and questions. A mute prevents new deliveries through the legacy webhook,

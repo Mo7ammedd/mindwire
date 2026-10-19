@@ -5,6 +5,7 @@ import type { Run } from "./types.js";
 export interface BotKnowledge { id: string; title: string; content: string }
 export interface Bot extends WorkspaceRecord {
   agentId: string;
+  /** Default folder for new chats. The bot belongs to workspaceId and can work in its other projects. */
   projectId: string;
   name: string;
   /** Saved palette-character ID; omitted/empty keeps the automatic avatar. */
@@ -13,6 +14,10 @@ export interface Bot extends WorkspaceRecord {
   instructions: string;
   memory: string;
   knowledge: BotKnowledge[];
+  /** Portable SKILL.md documents, loaded on demand. Requires botsVersion >= 6. */
+  skills?: string[] | null;
+  /** Creation-only plain harness: no Mindwire bot context, tools or skills. Requires botsVersion >= 7. */
+  raw?: boolean;
   isMaster: boolean;
   archived: boolean;
   /** Applies to this bot's current and future chats, independent of its base engine. */
@@ -22,14 +27,19 @@ export interface BotInput {
   icon?: string;
   id?: string;
   agentId: string;
-  projectId: string;
+  projectId?: string;
   name: string;
   purpose?: string;
   instructions?: string;
   memory?: string;
   knowledge?: BotKnowledge[];
+  skills?: string[];
+  /** Keep native harness behavior. Cannot be changed after creation or combined with bot context. */
+  raw?: boolean;
 }
 export interface BotEdit {
+  /** Base agent for future chats; existing chats retain their original engine. Requires botsVersion >= 5. */
+  agentId?: string;
   icon?: string;
   expectedRevision: number;
   name?: string;
@@ -38,12 +48,14 @@ export interface BotEdit {
   memory?: string;
   knowledge?: BotKnowledge[];
   archived?: boolean;
+  /** Replaces assigned SKILL.md documents; omit to preserve existing skills. */
+  skills?: string[];
   notificationsMuted?: boolean;
 }
 export interface BotMutation { bot: Bot; snapshot: WorkspaceSnapshot }
 
 export interface BotTaskInput { requestId: string; message: string }
-export interface BotTaskRequest extends BotTaskInput { chatId?: string; title?: string }
+export interface BotTaskRequest extends BotTaskInput { chatId?: string; title?: string; projectId?: string }
 export interface BotTask {
   botId: string;
   chatId: string;
@@ -89,7 +101,7 @@ export class BotsApi {
     return this.mw.http.request("PATCH", `/bots/${encodeURIComponent(id)}`, { body: edit });
   }
   chats(id: string): Promise<WorkspaceChat[]> { return this.mw.http.request("GET", `/bots/${encodeURIComponent(id)}/chats`); }
-  createChat(id: string, input: { chatId?: string; title?: string } = {}): Promise<{ chatId: string; snapshot: WorkspaceSnapshot }> {
+  createChat(id: string, input: { chatId?: string; title?: string; projectId?: string } = {}): Promise<{ chatId: string; snapshot: WorkspaceSnapshot }> {
     return this.mw.http.request("POST", `/bots/${encodeURIComponent(id)}/chats`, { body: input });
   }
   agents(): Promise<{ agents: WorkspaceAgent[]; projects: WorkspaceProject[] }> {

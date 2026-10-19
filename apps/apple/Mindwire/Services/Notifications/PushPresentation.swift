@@ -13,6 +13,7 @@ final class PushPresentation {
     }
 
     func options(for target: PushTarget?, appIsActive: Bool, stores: Stores?) -> UNNotificationPresentationOptions {
+        if case .app(let id) = target, let app = stores?.apps.get(id), app.notificationsMuted == true || app.archived { return [] }
         if case .chat(let id) = target {
             if appIsActive && visibleChats.values.contains(id) { return [] }
             if let stores, NotificationScope.chat(id).isMuted(in: stores) { return [] }
