@@ -9,7 +9,7 @@ import ThemeToggle from "../ThemeToggle";
 import { consoleUrl } from "@/lib/console-url";
 import styles from "./landing.module.css";
 
-const links = [{ href: "/#modes", label: "Product" }, { href: "/use-cases", label: "Use cases" }, { href: "/developers", label: "Developers" }, { href: "/pricing", label: "Cloud & pricing" }, { href: "/sdk", label: "SDK" }, { href: "/download", label: "Download" }, { href: "/docs", label: "Docs" }];
+const links = [{ href: "/#modes", label: "Product" }, { href: "/use-cases", label: "Use cases" }, { href: "/developers", label: "Developers" }, { href: "/pricing", label: "Pricing" }, { href: "/sdk", label: "SDK" }, { href: "/download", label: "Download" }, { href: "/docs", label: "Docs" }];
 
 export default function LandingNav() {
   const [open, setOpen] = useState(false);

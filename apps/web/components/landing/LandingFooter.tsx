@@ -7,7 +7,7 @@ import base from "./landing.module.css";
 import styles from "./product.module.css";
 
 const columns = [
-  { title: "Mindwire", links: [["Two ways to work", "/#modes"], ["Use cases", "/use-cases"], ["Cloud & pricing", "/pricing"], ["Mac & iPhone", "/download"], ["Get started", "/get-started"]] },
+  { title: "Mindwire", links: [["Two ways to work", "/#modes"], ["Use cases", "/use-cases"], ["Pricing", "/pricing"], ["Mac & iPhone", "/download"], ["Get started", "/get-started"]] },
   { title: "For builders", links: [["Developer mode", "/developers"], ["Mindwire SDK", "/sdk"], ["Documentation", "/docs"], ["Sandboxing", "/sandboxing"], ["Source code", githubUrl]] },
   { title: "Stay connected", links: [["Your account", consoleUrl], ["Changelog", "/changelog"], ["Get help", githubUrl + "/issues"], ["Oblien", "https://oblien.com"]] },
 ];

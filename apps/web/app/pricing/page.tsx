@@ -10,7 +10,7 @@ import base from "@/components/landing/landing.module.css";
 import styles from "@/components/landing/product.module.css";
 
 export const metadata: Metadata = {
-  title: "Cloud & pricing — Mindwire",
+  title: "Pricing — Mindwire",
   description: "Use Mindwire on your own computer for free, or give your bots an online home with a monthly Cloud Computer. Your agent account stays yours.",
   alternates: { canonical: "/pricing/" },
 };
