@@ -37,21 +37,25 @@ type rpcMessage struct {
 }
 
 type acpClient struct {
-	in      io.WriteCloser
-	mu      sync.Mutex
-	next    atomic.Int64
-	pending sync.Map // map[string]chan rpcMessage
-	notify  chan rpcMessage
-	request chan rpcMessage
-	closed  chan struct{}
+	in       io.WriteCloser
+	mu       sync.Mutex
+	next     atomic.Int64
+	pending  sync.Map // map[string]chan rpcMessage
+	notify   chan rpcMessage
+	request  chan rpcMessage
+	closed   chan struct{}
+	stop     chan struct{}
+	stopOnce sync.Once
 }
 
 func rpcKey(id json.RawMessage) string { return string(bytes.TrimSpace(id)) }
 
 func newACPClient(in io.WriteCloser, out io.Reader) *acpClient {
-	c := &acpClient{in: in, notify: make(chan rpcMessage, 128), request: make(chan rpcMessage, 16), closed: make(chan struct{})}
+	c := &acpClient{in: in, notify: make(chan rpcMessage, 128), request: make(chan rpcMessage, 16), closed: make(chan struct{}), stop: make(chan struct{})}
 	go func() {
 		defer close(c.closed)
+		defer close(c.notify)
+		defer close(c.request)
 		sc := bufio.NewScanner(out)
 		sc.Buffer(make([]byte, 0, 1<<20), 16<<20)
 		for sc.Scan() {
@@ -66,17 +70,84 @@ func newACPClient(in io.WriteCloser, out io.Reader) *acpClient {
 				continue
 			}
 			if len(m.ID) > 0 && m.Method != "" {
-				c.request <- m
+				select {
+				case c.request <- m:
+				case <-c.stop:
+					return
+				}
 				continue
 			}
 			if m.Method != "" {
-				c.notify <- m
+				select {
+				case c.notify <- m:
+				case <-c.stop:
+					return
+				}
 			}
 		}
-		close(c.notify)
-		close(c.request)
 	}()
 	return c
+}
+
+// Session setup can replay an arbitrarily long transcript before replying.
+// Consume that replay while awaiting the response, without treating it as output
+// from the new prompt. The reader queues notifications before delivering the
+// response, so draining the remaining queue establishes the prompt boundary.
+func (c *acpClient) requestSetup(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	type response struct {
+		raw json.RawMessage
+		err error
+	}
+	done := make(chan response, 1)
+	go func() {
+		raw, err := c.requestTo(ctx, method, params)
+		done <- response{raw, err}
+	}()
+	notifications, requests := c.notify, c.request
+	respond := func(req rpcMessage) error {
+		result := map[string]any{}
+		if req.Method == "session/request_permission" {
+			result["outcome"] = map[string]string{"outcome": "cancelled"}
+		}
+		return c.respond(req.ID, result)
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case result := <-done:
+			for {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case _, ok := <-notifications:
+					if !ok {
+						notifications = nil
+					}
+				case req, ok := <-requests:
+					if !ok {
+						requests = nil
+					} else if err := respond(req); err != nil {
+						return nil, err
+					}
+				default:
+					return result.raw, result.err
+				}
+			}
+		case _, ok := <-notifications:
+			if !ok {
+				notifications = nil
+			}
+		case req, ok := <-requests:
+			if !ok {
+				requests = nil
+				continue
+			}
+			if err := respond(req); err != nil {
+				return nil, err
+			}
+		}
+	}
 }
 
 func (c *acpClient) write(v any) error {
@@ -131,7 +202,9 @@ func (c *acpClient) notifyTo(method string, params any) error {
 	return c.write(map[string]any{"jsonrpc": "2.0", "method": method, "params": params})
 }
 
-func (c *acpClient) close() { _ = c.in.Close() }
+func (c *acpClient) close() {
+	c.stopOnce.Do(func() { close(c.stop); _ = c.in.Close() })
+}
 
 func acpCommand(in agent.TurnInput) []string {
 	// Disable background self-updates in every programmatic run. They create
@@ -168,6 +241,8 @@ func runACP(ctx context.Context, in agent.TurnInput, emit agent.Emit) (agent.Tur
 	if err := validateACPInput(in); err != nil {
 		return agent.TurnResult{SessionID: agent.FirstNonEmpty(in.Options.SessionID, in.SessionID), Text: err.Error(), IsError: true}, err
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	cmd := toolchain.CommandContext(ctx, "grok", acpCommand(in)...)
 	if in.CWD != "" {
 		cmd.Dir = in.CWD
@@ -195,7 +270,10 @@ func runACP(ctx context.Context, in agent.TurnInput, emit agent.Emit) (agent.Tur
 	defer c.close()
 
 	result, runErr := acpRun(ctx, c, in, emit)
-	_ = stdin.Close()
+	c.close()
+	if runErr != nil {
+		cancel()
+	}
 	waitErr := cmd.Wait()
 	if runErr != nil {
 		msg := runErr.Error()
@@ -225,7 +303,7 @@ func acpRun(ctx context.Context, c *acpClient, in agent.TurnInput, emit agent.Em
 		return agent.TurnResult{}, err
 	}
 	sessionID := agent.FirstNonEmpty(strings.TrimSpace(in.Options.SessionID), strings.TrimSpace(in.SessionID))
-	initRaw, err := c.requestTo(ctx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": false, "writeTextFile": false}, "terminal": false}})
+	initRaw, err := c.requestSetup(ctx, "initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"fs": map[string]bool{"readTextFile": false, "writeTextFile": false}, "terminal": false}})
 	if err != nil {
 		return agent.TurnResult{}, err
 	}
@@ -247,13 +325,13 @@ func acpRun(ctx context.Context, c *acpClient, in agent.TurnInput, emit agent.Em
 		method = init.DefaultAuthMethodID
 	}
 	if method != "" {
-		if _, err := c.requestTo(ctx, "authenticate", map[string]any{"methodId": method, "_meta": map[string]bool{"headless": true}}); err != nil {
+		if _, err := c.requestSetup(ctx, "authenticate", map[string]any{"methodId": method, "_meta": map[string]bool{"headless": true}}); err != nil {
 			return agent.TurnResult{}, err
 		}
 	}
 
 	if in.Options.ContinueLatest {
-		raw, err := c.requestTo(ctx, "session/resume", map[string]any{"cwd": cwd})
+		raw, err := c.requestSetup(ctx, "session/resume", map[string]any{"cwd": cwd})
 		if err != nil {
 			return agent.TurnResult{}, err
 		}
@@ -268,7 +346,7 @@ func acpRun(ctx context.Context, c *acpClient, in agent.TurnInput, emit agent.Em
 	} else if sessionID != "" {
 		// Grok's ACP load request has the same workspace + MCP fields as session/new. Supplying the
 		// complete shape keeps reconnects valid on current Grok Build releases.
-		if _, err := c.requestTo(ctx, "session/load", map[string]any{"sessionId": sessionID, "cwd": cwd, "mcpServers": json.RawMessage(`[]`)}); err != nil {
+		if _, err := c.requestSetup(ctx, "session/load", map[string]any{"sessionId": sessionID, "cwd": cwd, "mcpServers": json.RawMessage(`[]`)}); err != nil {
 			return agent.TurnResult{SessionID: sessionID}, err
 		}
 	} else {
@@ -288,7 +366,7 @@ func acpRun(ctx context.Context, c *acpClient, in agent.TurnInput, emit agent.Em
 		if len(in.Options.MCPServers) > 0 {
 			params["mcpServers"] = in.Options.MCPServers
 		}
-		raw, err := c.requestTo(ctx, "session/new", params)
+		raw, err := c.requestSetup(ctx, "session/new", params)
 		if err != nil {
 			return agent.TurnResult{}, err
 		}
@@ -303,7 +381,7 @@ func acpRun(ctx context.Context, c *acpClient, in agent.TurnInput, emit agent.Em
 		emit(agent.Event{Type: agent.EventSession, SessionID: sessionID})
 	}
 	if in.Options.ForkOnResume {
-		raw, err := c.requestTo(ctx, "session/fork", map[string]any{"sessionId": sessionID})
+		raw, err := c.requestSetup(ctx, "session/fork", map[string]any{"sessionId": sessionID})
 		if err != nil {
 			return agent.TurnResult{SessionID: sessionID}, err
 		}

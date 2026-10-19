@@ -23,6 +23,8 @@ func newRegistryAPIEnv(t *testing.T) (http.Handler, *session.Store, *API) {
 	t.Helper()
 	t.Setenv("CODEX_HOME", t.TempDir())
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	t.Setenv("OPENCODE_DB", filepath.Join(t.TempDir(), "opencode.db"))
+	t.Setenv("GROK_HOME", t.TempDir())
 	dir := t.TempDir()
 	st, err := session.Open(filepath.Join(dir, "state.json"))
 	if err != nil {

@@ -33,9 +33,8 @@ func (adapter) Capabilities() agent.Capabilities {
 	return agent.Capabilities{
 		Protocol: agent.ProtocolHTTP,         // driven over `opencode serve` + the GET /event SSE bus (server.go)
 		Output:   agent.OutputStructuredJSON, // message parts arrive as structured JSON over SSE
-		// opencode's own store (opencode.db, SQLite) is undocumented and off-limits, so History() returns
-		// nil and the core serves mindwire's recorded stream instead.
-		History:    agent.SupportEmulated,
+		// Read existing conversations from OpenCode's store without copying or changing it.
+		History:    agent.SupportNative,
 		Sessions:   agent.SupportNative, // POST /session; resume by reusing the session id
 		Resume:     true,
 		ToolEvents: true,

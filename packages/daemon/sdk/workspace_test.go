@@ -83,6 +83,8 @@ func TestWorkspaceDiscoversAndReadsNativeCLIConversations(t *testing.T) {
 	home, cwd := t.TempDir(), t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", home)
 	t.Setenv("CODEX_HOME", t.TempDir())
+	t.Setenv("OPENCODE_DB", filepath.Join(t.TempDir(), "opencode.db"))
+	t.Setenv("GROK_HOME", t.TempDir())
 	path := filepath.Join(home, "projects", strings.ReplaceAll(cwd, "/", "-"), "external-claude.jsonl")
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)
