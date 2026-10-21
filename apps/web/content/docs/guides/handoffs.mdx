@@ -19,6 +19,29 @@ Connect another agent on the same computer if no destination is available. The d
 `crossAgentHandoffVersion >= 1`. Active source conversations, including those owned by a native terminal,
 must finish before preparing a handoff.
 
+## Test from a phone browser
+
+You do not need a Mac or an Apple app build. From the repository on your computer, run:
+
+```bash
+./scripts/run-handoff-ui.sh
+```
+
+Keep that terminal open. On your phone, open `http://YOUR_COMPUTER_IP:8795/ui/` while connected
+to the same network or hotspot. The launcher prints the access token file location; copy that
+file's contents into the browser's **Access token** field. The token stays in page memory.
+
+The browser lists native and saved conversations. Select one, choose another agent, describe
+its next task, and expand **Review transferred context** to edit the excerpts before starting.
+Activity, tool results, approval buttons and question forms appear in the same page. A previous
+handoff can be recovered after a browser reload without starting a duplicate task.
+
+This launcher uses separate test state under `~/.cache/mindwire-handoff-ui`, leaving a running
+Mindwire service's state alone. Agents still use their real project files and host sign-ins.
+Override `HANDOFF_UI_DIR`, `ADDR` or `AGENT_CWD` when needed. Ctrl+C stops the test service.
+An existing daemon built from this branch also serves the browser directly at `/ui/` on its
+configured address.
+
 ## What is transferred
 
 The preview includes the original goal, recent visible conversation excerpts, and file paths reported

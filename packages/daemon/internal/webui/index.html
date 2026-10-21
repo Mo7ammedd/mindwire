@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fcfbf9" />
+    <title>Agent handoffs · Mindwire</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/ui/handoffs.css" />
+    <script src="/ui/handoffs.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/ui/" aria-label="Mindwire home"
+        ><span class="brand-mark" aria-hidden="true">m</span>mindwire<span
+          class="beta"
+          >Browser</span
+        ></a
+      >
+      <div class="connection">
+        <span id="connection-state">Not connected</span
+        ><button id="disconnect" class="quiet" hidden>Disconnect</button>
+      </div>
+    </header>
+    <main>
+      <div class="intro">
+        <span class="eyebrow">ONE PROJECT. A FRESH PERSPECTIVE.</span>
+        <h1>Pass the work forward.</h1>
+        <p>
+          Give another agent the context it needs to pick up where you left off.
+        </p>
+      </div>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <section id="connect-panel" class="connect-card card">
+        <span class="step-label">YOUR COMPUTER</span>
+        <h2>Connect to Mindwire</h2>
+        <p>
+          Enter this computer’s access token to see your conversations. Your
+          token stays in this page’s memory.
+        </p>
+        <form id="connect-form">
+          <label for="token">Access token</label>
+          <div class="connect-fields">
+            <input
+              id="token"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              required
+              placeholder="Paste your daemon token"
+            /><button id="connect" class="primary" type="submit">
+              Connect <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </form>
+        <details class="help">
+          <summary>Where do I find my token?</summary>
+          <p>
+            The handoff launcher prints the location of
+            <code>daemon.token</code> on your computer. Open that file and paste
+            its contents here. Keep the computer running while testing.
+          </p>
+        </details>
+      </section>
+      <div id="workspace" hidden>
+        <nav class="progress" aria-label="Handoff steps">
+          <a href="#source-panel"><span>1</span> Conversation</a
+          ><span class="progress-line"></span
+          ><a href="#handoff-panel"><span>2</span> Handoff</a
+          ><span class="progress-line"></span
+          ><a href="#run-panel"><span>3</span> Activity</a>
+        </nav>
+        <div class="workspace-grid">
+          <section id="source-panel" class="card source-panel">
+            <div class="section-heading">
+              <div>
+                <span class="step-label">01 / START HERE</span>
+                <h2>Your conversations</h2>
+              </div>
+              <button
+                id="refresh"
+                class="quiet"
+                aria-label="Refresh conversations"
+              >
+                ↻ Refresh
+              </button>
+            </div>
+            <label class="sr-only" for="search">Search conversations</label
+            ><input
+              id="search"
+              type="search"
+              placeholder="Find a conversation…"
+              autocomplete="off"
+            />
+            <div id="sources" class="sources" aria-live="polite"></div>
+            <button id="load-more" class="secondary full" hidden>
+              Load more conversations
+            </button>
+          </section>
+          <section id="handoff-panel" class="card handoff-panel">
+            <span class="step-label">02 / PASS IT ON</span>
+            <h2>Set up the handoff</h2>
+            <p id="selection-hint" class="muted">
+              Choose a conversation to get started.
+            </p>
+            <form id="handoff-form" hidden>
+              <div class="source-summary">
+                <span class="source-icon" aria-hidden="true">↗</span>
+                <div>
+                  <span class="caption">FROM</span
+                  ><strong id="source-title"></strong
+                  ><span id="source-detail" class="muted"></span>
+                </div>
+              </div>
+              <label for="target">Who takes it from here?</label
+              ><select id="target" required></select>
+              <p id="target-hint" class="field-hint"></p>
+              <label for="task">What should they do next?</label
+              ><textarea
+                id="task"
+                rows="3"
+                required
+                placeholder="Review the changes for bugs and missing checks…"
+              ></textarea>
+              <div class="suggestions">
+                <button
+                  type="button"
+                  data-task="Review the changes for correctness problems and missing checks. Report findings before making edits."
+                >
+                  Review changes</button
+                ><button
+                  type="button"
+                  data-task="Continue the task. Verify the current project state, preserve previous decisions, and address remaining work."
+                >
+                  Continue the task
+                </button>
+              </div>
+              <details id="context-disclosure" class="context-disclosure">
+                <summary>
+                  Review transferred context
+                  <span id="context-size" class="caption"></span>
+                </summary>
+                <p class="field-hint">
+                  Text excerpts and file paths. Add important decisions or
+                  unresolved issues before sending.
+                </p>
+                <label class="sr-only" for="context">Transferred context</label
+                ><textarea id="context" rows="12" spellcheck="false"></textarea>
+              </details>
+              <p id="context-note" class="field-hint"></p>
+              <div class="handoff-footer">
+                <span
+                  >Same project.<br />
+                  New conversation and agent settings.</span
+                ><button id="start" class="primary" type="submit">
+                  Start handoff <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </form>
+          </section>
+          <section id="run-panel" class="card run-panel">
+            <div class="section-heading">
+              <div>
+                <span class="step-label">03 / FOLLOW ALONG</span>
+                <h2>Activity</h2>
+              </div>
+              <span id="run-status" class="status-pill"
+                >Ready when you are</span
+              >
+            </div>
+            <div id="run-empty" class="empty-activity">
+              <span aria-hidden="true">✳</span>
+              <h3>The next chapter starts here.</h3>
+              <p>Your new agent’s response and requests will appear here.</p>
+            </div>
+            <div id="run-content" hidden>
+              <p id="run-detail" class="muted"></p>
+              <div id="run-output" aria-live="polite"></div>
+              <div id="run-interactions"></div>
+              <div class="run-actions">
+                <button id="resume-watch" class="secondary" hidden>
+                  Reconnect activity</button
+                ><button id="cancel-run" class="secondary" hidden>
+                  Stop task</button
+                ><button id="open-result" class="secondary" hidden>
+                  Use this conversation
+                </button>
+              </div>
+            </div>
+            <button id="recover" class="secondary full" hidden>
+              Recover previous handoff
+            </button>
+          </section>
+        </div>
+      </div>
+      <footer class="page-footer">
+        Mindwire <span>Bring your agents. Keep your context.</span>
+      </footer>
+    </main>
+  </body>
+</html>

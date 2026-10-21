@@ -75,6 +75,10 @@
     {
       "name": "Integrations",
       "description": "Slack, Teams, Discord and Telegram connections, signed inbound events, native bot conversations and streamed replies."
+    },
+    {
+      "name": "Browser UI",
+      "description": "Public static browser client; API requests still require a bearer token."
     }
   ],
   "components": {
@@ -22356,6 +22360,83 @@
           },
           "503": {
             "description": "Queue full; provider should retry"
+          }
+        }
+      }
+    },
+    "/ui": {
+      "get": {
+        "tags": [
+          "Browser UI"
+        ],
+        "summary": "Open agent handoffs in a browser",
+        "security": [],
+        "responses": {
+          "302": {
+            "description": "Redirect to /ui/"
+          }
+        }
+      }
+    },
+    "/ui/": {
+      "get": {
+        "tags": [
+          "Browser UI"
+        ],
+        "summary": "Open agent handoffs in a browser",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Static browser UI asset; contains no workspace data or credentials.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ui/handoffs.css": {
+      "get": {
+        "tags": [
+          "Browser UI"
+        ],
+        "summary": "Load handoff browser asset",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Static browser UI asset; contains no workspace data or credentials.",
+            "content": {
+              "text/css": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ui/handoffs.js": {
+      "get": {
+        "tags": [
+          "Browser UI"
+        ],
+        "summary": "Load handoff browser asset",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Static browser UI asset; contains no workspace data or credentials.",
+            "content": {
+              "text/javascript": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
