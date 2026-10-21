@@ -276,6 +276,7 @@ final class ChatModel {
     private var viewers: Set<UUID> = []
     private var managedVisibility = false
     private var sending = false
+    @ObservationIgnored private var pendingHandoffDraft: ChatHandoffDraft?
     @ObservationIgnored private var forkDrafts: [String: ChatForkDraft] = [:]
     private var wantsLiveUpdates: Bool { !managedVisibility || !viewers.isEmpty }
     private var streamTask: Task<Void, Never>?
@@ -332,6 +333,39 @@ final class ChatModel {
 
     var canForkHistory: Bool {
         session?.capabilities?.fork == true && canSendToConversation && !nativeState.ownsConversation && !thinking && !sending && !preparing && !loadingHistory
+    }
+
+    var canHandoff: Bool {
+        session != nil && canSendToConversation && !nativeState.ownsConversation && !thinking && !sending
+            && !preparing && !loadingHistory && hasLoadedHistory
+    }
+
+    func handoffDraft() -> ChatHandoffDraft? {
+        guard let session, let stores, let source = stores.chats.get(chatId),
+              let profile = stores.agents.get(source.agentId), let project = stores.projects.get(source.projectId) else { return nil }
+        let agents = stores.agents.list().filter {
+            $0.workspaceId == profile.workspaceId && $0.agentType != profile.agentType && $0.installation != "missing"
+        }.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+        if let pendingHandoffDraft, pendingHandoffDraft.completedChatId == nil,
+           pendingHandoffDraft.submitted != nil || pendingHandoffDraft.agents.map(\.id) == agents.map(\.id) {
+            return pendingHandoffDraft
+        }
+        let draft = ChatHandoffDraft(agents: agents, loadPreview: {
+            try await session.previewHandoff(source.id)
+        }) { [weak self] request in
+            let result = try await session.handoff(source.id, request: request)
+            guard result.chatId == request.newChatId,
+                  result.snapshot.chats.contains(where: { $0.id == result.chatId && $0.agentId == request.targetAgentId
+                      && $0.projectId == source.projectId && $0.handoffFrom?.chatId == source.id }),
+                  stores.projects.get(source.projectId)?.workspaceId == project.workspaceId else {
+                throw BackendError.message(t("workspace.sync.invalid"))
+            }
+            try stores.workspaceData.apply(result.snapshot, workspaceId: project.workspaceId)
+            self?.activity.record(result.run, workspaceId: project.workspaceId, stores: stores)
+            return result.chatId
+        }
+        pendingHandoffDraft = draft
+        return draft
     }
 
     func forkDraft(for message: DaemonMessage) -> ChatForkDraft {

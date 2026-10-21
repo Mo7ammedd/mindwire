@@ -816,6 +816,8 @@ func TestSDKRouteParity(t *testing.T) {
 		"DELETE /notify/rules/{id}":                              "Client.DeleteNotifyRule",
 		"GET /healthz":                                           "Client.Health",
 		"GET /stats":                                             "Client.Stats",
+		"GET /chats/{id}/handoff":                                "Client.PreviewHandoff",
+		"POST /chats/{id}/handoff":                               "Client.Handoff",
 		"GET /processes/stream":                                  "Client.Processes",
 	}
 

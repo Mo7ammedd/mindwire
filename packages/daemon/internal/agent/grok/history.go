@@ -247,6 +247,7 @@ func nativeMessages(updates []nativeUpdate, chatID string) []agent.Message {
 			}
 			if u.Status != "" {
 				tool.IsError = u.Status == "failed"
+				tool.Status = u.Status
 			}
 		case "plan":
 			if len(u.Entries) > 0 {

@@ -58,6 +58,12 @@ func (adapter) History(q agent.HistoryQuery) ([]agent.Message, error) {
 	var revert sql.NullString
 	err = tx.QueryRowContext(ctx, `SELECT directory, revert FROM session WHERE id = ?`, q.SessionID).Scan(&directory, &revert)
 	if err == sql.ErrNoRows {
+		if len(q.Recorded) > 0 {
+			// V2 sessions are not projected into the legacy session/part tables.
+			// Preserve the recorded transcript rather than treating a missing row
+			// as a successful, authoritatively empty native conversation.
+			return nil, fmt.Errorf("OpenCode session is absent from the legacy history store")
+		}
 		return nil, nil
 	}
 	if err != nil {
@@ -190,6 +196,9 @@ func appendNativeMessage(out []agent.Message, row storedMessage, chatID string) 
 			part.Type = "tool"
 			part.Tool = &agent.ToolPart{ID: agent.FirstNonEmpty(p.CallID, p.ID), Name: p.Tool,
 				Input: input, Output: output, IsError: isError, Action: ocToolAction(p.Tool, input)}
+			if p.State != nil {
+				part.Tool.Status = p.State.Status
+			}
 		case "compaction":
 			trigger := "manual"
 			if p.Auto {

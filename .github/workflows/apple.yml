@@ -37,3 +37,10 @@ jobs:
         run: >-
           xcodebuild -project apps/apple/Mindwire.xcodeproj -scheme Mindwire
           -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Test handoff review and retry recovery
+        shell: bash
+        run: |
+          handoff_simulator=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
+          xcodebuild -project apps/apple/Mindwire.xcodeproj -scheme Mindwire \
+            -destination "platform=iOS Simulator,id=$handoff_simulator" \
+            -only-testing:MindwireTests/ChatHandoffTests CODE_SIGNING_ALLOWED=NO test

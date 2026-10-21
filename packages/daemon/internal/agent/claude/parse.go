@@ -338,7 +338,7 @@ func messageParts(raw json.RawMessage) []agent.Part {
 			}
 		case "tool_result":
 			parts = append(parts, agent.Part{Type: "tool",
-				Tool: &agent.ToolPart{ID: b.ToolUseID, Output: rawText(b.Content), IsError: b.IsError}})
+				Tool: &agent.ToolPart{ID: b.ToolUseID, Output: rawText(b.Content), IsError: b.IsError, Status: "completed"}})
 		}
 	}
 	return parts

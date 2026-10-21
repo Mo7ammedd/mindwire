@@ -328,6 +328,8 @@ func (a *API) Routes() []Route {
 		{"PUT", "/chats/{id}", a.renameChat},
 		{"DELETE", "/chats/{id}", a.deleteChat},
 		{"POST", "/chats/{id}/fork", a.forkChat},
+		{"GET", "/chats/{id}/handoff", a.handoffPreview},
+		{"POST", "/chats/{id}/handoff", a.handoffStart},
 		{"POST", "/chats/{id}/compact", a.compactChat},
 		// Agent lifecycle (daemon owns it; app fetches/triggers).
 		{"GET", "/catalog", a.catalog},

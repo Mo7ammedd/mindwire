@@ -226,6 +226,7 @@ export interface ProjectIcon {
 
 /** Chat membership; transcript content continues to come from /chats/:id/messages. */
 export interface WorkspaceChat extends WorkspaceRecord {
+  handoffFrom?: import("./handoffs.js").HandoffOrigin;
   botId?: string;
   /** Logical conversation identity; the local id remains unique per workspace. */
   syncId?: string;

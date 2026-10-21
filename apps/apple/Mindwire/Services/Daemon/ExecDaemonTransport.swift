@@ -232,6 +232,17 @@ final class ExecDaemonTransport: AgentTransport {
         try await http.decode("PUT", "/chats/\(http.enc(chatId))", json: ["title": title])
     }
 
+    func previewHandoff(chatId: String) async throws -> DaemonHandoffPreview {
+        try await http.decode("GET", "/chats/\(http.enc(chatId))/handoff")
+    }
+
+    func handoff(chatId: String, request: ChatHandoffRequest) async throws -> DaemonHandoffResult {
+        try await http.decode("POST", "/chats/\(http.enc(chatId))/handoff", json: [
+            "newChatId": request.newChatId, "requestId": request.requestId,
+            "targetAgentId": request.targetAgentId, "task": request.task, "context": request.context,
+        ])
+    }
+
     func forkChat(chatId: String, newChatId: String, beforeMessageId: String) async throws -> DaemonChatFork {
         try await http.decode("POST", "/chats/\(http.enc(chatId))/fork",
                               json: ["newChatId": newChatId, "beforeMessageId": beforeMessageId])

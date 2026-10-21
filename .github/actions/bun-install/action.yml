@@ -1,5 +1,5 @@
 name: Install Bun dependencies
-description: Install the locked Bun dependency graph, retrying transient registry or package-extraction failures.
+description: Install and verify the locked Bun graph, retrying transient extraction or workspace-link failures.
 
 runs:
   using: composite
@@ -8,7 +8,16 @@ runs:
       run: |
         set -euo pipefail
         for attempt in 1 2 3; do
-          if bun install --frozen-lockfile; then
+          install_options=(--frozen-lockfile)
+          if [ "$attempt" -gt 1 ]; then
+            # Isolated installs can otherwise reuse an incomplete store entry.
+            install_options+=(--force)
+          fi
+          if bun install "${install_options[@]}" && node -e '
+            const { createRequire } = require("node:module");
+            const consoleRequire = createRequire(process.cwd() + "/apps/console/package.json");
+            for (const name of ["better-sqlite3", "pg", "tsx"]) consoleRequire.resolve(name);
+          '; then
             exit 0
           fi
 

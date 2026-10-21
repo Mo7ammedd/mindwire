@@ -22,6 +22,7 @@ struct Chat: Codable, Identifiable, Hashable {
     var updatedAt: String? = nil
     var syncId: String? = nil
     var botId: String? = nil
+    var handoffFrom: ChatHandoffOrigin? = nil
 
     var lastActivityAt: String { max(createdAt, updatedAt ?? createdAt) }
 }
