@@ -11,6 +11,23 @@ The arc is: **catalog** (what agents exist) → **agent** (is this one installed
 **setup** (install it) → **setupStatus** (watch progress) → **doctor** (diagnose) → **health** (is the
 daemon live?).
 
+## Prepare a computer during app onboarding
+
+In the iPhone, iPad, and Mac app, choose or connect a computer first. Onboarding then
+checks the connection, starts an existing Mindwire service or installs it when missing,
+and synchronizes the workspace before offering AI accounts. Keep the computer powered
+on and reachable throughout setup. A stopped cloud computer must be started first.
+
+If the connection or workspace sync fails, setup stays on **Preparing your computer**
+with the error and a retry action. Retrying reuses the saved computer. Resuming unfinished
+onboarding checks readiness again before reopening an account; leaving or choosing a
+different computer discards the previous preparation result.
+
+An unavailable or incompatible service cannot accept a new agent or chat. Existing
+cached data remains available, but the app does not save a local-only replacement.
+Once preparation succeeds, account setup installs any missing AI CLI and connects its
+authentication through the usual shared setup flow.
+
 ## List the catalog
 
 `catalog()` returns every agent this daemon build ships, independent of whether it's installed.

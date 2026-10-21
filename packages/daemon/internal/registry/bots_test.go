@@ -127,7 +127,7 @@ func TestBotIconCatalogValidationAndAutomaticReset(t *testing.T) {
 	}
 }
 
-func TestBotsPreserveDeveloperChatsAndRejectCrossProjectMembership(t *testing.T) {
+func TestWorkspaceBotsPreserveDeveloperChatsAndAllowCrossProjectMembership(t *testing.T) {
 	st := openTest(t)
 	batch := fixture()
 	batch.Projects = append(batch.Projects, Project{Record: Record{ID: "developer"}, Name: "Code", Path: "/work/code"})
@@ -143,10 +143,14 @@ func TestBotsPreserveDeveloperChatsAndRejectCrossProjectMembership(t *testing.T)
 	if err != nil || dev.BotID != "" {
 		t.Fatal("General migrated Developer chat")
 	}
-	bad := Chat{Record: Record{ID: "bad"}, AgentID: "agent", ProjectID: "developer", BotID: master.ID, Title: "Bad"}
-	data, _ := json.Marshal(bad)
-	if err = st.Put("chats", bad.ID, data, nil); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("cross-project membership: %v", err)
+	crossProject := Chat{Record: Record{ID: "cross-project"}, AgentID: "agent", ProjectID: "developer", BotID: master.ID, Title: "Another project"}
+	data, _ := json.Marshal(crossProject)
+	if err = st.Put("chats", crossProject.ID, data, nil); err != nil {
+		t.Fatalf("workspace-owned bot cannot use another project: %v", err)
+	}
+	saved, _, _, err := st.ChatContext(crossProject.ID)
+	if err != nil || saved.BotID != master.ID || saved.ProjectID != "developer" {
+		t.Fatalf("cross-project membership was not saved: %+v %v", saved, err)
 	}
 	chat, _, _, _ := st.ChatContext("chat")
 	revision := chat.Revision

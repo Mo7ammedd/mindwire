@@ -22,11 +22,22 @@ identity, so choosing Xcode retains its software disks rather than falling back
 to a plain Mac image. Monthly computer creation does not import an existing root
 disk or move disks across subscriptions; use the original computer for retained data.
 
-Checkout opens Stripe. Returning from checkout does not grant a computer: the
+Checkout opens the provider's secure payment page. Returning from checkout does not grant a computer: the
 server verifies the paid subscription and resource coverage before provisioning.
 A lost response or closing the app preserves the purchase. Resume it from
 **Account → Cloud Computers** or the Console instead of starting another payment.
-Unpaid checkouts can be canceled in Console before choosing a different plan.
+Open the saved computer in Console to see **Continue checkout** and **Cancel
+purchase** together. If checkout was interrupted before its payment was identified,
+choose **Resume checkout** first. This recovers the same purchase and payment;
+automatic polling does not start it again. A rejected first checkout can be
+canceled immediately, and expired links can be closed before choosing a new plan.
+
+Cancellation checks the payment provider before closing the purchase. If payment
+has been submitted, Console shows **Confirming payment** while setup completes.
+If cancellation is still pending, use **Check status** or **Retry cancellation**.
+Do not start another payment to recover either case. Configuration failures show
+a support reference and stop automatic retries; after the configuration is fixed,
+resume the saved purchase.
 
 Use **Manage billing** for payment methods and invoices. **Stop renewal** keeps
 access through the paid period; it does not delete the computer or refund that
@@ -88,5 +99,6 @@ releasing the updated app. Production account cookies use the `__Host-` prefix.
 
 Billing webhooks may call `/api/cloud/webhook` with an HMAC SHA-256 signature in
 `X-Webhook-Signature` using `OBLIEN_WEBHOOK_SECRET`. Events only schedule fresh
-provider verification. A bounded background reconciliation also recovers pending
-purchases and provisioning when an app closes or webhook delivery is interrupted.
+provider verification. A bounded background reconciliation also checks identified
+payments and recovers provisioning when an app closes or webhook delivery is
+interrupted. Unidentified checkouts require explicit **Resume checkout**.

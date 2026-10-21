@@ -2,8 +2,10 @@ import { Oblien } from "oblien";
 import type { WorkspaceCreateParams } from "oblien";
 export type CheckoutParams = Parameters<Oblien["billing"]["checkout"]>[0];
 export type BillingOffer = NonNullable<CheckoutParams["offer"]>;
+type BillingCheckoutResponse = Awaited<ReturnType<Oblien["billing"]["checkoutStatus"]>>;
 import { env } from "../env";
 import { CloudError } from "./types";
+import { providerFailure } from "./provider-errors";
 
 export function providerBase(value = process.env.OBLIEN_BASE_URL ?? "https://api.oblien.com"): string {
   const url = new URL(value);
@@ -28,14 +30,12 @@ export function providerClient(auth: { token: string | (() => Promise<string>) }
     try {
       response = await fetch(url, { method: input.method, headers, body: input.body === undefined ? undefined : JSON.stringify(input.body),
         signal: AbortSignal.timeout(20000), redirect: "error" });
-    } catch { throw new CloudError(503, "cloud_unavailable", "Cloud Computers are temporarily unavailable. Your changes are saved; retry shortly."); }
+    } catch { throw providerFailure(input.method, input.path, 0); }
     const payload = await response.json().catch(() => null);
     if (!response.ok || (payload as { success?: unknown } | null)?.success === false) {
-      // Never echo upstream bodies: those can contain reseller credentials or payment details.
-      throw new CloudError(response.status === 404 ? 404 : response.status === 409 ? 409 : 503,
-        response.status === 404 ? "computer_not_found" : "cloud_unavailable",
-        "The Cloud Computer operation could not finish. Retry shortly; existing data is preserved.");
+      throw providerFailure(input.method, input.path, response.status, payload);
     }
+    if (payload === null && response.status !== 204) throw providerFailure(input.method, input.path, 502);
     return payload as T;
   };
   return client;
@@ -89,9 +89,53 @@ export class CloudProvider {
   }
   async checkout(input: Record<string, unknown>) {
     const result = await this.master().billing.checkout(input as unknown as CheckoutParams);
-    if (!result.checkoutId || !result.url) throw new CloudError(502, "invalid_checkout", "Cloud returned an invalid checkout.");
+    if (!result || typeof result.checkoutId !== "string" || !result.checkoutId.length || result.checkoutId.length > 512 || typeof result.url !== "string")
+      throw new CloudError(502, "invalid_checkout", "Cloud returned an invalid checkout. Retry this saved purchase to recover its payment status.");
     hostedUrl(result.url, ["checkout.stripe.com", "api.oblien.com"]);
     return result;
+  }
+  private checkoutIdentity(result: BillingCheckoutResponse, namespace: string, id: string) {
+    const checkout = result?.checkout;
+    if (result?.namespace !== namespace || checkout?.id !== id || checkout.kind !== "subscription" ||
+        !["open", "complete", "expired"].includes(checkout.status) || !["paid", "unpaid", "no_payment_required"].includes(checkout.paymentStatus) ||
+        typeof checkout.fulfilled !== "boolean" || !["pending", "completed", "partially_refunded", "refunded", "disputed", "expired", "failed", "superseded", "reversed"].includes(checkout.fulfillmentStatus))
+      throw new CloudError(502, "invalid_checkout", "Cloud returned an invalid payment status. Refresh this saved purchase before continuing.");
+    return { status: checkout.status, paymentStatus: checkout.paymentStatus, fulfilled: checkout.fulfilled, fulfillmentStatus: checkout.fulfillmentStatus };
+  }
+  async checkoutStatus(namespace: string, id: string) {
+    return this.checkoutIdentity(await this.master().billing.checkoutStatus(namespace, id), namespace, id);
+  }
+  async checkoutCancellation(namespace: string, id: string, key: string) {
+    const billing = this.master().billing;
+    // Match OpenShip: prefer the advertised generic endpoint and retain the
+    // legacy capacity-quote route only for this exact checkout and namespace.
+    const generic = await billing.catalog().then(catalog => {
+      // This advertised capability is not typed in SDK 2.10.0 yet.
+      const reseller = catalog.reseller as (typeof catalog.reseller & { checkoutCancellation?: boolean });
+      return reseller?.checkoutCancellation === true;
+    }).catch(() => false);
+    if (generic) return { checkoutId: id, idempotencyKey: key };
+    const result = await billing.capacity(namespace);
+    const pending = result.pendingCheckout;
+    if (result.namespace !== namespace || (pending && pending.quote?.namespace !== namespace))
+      throw new CloudError(502, "cloud_scope_mismatch", "Cloud returned a different purchase reservation.");
+    if (!pending || pending.checkoutId !== id || pending.quote.paymentSource !== "stripe" || typeof pending.quote.id !== "string" || !pending.quote.id)
+      throw new CloudError(409, "checkout_cancel_unavailable", "This payment cannot be canceled yet. Resume checkout, allow it to expire, or contact Mindwire support.");
+    return { checkoutId: id, idempotencyKey: key, quoteId: pending.quote.id };
+  }
+  async cancelCapacityCheckout(namespace: string, quoteId: string, key: string) {
+    const result = await this.master().billing.cancelCapacityChange(namespace, { quoteId, idempotencyKey: key });
+    if (result.namespace !== namespace)
+      throw new CloudError(502, "cloud_scope_mismatch", "Cloud returned a different purchase reservation.");
+  }
+  async cancelCheckout(namespace: string, id: string, key: string) {
+    // Oblien 2.10.0 exposes checkoutStatus but not cancellation. As in OpenShip,
+    // keep the missing endpoint inside the same bounded, authenticated adapter.
+    const result = await this.master()._http.request<BillingCheckoutResponse>({
+      method: "POST", path: `/billing/checkout/${encodeURIComponent(id)}/cancel`,
+      body: { namespace, idempotencyKey: key },
+    });
+    return this.checkoutIdentity(result, namespace, id);
   }
   async paid(namespace: string, expected: BillingOffer) {
     const [entitlement, subscription] = await Promise.all([this.master().billing.entitlement(namespace), this.master().billing.subscription(namespace)]);
@@ -111,7 +155,9 @@ export class CloudProvider {
 }
 
 export function hostedUrl(value: string, hosts: string[]): string {
-  const url = new URL(value);
+  let url: URL;
+  try { url = new URL(value); }
+  catch { throw new CloudError(502, "invalid_checkout", "Cloud returned an invalid payment address."); }
   if (url.protocol !== "https:" || !hosts.includes(url.hostname) || url.port || url.username || url.password)
     throw new CloudError(502, "invalid_checkout", "Cloud returned an invalid payment address.");
   if (url.hostname === "api.oblien.com" && !(url.pathname === "/billing/pay" && !url.search && /^#[A-Za-z0-9_-]{43}$/.test(url.hash)))

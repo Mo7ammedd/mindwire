@@ -12,6 +12,7 @@
     "start": "node dist-server/index.js",
     "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "bun test test",
+    "test:e2e": "playwright test",
     "db:generate:pg": "drizzle-kit generate --config drizzle.config.pg.ts",
     "db:generate:sqlite": "drizzle-kit generate --config drizzle.config.sqlite.ts"
   },
@@ -43,6 +44,7 @@
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.5",

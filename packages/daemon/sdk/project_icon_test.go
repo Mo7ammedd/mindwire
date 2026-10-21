@@ -34,7 +34,7 @@ func TestProjectIconUsesTheSharedWorkspaceMetadata(t *testing.T) {
 	if err != nil || cleared.Projects[0].IconPath != nil {
 		t.Fatalf("clear: %+v %v", cleared, err)
 	}
-	if c.Health().ProjectIconsVersion != 1 {
+	if c.Health().ProjectIconsVersion < 1 {
 		t.Fatal("project icons capability is missing")
 	}
 }

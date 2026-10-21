@@ -50,7 +50,9 @@ type Service struct {
 func (s *Service) SetIntegrationChannels(channels interface {
 	Channels() []Channel
 	Send(context.Context, string, string) error
-}) { s.integrationChannels = channels }
+}) {
+	s.integrationChannels = channels
+}
 
 func (s *Service) SetAdmission(admission func() (func(), error)) { s.admission = admission }
 func (s *Service) admit() (func(), error) {

@@ -699,9 +699,9 @@ final class GitReviewTests: XCTestCase {
         await model.load()
         var opened: ChatDraftRoute?
         let window = try await render(NavigationStack {
-            GitDiffScreen(model: model, change: GitReviewFixture.mixed, staged: false) { chatId, draft in
+            GitDiffScreen(model: model, change: GitReviewFixture.mixed, staged: false, onOpenChat: { chatId, draft in
                 opened = ChatDraftRoute(chatId: chatId, draft: draft)
-            }
+            })
         }, stores: stores, name: "mindwire-source-control-actions")
         defer { window.isHidden = true }
         let host = try XCTUnwrap(window.rootViewController)

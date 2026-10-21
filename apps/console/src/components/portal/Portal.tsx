@@ -61,6 +61,7 @@ function PortalShell({
 }: Parameters<typeof Portal>[0]) {
   const cloud = useCloud();
   const location = useLocation();
+  const purchaseError = cloud.computers.find(computer => computer.purchase && location.pathname === `/computers/${computer.id}`)?.error;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTrigger = useRef<HTMLButtonElement>(null);
   const currentPage = navigation.find((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to))?.label ?? "Your account";
@@ -113,10 +114,10 @@ function PortalShell({
         </header>
         <main id="account-content" tabIndex={-1} className={styles.main}>
           {error && <ErrorNotice message={error} />}
-          {cloud.error && (
+          {cloud.error && cloud.error !== purchaseError && (
             <ErrorNotice
               message={cloud.error}
-              retry={() => void cloud.reload().catch(() => {})}
+              retry={() => void cloud.retryRecovery().catch(() => {})}
             />
           )}
           <Routes>

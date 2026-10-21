@@ -865,6 +865,7 @@ final class WorkspaceRemoteFixture: WorkspaceRegistryRemote {
     var failImportCall: Int?
     var imports: [WorkspaceLegacyImport] = []
     var snapshotCalls = 0
+    var snapshotError: Error?
     var putIDs: [String] = []
     var holdSnapshot = false
     var snapshotGate: CheckedContinuation<Void, Never>?
@@ -891,6 +892,7 @@ final class WorkspaceRemoteFixture: WorkspaceRegistryRemote {
     func snapshot() async throws -> WorkspaceMetadata {
         snapshotCalls += 1
         if holdSnapshot { await withCheckedContinuation { snapshotGate = $0 } }
+        if let snapshotError { throw snapshotError }
         return current
     }
     func snapshot(refreshSessions: Bool) async throws -> WorkspaceMetadata {

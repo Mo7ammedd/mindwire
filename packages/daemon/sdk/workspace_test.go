@@ -264,7 +264,7 @@ func TestWorkspaceNotificationMutesApplyThroughEmbeddedSDK(t *testing.T) {
 			t.Fatalf("notifications=%d, want %d", len(notes.all()), wantNotes)
 		}
 	}
-	if c.Health().NotificationPreferencesVersion != 1 {
+	if c.Health().NotificationPreferencesVersion < 1 {
 		t.Fatal("notification preference capability missing")
 	}
 }

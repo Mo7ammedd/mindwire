@@ -62,9 +62,11 @@ export function Loading() {
 export function ErrorNotice({
   message,
   retry,
+  reference,
 }: {
   message: string;
   retry?: () => void;
+  reference?: string;
 }) {
   return (
     <div
@@ -72,7 +74,10 @@ export function ErrorNotice({
       className="flex flex-wrap items-center gap-3 rounded-2xl bg-destructive/8 p-4 text-sm"
     >
       <AlertCircle className="size-4 shrink-0" />
-      <p className="min-w-0 flex-1 break-words">{message}</p>
+      <div className="min-w-0 flex-1 break-words">
+        <p>{message}</p>
+        {reference && <p className="mt-2 text-xs text-muted-foreground">Support reference: {reference}</p>}
+      </div>
       {retry && (
         <Button size="sm" variant="outline" onClick={retry}>
           Retry
@@ -88,6 +93,7 @@ export function ConfirmAction({
   onConfirm,
   destructive = false,
   disabled = false,
+  cancelLabel = "Cancel",
 }: {
   label: string;
   title: string;
@@ -95,6 +101,7 @@ export function ConfirmAction({
   onConfirm: () => Promise<void>;
   destructive?: boolean;
   disabled?: boolean;
+  cancelLabel?: string;
 }) {
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
@@ -126,7 +133,7 @@ export function ConfirmAction({
             disabled={busy}
             onClick={() => setOpen(false)}
           >
-            Cancel
+            {cancelLabel}
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}
