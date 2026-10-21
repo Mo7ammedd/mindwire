@@ -39,7 +39,6 @@ import (
 	"github.com/oblien/mindwire/packages/daemon/internal/session"
 	"github.com/oblien/mindwire/packages/daemon/internal/stream"
 	"github.com/oblien/mindwire/packages/daemon/internal/surface"
-	"github.com/oblien/mindwire/packages/daemon/internal/webui"
 	"github.com/oblien/mindwire/packages/daemon/internal/workspaceexec"
 
 	// Agent adapters self-register on import. Add a blank import per agent.
@@ -209,7 +208,6 @@ func main() {
 	}
 
 	root := http.NewServeMux()
-	webui.Register(root)
 	health := http.NewServeMux()
 	computerVersion := 0
 	if computerMode {

@@ -27,13 +27,6 @@ curl -s -H "Authorization: Bearer $DAEMON_TOKEN" http://127.0.0.1:8790/healthz
 ./build.sh   # → dist/latest/mindwired-<os>-<arch> + catalog.json
 ```
 
-For a browser UI you can test from a phone without Xcode, run
-`./scripts/run-handoff-ui.sh` from the repository root. Open
-`http://YOUR_COMPUTER_IP:8795/ui/` on the same network and paste the token from the file
-printed by the launcher. This uses separate test state and the real native conversation,
-handoff and run APIs. Any daemon build also serves the static browser at `/ui/`; workspace
-data and actions still require its bearer token.
-
 | Env var | Default | Purpose |
 |---|---|---|
 | `ADDR` | `127.0.0.1:8790` | Listen address. |

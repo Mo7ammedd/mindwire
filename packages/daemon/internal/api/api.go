@@ -401,10 +401,6 @@ func (a *API) Routes() []Route {
 // PublicRoutes are served OUTSIDE the auth middleware (registered directly in cmd/daemon, not
 // here). Listed as data so the OpenAPI parity test can cover them.
 var PublicRoutes = []Route{
-	{Method: "GET", Pattern: "/ui"},
-	{Method: "GET", Pattern: "/ui/"},
-	{Method: "GET", Pattern: "/ui/handoffs.css"},
-	{Method: "GET", Pattern: "/ui/handoffs.js"},
 	{Method: "POST", Pattern: "/integrations/{id}/webhook"},
 	{Method: "GET", Pattern: "/healthz"},
 	{Method: "POST", Pattern: "/apps/{id}/notify"},
