@@ -818,6 +818,9 @@ func TestSDKRouteParity(t *testing.T) {
 		"GET /stats":                                             "Client.Stats",
 		"GET /chats/{id}/handoff":                                "Client.PreviewHandoff",
 		"POST /chats/{id}/handoff":                               "Client.Handoff",
+		"GET /chats/{id}/schedules":                              "Workspace.ChatSchedules",
+		"POST /chats/{id}/schedules":                             "Workspace.SaveChatSchedule",
+		"DELETE /chats/{id}/schedules/{jobId}":                   "Workspace.DeleteChatSchedule",
 		"GET /processes/stream":                                  "Client.Processes",
 	}
 
