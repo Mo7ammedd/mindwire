@@ -13,6 +13,7 @@ final class ChatHandoffDraft: Identifiable {
     private(set) var submitting = false
     private(set) var error: String?
     private(set) var submitted: ChatHandoffRequest?
+    private(set) var previousReview: String?
     private(set) var completedChatId: String?
     @ObservationIgnored private let loadPreview: () async throws -> DaemonHandoffPreview
     @ObservationIgnored private let perform: (ChatHandoffRequest) async throws -> String
@@ -59,6 +60,7 @@ final class ChatHandoffDraft: Identifiable {
         } catch {
             if let response = error as? DaemonHTTPError, response.code == "handoff_context_changed" {
                 // No destination was admitted, so a fresh review may use new IDs.
+                if context != preview?.context { previousReview = context }
                 submitted = nil
                 preview = nil
             }
@@ -100,6 +102,12 @@ struct ChatHandoffSheet: View {
                             if draft.context.utf8.count > 32768 { Text(t("chat.handoff.contextTooLong")).foregroundStyle(.red) }
                             if draft.preview?.truncated == true { Text(t("chat.handoff.partial")).foregroundStyle(.secondary) }
                             if draft.preview?.historySource == "recorded" { Text(t("chat.handoff.fallback")).foregroundStyle(.secondary) }
+                            if let previousReview = draft.previousReview {
+                                DisclosureGroup(t("chat.handoff.previousReview")) {
+                                    Text(t("chat.handoff.previousReviewHelp")).font(.caption).foregroundStyle(.secondary)
+                                    Text(previousReview).textSelection(.enabled)
+                                }
+                            }
                         }
                     }
                 }

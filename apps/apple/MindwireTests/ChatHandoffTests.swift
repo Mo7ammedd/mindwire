@@ -56,12 +56,15 @@ final class ChatHandoffTests: XCTestCase {
         draft.targetAgentId = "codex-profile"
         draft.task = "Review checkout"
         await draft.load()
+        draft.context = "My additional constraint: keep billing periods unchanged."
         let rejected = await draft.send()
         XCTAssertNil(rejected)
         XCTAssertNil(draft.preview)
         XCTAssertNil(draft.submitted)
         XCTAssertFalse(draft.canSubmit)
         await draft.load()
+        XCTAssertEqual(draft.previousReview, "My additional constraint: keep billing periods unchanged.")
+        XCTAssertEqual(draft.context, refreshed.context)
         let accepted = await draft.send()
         XCTAssertNotNil(accepted)
         XCTAssertEqual(requests[1].previewDigest, refreshed.digest)
