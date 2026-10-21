@@ -1,3 +1,4 @@
+import type { HandoffPreview, HandoffRequest, HandoffResult } from "./handoffs.js";
 import { Http, type FetchLike } from "./http.js";
 import { readSSE } from "./sse.js";
 import { Run } from "./run.js";
@@ -405,6 +406,20 @@ export class Mindwire {
    */
   deleteChat(chatId: string): Promise<DeleteResult> {
     return this.http.request<DeleteResult>("DELETE", `/chats/${encodeURIComponent(chatId)}`);
+  }
+
+  /** Read-only handoff context; requires crossAgentHandoffVersion >= 1. */
+  previewHandoff(chatId: string): Promise<HandoffPreview> {
+    return this.http.request("GET", `/chats/${encodeURIComponent(chatId)}/handoff`);
+  }
+
+  /** Start another agent in a linked conversation in the source project.
+   * Reuse the identical payload after a lost response to recover the same run. */
+  async handoff(chatId: string, request: HandoffRequest): Promise<HandoffResult> {
+    const result = await this.http.request<Omit<HandoffResult, "run"> & { run: RunData }>(
+      "POST", `/chats/${encodeURIComponent(chatId)}/handoff`, { body: request },
+    );
+    return { ...result, run: new Run(this.http, result.run) };
   }
 
   /**

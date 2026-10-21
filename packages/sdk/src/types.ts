@@ -1287,6 +1287,7 @@ export interface Health {
   /** Live attachment to a native CLI owner without a competing harness process. */
   nativeSessionVersion?: number;
   chatForkVersion?: number;
+  crossAgentHandoffVersion?: number;
   /** Image-only input and image attachments retained in message history. */
   imageAttachmentsVersion?: number;
   attachmentUploadVersion?: number;

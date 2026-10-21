@@ -9,6 +9,23 @@ type turnReceipt struct {
 
 var ErrTurnRequestConflict = errors.New("requestId already belongs to a different turn")
 
+// RunForRequest recovers an accepted server-generated operation receipt. Callers
+// must validate their own persisted payload digest before using this lookup.
+func (st *Store) RunForRequest(id string) (Run, bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	receipt, found := st.s.TurnRequests[id]
+	if !found {
+		return Run{}, false
+	}
+	for _, run := range st.s.Runs {
+		if run.ID == receipt.RunID {
+			return run, true
+		}
+	}
+	return Run{}, false
+}
+
 func (st *Store) TurnRequest(id, digest string) (Run, bool, error) {
 	if id == "" {
 		return Run{}, false, nil

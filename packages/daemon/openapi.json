@@ -340,6 +340,10 @@
           "integrationsVersion": {
             "type": "integer",
             "description": "Messaging integration protocol version; 1 supports the integrations API."
+          },
+          "crossAgentHandoffVersion": {
+            "type": "integer",
+            "description": "1 supports explicit cross-agent handoffs, preview and retry receipts."
           }
         },
         "required": [
@@ -3088,6 +3092,10 @@
           "botId": {
             "type": "string",
             "description": "General bot membership, preserved by metadata edits."
+          },
+          "handoffFrom": {
+            "$ref": "#/components/schemas/HandoffOrigin",
+            "readOnly": true
           }
         }
       },
@@ -8633,6 +8641,109 @@
             "format": "date-time"
           }
         }
+      },
+      "HandoffOrigin": {
+        "type": "object",
+        "description": "Immutable source reference; no native session is copied.",
+        "required": [
+          "chatId",
+          "agentId",
+          "title"
+        ],
+        "properties": {
+          "chatId": {
+            "type": "string"
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      },
+      "HandoffPreview": {
+        "type": "object",
+        "required": [
+          "source",
+          "context",
+          "truncated",
+          "historySource"
+        ],
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/HandoffOrigin"
+          },
+          "context": {
+            "type": "string",
+            "description": "Editable visible excerpts and normalized file paths, capped at 32768 UTF-8 bytes. Excludes hidden reasoning, attachments and raw tool output."
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "historySource": {
+            "type": "string",
+            "enum": [
+              "native",
+              "recorded"
+            ]
+          }
+        }
+      },
+      "HandoffRequest": {
+        "type": "object",
+        "required": [
+          "newChatId",
+          "requestId",
+          "targetAgentId",
+          "task"
+        ],
+        "properties": {
+          "newChatId": {
+            "type": "string",
+            "description": "Stable new destination ID. Reuse on retry."
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "targetAgentId": {
+            "type": "string",
+            "description": "Saved profile ID on this workspace using a different agent type."
+          },
+          "task": {
+            "type": "string",
+            "description": "Next task, at most 4096 UTF-8 bytes.",
+            "minLength": 1
+          },
+          "context": {
+            "type": "string",
+            "description": "Reviewed context, at most 32768 UTF-8 bytes. Omit to capture context from the source at admission."
+          }
+        }
+      },
+      "HandoffResult": {
+        "type": "object",
+        "required": [
+          "chatId",
+          "run",
+          "snapshot"
+        ],
+        "properties": {
+          "chatId": {
+            "type": "string"
+          },
+          "run": {
+            "$ref": "#/components/schemas/Run"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/WorkspaceSnapshot"
+          }
+        }
       }
     }
   },
@@ -10868,6 +10979,126 @@
           },
           "409": {
             "description": "A turn is running for this chat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chats/{id}/handoff": {
+      "get": {
+        "tags": [
+          "Chats"
+        ],
+        "summary": "Preview cross-agent handoff context",
+        "description": "Read-only context from a registered, idle conversation. Native history is authoritative when readable, with recorded fallback on read errors. Runs neither agent.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Editable context and its source reference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffPreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source chat not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Source is active or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Chats"
+        ],
+        "summary": "Start a cross-agent handoff",
+        "description": "Creates a linked conversation in the source project and starts an ordinary turn on another saved agent type. Reuse newChatId, requestId and the identical body after a lost acknowledgement to recover the same run. Admission failures preserve the prepared destination for retry. No native session, credentials, bot settings or permission overrides are transferred.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Linked conversation, run and workspace snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or target agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source chat not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Active source, changed retry payload, occupied target, or admission failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Conversation deleted",
             "content": {
               "application/json": {
                 "schema": {

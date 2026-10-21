@@ -66,6 +66,7 @@ type Project struct {
 }
 
 type Chat struct {
+	HandoffFrom *HandoffOrigin `json:"handoffFrom,omitempty"`
 	Record
 	SyncID         string `json:"syncId,omitempty"`
 	AgentID        string `json:"agentId"`
@@ -317,6 +318,7 @@ func (st *Store) normalize(kind, id string, data []byte, revision int64) ([]byte
 			return nil, "", "", invalid("chat")
 		}
 		row.Record = base
+		row.HandoffFrom = nil // provenance is set only by CreateHandoff
 		row.Title = strings.TrimSpace(row.Title)
 		if row.Title == "" {
 			row.Title = "New chat"
@@ -437,7 +439,7 @@ func (st *Store) Put(kind, id string, data []byte, expected *int64) error {
 			if kind == "chats" {
 				// Native references/activity are daemon-owned. A client's rename or
 				// notification edit must not clear them or roll them back.
-				for _, key := range []string{"sessionId", "updatedAt", "nativeTitle", "botId"} {
+				for _, key := range []string{"sessionId", "updatedAt", "nativeTitle", "botId", "handoffFrom"} {
 					if v, exists := previous[key]; exists {
 						incoming[key] = v
 					}
@@ -722,6 +724,9 @@ func deleteRecord(tx *sql.Tx, kind, id string, expected *int64, force bool, revi
 		if err = clearBotDefaultProject(tx, id, revision); err != nil {
 			return false, err
 		}
+	}
+	if err = deleteHandoffReceipts(tx, kind, id); err != nil {
+		return false, err
 	}
 	if _, err = tx.Exec("DELETE FROM "+kind+" WHERE id=?", id); err != nil {
 		return false, err

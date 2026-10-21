@@ -76,3 +76,5 @@ export type { WorkspaceRecord, WorkspaceAgent, WorkspaceProject, WorkspaceChat, 
 export * from "./surfaces.js";
 export * from "./execution.js";
 export * from "./computer.js";
+
+export type { HandoffOrigin, HandoffPreview, HandoffRequest, HandoffResult } from "./handoffs.js";

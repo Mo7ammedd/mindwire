@@ -427,6 +427,19 @@ final class DaemonSession {
         try await call { try await $0.renameChat(chatId: chatId, title: title) }
     }
 
+    func previewHandoff(_ chatId: String) async throws -> DaemonHandoffPreview {
+        try await ensure()
+        let health = await transport.health()
+        guard (health.crossAgentHandoffVersion ?? 0) >= 1 else {
+            throw BackendError.message(t("chat.handoff.updateRequired"))
+        }
+        return try await call { try await $0.previewHandoff(chatId: chatId) }
+    }
+
+    func handoff(_ chatId: String, request: ChatHandoffRequest) async throws -> DaemonHandoffResult {
+        try await call { try await $0.handoff(chatId: chatId, request: request) }
+    }
+
     func forkChat(_ chatId: String, newChatId: String, beforeMessageId: String) async throws -> DaemonChatFork {
         try await ensure()
         let health = await transport.health()

@@ -82,6 +82,7 @@ struct DaemonHealth: Codable, Hashable {
     var queuedInputVersion: Int? = nil
     var nativeSessionVersion: Int? = nil
     var chatForkVersion: Int? = nil
+    var crossAgentHandoffVersion: Int? = nil
     var imageAttachmentsVersion: Int? = nil
     var attachmentUploadVersion: Int? = nil
     var computerConnectionVersion: Int? = nil

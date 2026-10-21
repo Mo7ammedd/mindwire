@@ -36,6 +36,8 @@ protocol AgentTransport: AnyObject {
     /// The daemon's native session summaries. Navigation links are synced by WorkspaceDataRepository.
     func listChats() async throws -> [DaemonChatSummary]
     func renameChat(chatId: String, title: String) async throws -> DaemonChatSummary
+    func previewHandoff(chatId: String) async throws -> DaemonHandoffPreview
+    func handoff(chatId: String, request: ChatHandoffRequest) async throws -> DaemonHandoffResult
     func forkChat(chatId: String, newChatId: String, beforeMessageId: String) async throws -> DaemonChatFork
     func deleteChat(chatId: String) async throws
     func listMessages(chatId: String, limit: Int?, before: String?) async throws -> [DaemonMessage]
@@ -114,6 +116,12 @@ extension AgentTransport {
     }
     func attachmentData(_ id: String) async throws -> Data {
         throw BackendError.message("Reconnect to the workspace to open this attachment.")
+    }
+    func previewHandoff(chatId: String) async throws -> DaemonHandoffPreview {
+        throw BackendError.message(t("chat.handoff.updateRequired"))
+    }
+    func handoff(chatId: String, request: ChatHandoffRequest) async throws -> DaemonHandoffResult {
+        throw BackendError.message(t("chat.handoff.updateRequired"))
     }
     func forkChat(chatId: String, newChatId: String, beforeMessageId: String) async throws -> DaemonChatFork {
         throw BackendError.message(t("chat.fork.updateRequired"))

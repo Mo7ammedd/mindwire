@@ -45,6 +45,8 @@ struct ChatScreen: View {
     @State private var confirmingDelete = false
     @State private var selectingPart: ChatTranscriptSelection?
     @State private var editingFork: ChatForkDraft?
+    @State private var handingOff: ChatHandoffDraft?
+    @State private var openedHandoffId: String?
     @State private var openedForkId: String?
     @State private var settings: AgentSettingsModel?      // daemon schema-driven settings (model/effort/…)
     @State private var loadingSettings = false
@@ -141,6 +143,17 @@ struct ChatScreen: View {
         }
         .sheet(item: $selectingPart) { selection in
             MessageTextSheet(text: selection.text)
+        }
+        .sheet(item: $handingOff, onDismiss: {
+            if let id = openedHandoffId {
+                openedHandoffId = nil
+                app.push(.chat(chatId: id))
+            }
+        }) { draft in
+            ChatHandoffSheet(draft: draft) { id in
+                openedHandoffId = id
+                handingOff = nil
+            }
         }
         .sheet(item: $editingFork, onDismiss: {
             if let id = openedForkId {
@@ -336,6 +349,22 @@ struct ChatScreen: View {
     }
 
     @ViewBuilder private var chatMenuActions: some View {
+        if model.canHandoff {
+            Button { handingOff = model.handoffDraft() } label: {
+                Label(t("chat.handoff.title"), systemImage: "arrow.right.arrow.left")
+            }
+        }
+        if let source = chat?.handoffFrom, stores.chats.get(source.chatId) != nil {
+            Button { app.push(.chat(chatId: source.chatId)) } label: {
+                Label(t("chat.handoff.source"), systemImage: "arrow.uturn.backward")
+            }
+        }
+        let linked = stores.chats.list().filter { $0.handoffFrom?.chatId == chatId }
+        if !linked.isEmpty {
+            Menu(t("chat.handoff.linked")) {
+                ForEach(linked) { chat in Button(chat.title) { app.push(.chat(chatId: chat.id)) } }
+            }
+        }
         Button {
             renameText = chat?.title ?? ""
             renaming = true
