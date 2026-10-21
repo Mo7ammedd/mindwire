@@ -25,4 +25,19 @@ For unattended runs, connect an xAI API key in the Console or provide `XAI_API_K
 - Exposes the documented user-scope `grok mcp` store through MindWire's persistent MCP API. Project MCP configuration remains Grok-native until its CLI exposes scope-aware list and remove operations.
 - Uses `--always-approve` only for autonomous turns; choose **Ask before tools** to route Grok permission prompts through MindWire's interaction API.
 
-The adapter capability matrix is authoritative. Surfaces Grok Build has no stable native mapping for—such as managed plugin marketplaces, persistent prompt templates, native transcript export, or model enumeration—remain unavailable through MindWire rather than being silently emulated or dropped.
+## Existing conversations
+
+Grok participates in conversation discovery across all folders and within registered projects.
+Mindwire reads `summary.json` and `updates.jsonl` under
+`$GROK_HOME/sessions/<encoded-cwd>/<session-id>/` (defaulting to `~/.grok/sessions`).
+Opening an existing conversation retains its native session ID and working directory for resume.
+
+Native history includes user and assistant messages, reasoning, tool calls and results, image
+inputs, plans, and compaction markers. Grok's rewind markers hide undone turns. Hidden sessions
+and subagents follow Grok's visibility settings; ordinary forks remain discoverable.
+
+Discovery and history reads do not launch Grok, change its files, or copy transcripts into
+Mindwire. Read failures preserve the previous discovery inventory, and the API falls back to
+Mindwire's recorded history when a native transcript cannot be read.
+
+The adapter capability matrix is authoritative for the available native surfaces.

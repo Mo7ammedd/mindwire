@@ -117,7 +117,7 @@ being faked on top of the replace path.
 | `protocol` | `http` | Driven over `opencode serve` + the `GET /event` SSE bus. |
 | `output` | `structured-json` | Message parts arrive as structured JSON over SSE. |
 | `sessions` | `native` | `POST /session`; resume by reusing the session id. |
-| `history` | `emulated` | opencode's store (`opencode.db`, SQLite) is undocumented and off-limits, so mindwire serves its own recorded stream. |
+| `history` | `native` | Reads existing conversations from OpenCode's SQLite store without modifying it; falls back to Mindwire's recorded stream on read failures. |
 | `resume`, `toolEvents`, `cancel` | `true` | |
 | `persistent` | `false` | The server is spawned per turn and torn down at turn end — no process is held across turns. |
 | `models` | `true` | `opencode models` enumerates `provider/model` ids, enriched with provider-aware metadata from the on-disk catalog ([Models & providers](/docs/reference/models/)). |
@@ -208,8 +208,24 @@ unsupported rather than faked:
 - `setModel` / `setPermissionMode` — opencode has no live-switch control mid-turn.
 - `imageInput` — no verified vision-attachment wire path yet.
 - `compactNow` — no verified on-demand compaction endpoint.
-- **History** is emulated: opencode's `opencode.db` is undocumented and off-limits, so mindwire serves
-  its own recorded stream. A native reader is a follow-up.
+
+## Existing conversations
+
+OpenCode participates in the shared conversation browser and project discovery. Mindwire reads
+top-level, unarchived sessions from `$XDG_DATA_HOME/opencode/opencode.db` (defaulting to
+`~/.local/share/opencode/opencode.db`). `OPENCODE_DB` selects a different database; a relative
+value is resolved under the OpenCode data directory.
+
+Discovery keeps each conversation's original directory, title, timestamps, and session ID.
+Opening a conversation links it to the workspace; its transcript remains in OpenCode's store,
+and later turns resume the same session. Native history includes text, reasoning, tool results,
+plans, attachments, and compaction markers. Synthetic context and reverted messages are hidden.
+
+The reader uses a read-only SQLite connection and sees live WAL changes. It does not launch
+OpenCode, install software, migrate the database, or copy transcripts. An incompatible schema
+reports a discovery issue while retaining the previous inventory; history read failures fall
+back to Mindwire's recorded stream. The reader targets the supported OpenCode 1.18.19 schema;
+legacy JSON-only stores and other storage layouts are not imported.
 
 ## Install
 

@@ -32,7 +32,7 @@ func (adapter) Capabilities() agent.Capabilities {
 		Protocol: agent.ProtocolCLI, Output: agent.OutputStructuredJSON,
 		// Grok persists native sessions. ACP provides the protocol-native session,
 		// structured tool-update, cancellation, and permission surfaces.
-		History: agent.SupportEmulated, Sessions: agent.SupportNative, Resume: true,
+		History: agent.SupportNative, Sessions: agent.SupportNative, Resume: true,
 		Cancel: true, Persistent: false, Models: true, ToolEvents: true,
 		// ACP can answer native permission requests and cancel a live prompt. It
 		// does not document live prompt injection or runtime setting switches.
@@ -116,8 +116,6 @@ func (adapter) Notifications() agent.NotificationSpec {
 		{Condition: agent.Errored, Title: "Grok Build hit an error"},
 	}}
 }
-
-func (adapter) History(agent.HistoryQuery) ([]agent.Message, error) { return nil, nil }
 
 func (adapter) RunStream(ctx context.Context, in agent.TurnInput, emit agent.Emit) (agent.TurnResult, error) {
 	return runACP(ctx, in, emit)

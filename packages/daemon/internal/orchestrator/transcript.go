@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"log"
 	"strings"
 
 	"github.com/oblien/mindwire/packages/daemon/internal/agent"
@@ -83,7 +84,7 @@ func (s *Supervisor) Snapshot(id string) (RunSnapshot, bool) {
 
 // Persist the assistant's components even when the turn fails after producing output.
 // A run error alone is not a chat transcript: it otherwise disappears on the next reload.
-func (s *Supervisor) saveReply(run *session.Run, text string, parts []agent.Part, failure string) {
+func (s *Supervisor) replyMessages(run *session.Run, text string, parts []agent.Part, failure string) []session.Message {
 	parts = s.store.OverlayInteractions(run.ChatID, parts)
 	if text == "" || failure != "" {
 		var partial []string
@@ -139,14 +140,22 @@ func (s *Supervisor) saveReply(run *session.Run, text string, parts []agent.Part
 		}
 	}
 	flush(true)
-	if s.store.SaveTurnMessages(messages) == nil {
-		for _, message := range messages {
-			if message.Role == "assistant" {
-				run.ReplyID = message.ID
-			}
-			if len(messages) > 1 {
-				run.MessageIDs = append(run.MessageIDs, message.ID)
-			}
+	for _, message := range messages {
+		if message.Role == "assistant" {
+			run.ReplyID = message.ID
+		}
+		if len(messages) > 1 {
+			run.MessageIDs = append(run.MessageIDs, message.ID)
 		}
 	}
+	return messages
+}
+
+func (s *Supervisor) completeRun(run *session.Run, messages []session.Message) error {
+	completed, err := s.store.CompleteRun(*run, messages)
+	*run = completed
+	if err != nil {
+		log.Printf("save completed run %s: %v", run.ID, err)
+	}
+	return err
 }

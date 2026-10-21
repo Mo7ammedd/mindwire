@@ -74,6 +74,18 @@ func (st *Store) UpdateRunInput(runID string, input agent.UserInput) error {
 func (st *Store) SaveTurnMessages(messages []Message) error {
 	st.mu.Lock()
 	defer st.mu.Unlock()
+	old := st.replaceTurnMessages(messages)
+	if err := st.save(); err != nil {
+		st.s.Messages = old
+		return err
+	}
+	return nil
+}
+
+func (st *Store) replaceTurnMessages(messages []Message) []Message {
+	if len(messages) == 0 {
+		return st.s.Messages
+	}
 	ids := make(map[string]bool, len(messages))
 	for _, message := range messages {
 		ids[message.ID] = true
@@ -87,9 +99,5 @@ func (st *Store) SaveTurnMessages(messages []Message) error {
 		}
 	}
 	st.s.Messages = append(updated, messages...)
-	if err := st.save(); err != nil {
-		st.s.Messages = old
-		return err
-	}
-	return nil
+	return old
 }

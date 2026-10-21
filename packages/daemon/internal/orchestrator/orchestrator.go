@@ -833,12 +833,13 @@ func (s *Supervisor) execRun(ctx context.Context, cancel context.CancelFunc, a *
 			run.Error = fmt.Sprintf("agent crashed: %v", rec)
 			_, _, _ = s.advanceRunInputs(run.ID, false, run.Error)
 			run.EndedAt = nowISO()
-			s.saveReply(&run, "", nil, run.Error)
-			_ = s.store.SaveRun(run)
+			messages := s.replyMessages(&run, "", nil, run.Error)
+			_ = s.completeRun(&run, messages)
 			release()
 			s.hub.Publish(run.ID, agent.Event{Type: agent.EventError, Error: run.Error})
-			s.hub.Close(run.ID)
+			s.hub.Publish(run.ID, agent.Event{Type: agent.EventResult, Result: &agent.ResultInfo{Text: run.Error, IsError: true}})
 			s.emit(a, run, agent.Errored, snippet(run.Error))
+			s.hub.Close(run.ID)
 		}
 	}()
 
@@ -848,12 +849,12 @@ func (s *Supervisor) execRun(ctx context.Context, cancel context.CancelFunc, a *
 	go s.watchInteractions(a, run)
 
 	var terminal agent.Event
-	deferResult := !compact && a.Adapter.Capabilities().QueuedInput
 	turn := runner.Turn{
 		ChatID: run.ChatID, Message: req.Message, RunID: run.ID, CWD: req.CWD, Options: req.Options,
 		Environment: req.gitEnvironment(),
 		Inbound:     inbound,
-		DeferResult: deferResult,
+		// Only the supervisor can confirm completion after its durable write.
+		DeferResult: true,
 		BeforePublish: func(ev agent.Event) {
 			if ev.Type == agent.EventInput && ev.Input != nil && ev.Meta["nativeVoice"] != true {
 				if err := s.store.UpdateRunInput(run.ID, *ev.Input); err != nil {
@@ -930,51 +931,44 @@ func (s *Supervisor) execRun(ctx context.Context, cancel context.CancelFunc, a *
 		_, _, _ = s.advanceRunInputs(run.ID, false, res.Text)
 	}
 	run.EndedAt = nowISO()
-	if deferResult {
-		// Exactly one public terminal event follows receipt settlement. The
-		// adapter still sees every native result to manage its own input queue.
-		info := terminal.Result
-		if info == nil {
-			info = &agent.ResultInfo{Text: res.Text, SessionID: res.SessionID}
-		}
-		copy := *info
-		copy.IsError, copy.Cancelled = res.IsError, ctx.Err() == context.Canceled || res.Cancelled
-		if res.IsError {
-			copy.Text = res.Text
-		}
-		s.hub.Publish(run.ID, agent.Event{Type: agent.EventResult, Result: &copy})
-	}
-
 	// A user-initiated cancel surfaces as context.Canceled (vs DeadlineExceeded for the
 	// turn timeout). Record it as cancelled, no error notification.
+	var messages []session.Message
 	if ctx.Err() == context.Canceled || res.Cancelled {
 		run.Status = "cancelled"
 		if len(parts) > 0 {
-			s.saveReply(&run, "", parts, "")
+			messages = s.replyMessages(&run, "", parts, "")
 		}
-		_ = s.store.SaveRun(run)
-		release()
-		s.hub.Close(run.ID)
-		return
-	}
-	if res.IsError {
+	} else if res.IsError {
 		run.Status = "error"
 		run.Error = agent.FirstNonEmpty(res.Text, "The agent turn failed.")
-		s.saveReply(&run, "", parts, run.Error)
-		_ = s.store.SaveRun(run)
-		release()
-		s.emit(a, run, agent.Errored, snippet(res.Text)) // notify + publish result BEFORE closing
-		s.hub.Close(run.ID)
-		return
+		messages = s.replyMessages(&run, "", parts, run.Error)
+	} else {
+		run.Status = "done"
+		messages = s.replyMessages(&run, res.Text, parts, "")
 	}
-
-	s.saveReply(&run, res.Text, parts, "")
-	run.Status = "done"
-	_ = s.store.SaveRun(run)
+	if err := s.completeRun(&run, messages); err != nil {
+		s.hub.Publish(run.ID, agent.Event{Type: agent.EventError, Error: run.Error})
+	}
+	// Exactly one public terminal result follows receipt settlement and the
+	// completion write, including for harnesses that emit their result early.
+	info := agent.ResultInfo{Text: res.Text, SessionID: res.SessionID}
+	if terminal.Result != nil {
+		info = *terminal.Result
+	}
+	info.IsError, info.Cancelled = run.Status == "error", run.Status == "cancelled"
+	if info.IsError {
+		info.Text = run.Error
+	}
+	terminal.Type, terminal.Result = agent.EventResult, &info
+	terminal.SessionID = agent.FirstNonEmpty(terminal.SessionID, res.SessionID)
+	s.hub.Publish(run.ID, terminal)
 	release()
 	// An unanswered async form is the action the user needs. Do not immediately
 	// cover its input-needed notification with a generic completion notification.
-	if !s.store.HasPendingMessageQuestion(run.ID) {
+	if run.Status == "error" {
+		s.emit(a, run, agent.Errored, snippet(run.Error))
+	} else if run.Status == "done" && !s.store.HasPendingMessageQuestion(run.ID) {
 		s.emit(a, run, agent.Finished, snippet(res.Text))
 	}
 	s.hub.Close(run.ID)
@@ -1008,11 +1002,12 @@ func (s *Supervisor) execResolve(ctx context.Context, cancel context.CancelFunc,
 			parent.Error = fmt.Sprintf("agent crashed: %v", rec)
 			parent.StopReason = "error"
 			parent.EndedAt = nowISO()
-			_ = s.store.SaveRun(parent)
+			_ = s.completeRun(&parent, nil)
 			release()
 			s.hub.Publish(parent.ID, agent.Event{Type: agent.EventError, Error: parent.Error})
-			s.hub.Close(parent.ID)
+			s.hub.Publish(parent.ID, agent.Event{Type: agent.EventResult, Result: &agent.ResultInfo{Text: parent.Error, IsError: true}})
 			s.emit(a, parent, agent.Errored, snippet(parent.Error))
+			s.hub.Close(parent.ID)
 		}
 	}()
 
@@ -1028,7 +1023,11 @@ func (s *Supervisor) execResolve(ctx context.Context, cancel context.CancelFunc,
 		}
 
 		child := session.Run{ID: newID(), ChatID: parent.ChatID, Agent: a.ID(), Status: "running", ParentID: parent.ID, CreatedAt: nowISO()}
-		_ = s.store.SaveRun(child)
+		if err := s.store.SaveRun(child); err != nil {
+			log.Printf("save resolve iteration %s: %v", child.ID, err)
+			lastText, stopReason = "Mindwire could not save the next iteration. Fix storage before continuing.", "error"
+			break
+		}
 		s.hub.Publish(parent.ID, agent.Event{Type: agent.EventContinuation, Continuation: &agent.ContinuationInfo{
 			Iteration: i, Reason: reason, ChildRunID: child.ID,
 		}})
@@ -1049,10 +1048,15 @@ func (s *Supervisor) execResolve(ctx context.Context, cancel context.CancelFunc,
 		}
 
 		childCtx, childCancel := s.turnContext(ctx)
+		var terminal agent.Event
 		turn, cleanup, prepareErr := s.prepareTurn(childCtx, a, runner.Turn{
 			ChatID: parent.ChatID, Message: msg, RunID: parent.ID, CWD: req.CWD, Options: opts,
 			Environment: req.gitEnvironment(),
+			DeferResult: true,
 			BeforePublish: func(ev agent.Event) {
+				if ev.Type == agent.EventResult {
+					terminal = ev
+				}
 				if ev.Interaction != nil {
 					// Resolve is explicitly unattended and has no user ingress. Preserve
 					// structured output without advertising an answer button that cannot work.
@@ -1076,12 +1080,15 @@ func (s *Supervisor) execResolve(ctx context.Context, cancel context.CancelFunc,
 		// A parent cancel surfaces as context.Canceled on the child; stop the whole resolve.
 		if ctx.Err() == context.Canceled || res.Cancelled {
 			child.Status = "cancelled"
+			var messages []session.Message
 			if len(parts) > 0 {
-				s.saveReply(&child, "", parts, "")
+				messages = s.replyMessages(&child, "", parts, "")
 				lastReplyID = child.ReplyID
 			}
-			_ = s.store.SaveRun(child)
 			stopReason = "cancelled"
+			if err := s.completeRun(&child, messages); err != nil {
+				lastText, stopReason = child.Error, "error"
+			}
 			break
 		}
 
@@ -1094,27 +1101,34 @@ func (s *Supervisor) execResolve(ctx context.Context, cancel context.CancelFunc,
 		if res.IsError {
 			child.Status = "error"
 			child.Error = agent.FirstNonEmpty(res.Text, "The agent turn failed.")
-			s.saveReply(&child, "", parts, child.Error)
+			messages := s.replyMessages(&child, "", parts, child.Error)
 			lastReplyID = child.ReplyID
-			_ = s.store.SaveRun(child)
-			if res.Text != "" {
-				lastText = res.Text
-			}
+			_ = s.completeRun(&child, messages)
+			lastText = child.Error
 			stopReason = "error"
 			break
 		}
 
 		// Persist a child reply only when it carries visible text — a pure-sentinel confirm adds no
 		// empty transcript message and keeps the prior substantive answer as the aggregate.
+		var messages []session.Message
 		if text != "" {
 			reply := session.Message{ID: newID(), ChatID: parent.ChatID, Role: "assistant", Text: text, Parts: parts, CreatedAt: nowISO()}
-			_ = s.store.AddMessage(reply)
+			messages = []session.Message{reply}
 			child.ReplyID = reply.ID
 			lastText = text
 			lastReplyID = reply.ID
 		}
 		child.Status = "done"
-		_ = s.store.SaveRun(child)
+		if err := s.completeRun(&child, messages); err != nil {
+			lastText, stopReason = child.Error, "error"
+			break
+		}
+		// Resolve exposes each native iteration before its final aggregate. Keep
+		// result-only output and usage metadata, but only after the child is saved.
+		if terminal.Type == agent.EventResult {
+			s.hub.Publish(parent.ID, terminal)
+		}
 
 		if done {
 			stopReason = "done"
@@ -1148,28 +1162,31 @@ func (s *Supervisor) execResolve(ctx context.Context, cancel context.CancelFunc,
 	switch stopReason {
 	case "cancelled":
 		parent.Status = "cancelled"
-		_ = s.store.SaveRun(parent)
-		release()
-		s.hub.Close(parent.ID)
-		return
 	case "error":
 		parent.Status = "error"
 		parent.Error = lastText
-		_ = s.store.SaveRun(parent)
-		release()
+	default:
+		parent.Status = "done"
+	}
+	_ = s.completeRun(&parent, nil)
+	release()
+	if parent.Status == "cancelled" {
+		s.hub.Close(parent.ID)
+		return
+	}
+	if parent.Status == "error" {
 		s.hub.Publish(parent.ID, agent.Event{Type: agent.EventContinuation, Continuation: &agent.ContinuationInfo{
-			Iteration: iterations, StopReason: stopReason,
+			Iteration: iterations, StopReason: "error",
 		}})
-		s.emit(a, parent, agent.Errored, snippet(lastText)) // notify + trailing status BEFORE close
+		s.hub.Publish(parent.ID, agent.Event{Type: agent.EventError, Error: parent.Error})
+		s.hub.Publish(parent.ID, agent.Event{Type: agent.EventResult, Result: &agent.ResultInfo{Text: parent.Error, IsError: true}})
+		s.emit(a, parent, agent.Errored, snippet(parent.Error)) // notify + trailing status BEFORE close
 		s.hub.Close(parent.ID)
 		return
 	}
 
 	// Done or capped: a final continuation boundary carries the stop reason, then the AGGREGATE result
 	// is published LAST (so wait() returns it, not a sub-turn's result), then the finished notification.
-	parent.Status = "done"
-	_ = s.store.SaveRun(parent)
-	release()
 	s.hub.Publish(parent.ID, agent.Event{Type: agent.EventContinuation, Continuation: &agent.ContinuationInfo{
 		Iteration: iterations, StopReason: stopReason,
 	}})
