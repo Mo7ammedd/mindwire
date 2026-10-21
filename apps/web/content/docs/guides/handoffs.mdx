@@ -12,25 +12,47 @@ context. The original conversation remains available through a source link.
 
 After the source turn finishes, open its conversation menu and choose **Hand off to another agent**.
 Select an agent, describe its next task, and review or edit the context before choosing **Start handoff**.
-Add decisions, constraints or unresolved issues that the excerpts do not cover. The app opens the new
+Add decisions, constraints or unresolved issues that the portable context does not cover. The app opens the new
 conversation and follows its run. Conversation menus link back to the source and to its handoff chats.
 
 Connect another agent on the same computer if no destination is available. The daemon must advertise
-`crossAgentHandoffVersion >= 1`. Active source conversations, including those owned by a native terminal,
+`crossAgentHandoffVersion >= 2`. Active source conversations, including those owned by a native terminal,
 must finish before preparing a handoff.
 
 ## What is transferred
 
-The preview includes the original goal, recent visible conversation excerpts, and file paths reported
-by normalized edit tools. Context is capped at **32 KiB** and reports `truncated: true` when partial.
-It is an excerpt pack, not an AI-generated summary. Native history is used when readable; recorded
-history is the fallback on read errors. File paths are clues to inspect, not a claim about the current diff.
+Each source adapter decodes its native history into a versioned portable **capsule**. Mindwire
+normalizes that task state, then the destination adapter encodes it through the target's normal
+user-input transport in a fresh session. Codex, Claude Code, OpenCode and Grok have explicit adapters.
+Mindwire does not write another vendor's transcript files or replay source tool calls.
 
-Hidden reasoning, raw tool inputs and outputs, binary attachments, native session IDs, credentials,
-bot instructions and permission overrides are excluded. The target uses its own normal configuration
-and approval flow. Both agents work with the project's current files; a handoff does not create a
-worktree, copy the filesystem or revert earlier changes. The source chat's saved bot profile is not
-assigned to the destination.
+The capsule preserves:
+
+- The original goal and latest readable compaction summary, followed by ordered visible turns.
+- Later user corrections and the latest task list.
+- Normalized tool outcomes, including failures, unknown outcomes, exit codes and bounded shell results.
+- File paths and attachment references that the target can inspect on the same computer.
+
+The review text is capped at **32 KiB**. Byte-based packing keeps recent turns and reports every
+shortened or omitted category in `losses`; `truncated: true` means some details are partial or
+unavailable. An opaque or encrypted compaction is never presented as a reconstructed summary.
+Check the omission report and add any missing decisions before sending.
+
+Native history is authoritative, including undo and fork boundaries. An empty native conversation
+stays empty. Recorded conversation is used when native history is unavailable, with an explicit
+omission notice. Recorded supplemental entries are not replayed into native histories because they
+can contain turns removed by undo or a fork. A pending fork without readable native history fails
+instead of guessing its retained prefix.
+
+Hidden reasoning, raw tool inputs, raw native/MCP result bodies, inline binary attachments, native
+session identities, credentials, bot instructions and permission grants are excluded. Bounded
+normalized shell results can be included as historical evidence. References do not copy files or
+guarantee that they still exist. Inspect the project's current files before relying on them.
+
+The target uses its own normal settings and approval flow. Both agents work with the current project
+files; a handoff does not create a worktree or revert changes. The source chat's bot profile is not
+assigned to the destination. Editing the review replaces the original structured content completely;
+deleted text, results and references are not retained in hidden fields.
 
 ## TypeScript
 
@@ -44,6 +66,7 @@ const request = {
   targetAgentId: codexProfileId, // saved workspace profile ID
   task: "Review the authentication changes. Report correctness issues and missing checks.",
   context: preview.context,
+  previewDigest: preview.digest,
 };
 
 const { chatId, run, snapshot } = await mw.handoff(sourceChatId, request);
@@ -51,7 +74,7 @@ const result = await run.wait();
 ```
 
 Omitting `context` captures it from the source when the first request is admitted. An explicit
-`context` is the reviewed text, including edits. `task` accepts up to 4096 UTF-8 bytes.
+`context` is the reviewed text, including edits, and requires `previewDigest`. `task` accepts up to 4096 UTF-8 bytes.
 
 ## Go
 
@@ -63,7 +86,7 @@ handoff, err := client.Handoff(ctx, sourceChatID, mindwire.HandoffRequest{
     NewChatID: "review-auth", RequestID: "review-auth-request",
     TargetAgentID: codexProfileID,
     Task: "Review the authentication changes and report remaining issues.",
-    Context: &preview.Context,
+    Context: &preview.Context, PreviewDigest: preview.Digest,
 })
 if err != nil { return err }
 result, err := handoff.Run.Wait(ctx)
@@ -72,10 +95,15 @@ result, err := handoff.Run.Wait(ctx)
 ## REST and retry behavior
 
 - `GET /chats/{id}/handoff` returns the read-only preview.
-- `POST /chats/{id}/handoff` accepts `{ newChatId, requestId, targetAgentId, task, context? }`
+- `POST /chats/{id}/handoff` accepts `{ newChatId, requestId, targetAgentId, task, context?, previewDigest? }`
   and returns `202` with `{ chatId, run, snapshot }`.
 - The destination's workspace chat includes immutable `handoffFrom` metadata with source chat,
   agent, title and latest recorded run references. It survives renames and daemon restarts.
+
+If the source changes after review, the first submission returns `409` with
+`code: "handoff_context_changed"` before creating a destination. Refresh the preview and review it
+again. Once a destination has been prepared, retries reuse its exact encoded payload even if the
+source later changes or disappears.
 
 Reuse both IDs and the identical request body after a timeout or lost connection. The daemon saves
 the destination and reviewed prompt together, then admits its turn using a durable retry receipt.
@@ -84,5 +112,5 @@ request returns its original run. Changing the payload under the same destinatio
 Source deletion does not prevent recovering an accepted handoff. Deleting the destination removes
 its saved transfer receipt along with its conversation metadata.
 
-The first version is an explicit handoff. It does not automatically chain agents or transfer work
+This is an explicit handoff. It does not automatically chain agents or transfer work
 between computers.

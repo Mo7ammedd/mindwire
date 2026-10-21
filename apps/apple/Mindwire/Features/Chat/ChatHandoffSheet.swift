@@ -50,13 +50,18 @@ final class ChatHandoffDraft: Identifiable {
         error = nil
         defer { submitting = false }
         let request = submitted ?? ChatHandoffRequest(newChatId: newId(), requestId: UUID().uuidString,
-            targetAgentId: targetAgentId, task: task.trimmingCharacters(in: .whitespacesAndNewlines), context: context)
+            targetAgentId: targetAgentId, task: task.trimmingCharacters(in: .whitespacesAndNewlines), context: context, previewDigest: preview?.digest ?? "")
         submitted = request
         do {
             let id = try await perform(request)
             completedChatId = id
             return id
         } catch {
+            if let response = error as? DaemonHTTPError, response.code == "handoff_context_changed" {
+                // No destination was admitted, so a fresh review may use new IDs.
+                submitted = nil
+                preview = nil
+            }
             self.error = error.localizedDescription
             return nil
         }

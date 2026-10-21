@@ -833,6 +833,8 @@ export interface ToolPart {
   input?: unknown;
   output?: string;
   isError?: boolean;
+  /** Explicit native outcome; missing or in-progress is unknown. */
+  status?: string;
   /** Deep-normalized view of the tool call; rides alongside the raw name/input/output. */
   action?: ToolAction;
 }
@@ -1287,6 +1289,7 @@ export interface Health {
   /** Live attachment to a native CLI owner without a competing harness process. */
   nativeSessionVersion?: number;
   chatForkVersion?: number;
+  /** 2 adds portable context, review digests and explicit omissions. */
   crossAgentHandoffVersion?: number;
   /** Image-only input and image attachments retained in message history. */
   imageAttachmentsVersion?: number;

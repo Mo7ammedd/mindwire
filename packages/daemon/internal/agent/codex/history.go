@@ -334,10 +334,15 @@ func parseRollout(r io.Reader, chatID string) ([]agent.Message, error) {
 			// replacement_history it also carries is prior context re-injected by Codex — intentionally
 			// not re-emitted here (it would duplicate messages already shown).
 			var p struct {
-				Message string `json:"message"`
+				Message     string            `json:"message"`
+				Replacement []json.RawMessage `json:"replacement_history"`
 			}
 			_ = json.Unmarshal(env.Payload, &p)
-			appendCompaction(env.Timestamp, strings.TrimSpace(p.Message))
+			summary := strings.TrimSpace(p.Message)
+			if summary == "" {
+				summary = compactedReplacementText(p.Replacement)
+			}
+			appendCompaction(env.Timestamp, summary)
 		case "event_msg":
 			var p eventMsgPayload
 			if json.Unmarshal(env.Payload, &p) != nil {
@@ -401,6 +406,10 @@ func parseRollout(r io.Reader, chatID string) ([]agent.Message, error) {
 						if ref, ok := toolIdx[ev.Tool.ID]; ok {
 							part := &out[ref.msg].Parts[ref.part]
 							part.Tool.Output, part.Tool.IsError, part.Tool.Action = ev.Tool.Output, ev.Tool.IsError, ev.Tool.Action
+							part.Tool.Status = "completed"
+							if ev.Tool.IsError {
+								part.Tool.Status = "failed"
+							}
 							if p.CompletedAtMS >= p.StartedAtMS {
 								part.DurationMs = int(p.CompletedAtMS - p.StartedAtMS)
 							}
@@ -513,6 +522,10 @@ func parseRollout(r io.Reader, chatID string) ([]agent.Message, error) {
 				}
 				if tp := out[ref.msg].Parts[ref.part].Tool; tp != nil {
 					tp.Output, tp.IsError = outputText(p.Output)
+					tp.Status = "completed"
+					if tp.IsError {
+						tp.Status = "failed"
+					}
 					// Only shell stdout arrives late; fold it into the already-classified action.
 					if tp.Action != nil && tp.Action.Shell != nil {
 						tp.Action.Shell.Stdout = tp.Output
@@ -526,7 +539,7 @@ func parseRollout(r io.Reader, chatID string) ([]agent.Message, error) {
 				n := normItem{ID: agent.FirstNonEmpty(p.ID, p.CallID), Kind: kindWebSearch, WebAction: p.Action, Status: p.Status}
 				i := ensureAsst(env.Timestamp)
 				out[i].Parts = append(out[i].Parts, agent.Part{Type: "tool", At: env.Timestamp,
-					Tool: &agent.ToolPart{ID: n.ID, Name: "web_search", Input: env.Payload, Action: codexToolAction(n)}})
+					Tool: &agent.ToolPart{ID: n.ID, Name: "web_search", Input: env.Payload, Status: p.Status, Action: codexToolAction(n)}})
 			}
 		}
 	}

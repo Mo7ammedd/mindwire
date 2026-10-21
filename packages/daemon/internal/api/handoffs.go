@@ -13,6 +13,10 @@ func (a *API) handoffService() *handoffs.Service {
 }
 
 func handoffError(w http.ResponseWriter, err error) {
+	if errors.Is(err, handoffs.ErrPreviewChanged) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error(), "code": "handoff_context_changed"})
+		return
+	}
 	if errors.Is(err, registry.ErrInvalid) || errors.Is(err, registry.ErrNotFound) || errors.Is(err, registry.ErrDeleted) || errors.Is(err, registry.ErrConflict) {
 		workspaceError(w, err)
 		return

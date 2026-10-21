@@ -196,6 +196,9 @@ func appendNativeMessage(out []agent.Message, row storedMessage, chatID string) 
 			part.Type = "tool"
 			part.Tool = &agent.ToolPart{ID: agent.FirstNonEmpty(p.CallID, p.ID), Name: p.Tool,
 				Input: input, Output: output, IsError: isError, Action: ocToolAction(p.Tool, input)}
+			if p.State != nil {
+				part.Tool.Status = p.State.Status
+			}
 		case "compaction":
 			trigger := "manual"
 			if p.Auto {

@@ -408,7 +408,7 @@ export class Mindwire {
     return this.http.request<DeleteResult>("DELETE", `/chats/${encodeURIComponent(chatId)}`);
   }
 
-  /** Read-only handoff context; requires crossAgentHandoffVersion >= 1. */
+  /** Read-only portable handoff context; requires crossAgentHandoffVersion >= 2. */
   previewHandoff(chatId: string): Promise<HandoffPreview> {
     return this.http.request("GET", `/chats/${encodeURIComponent(chatId)}/handoff`);
   }

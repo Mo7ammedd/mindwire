@@ -2,6 +2,7 @@ package mindwire
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/oblien/mindwire/packages/daemon/internal/agent"
@@ -18,7 +19,7 @@ func init() { agent.Register(handoffSDKAdapter{}) }
 
 func TestHandoffSDKReturnsTrackedRunAndLinkedSnapshot(t *testing.T) {
 	c := newFakeClient(t, nil)
-	if c.Health().CrossAgentHandoffVersion != 1 {
+	if c.Health().CrossAgentHandoffVersion != 2 {
 		t.Fatal("missing capability")
 	}
 	if err := c.core.registry.Import(registry.Import{
@@ -36,7 +37,16 @@ func TestHandoffSDKReturnsTrackedRunAndLinkedSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := HandoffRequest{NewChatID: "review", RequestID: "sdk-review", TargetAgentID: "reviewer", Task: "Review implementation", Context: &preview.Context}
+	stale := HandoffRequest{NewChatID: "stale-review", RequestID: "stale", TargetAgentID: "reviewer", Task: "Review", Context: &preview.Context, PreviewDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+	if _, err := c.Handoff(ctx, "source", stale); !errors.Is(err, ErrHandoffContextChanged) {
+		t.Fatalf("stale review did not preserve its typed cause: %v", err)
+	} else {
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) || apiErr.Status != 409 {
+			t.Fatalf("wrong stale-review status: %v", err)
+		}
+	}
+	request := HandoffRequest{NewChatID: "review", RequestID: "sdk-review", TargetAgentID: "reviewer", Task: "Review implementation", Context: &preview.Context, PreviewDigest: preview.Digest}
 	result, err := c.WithAgent("codex").Handoff(ctx, "source", request)
 	if err != nil {
 		t.Fatal(err)

@@ -281,6 +281,10 @@ func mergeToolResults(m *agent.Message, results []agent.Part) {
 				tp := m.Parts[i].Tool
 				tp.Output = r.Tool.Output
 				tp.IsError = r.Tool.IsError
+				tp.Status = r.Tool.Status
+				if tp.IsError {
+					tp.Status = "failed"
+				}
 				// The tool_use part carries the name+input; recompute the action now that the output is
 				// known, so reloaded Bash cards get their stdout (the input-only action lacked it).
 				tp.Action = claudeToolAction(tp.Name, tp.Input, tp.Output, tp.IsError)

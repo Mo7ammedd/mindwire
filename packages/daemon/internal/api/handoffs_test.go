@@ -76,6 +76,7 @@ func TestCrossAgentHandoffHTTP(t *testing.T) {
 	h, store, a := newRegistryAPIEnv(t)
 	h = registryAuthenticated(h)
 	cwd := t.TempDir()
+	cwd, _ = filepath.EvalSymlinks(cwd)
 	batch := registry.Import{
 		Agents: []registry.Agent{
 			{Record: registry.Record{ID: "source-profile"}, Name: "Implementer", AgentType: "handoff-source"},
@@ -104,7 +105,7 @@ func TestCrossAgentHandoffHTTP(t *testing.T) {
 		t.Fatal("unknown source must return 404")
 	}
 	reviewed := preview.Context + "\nDecisions: preserve compatibility. Open issue: expired cookies."
-	request := handoffs.Request{NewChatID: "review", RequestID: "review-request", TargetAgentID: "target-profile", Task: "Review the authentication changes", Context: &reviewed}
+	request := handoffs.Request{NewChatID: "review", RequestID: "review-request", TargetAgentID: "target-profile", Task: "Review the authentication changes", Context: &reviewed, PreviewDigest: preview.Digest}
 	post := func(input handoffs.Request) (int, []byte) {
 		body, _ := json.Marshal(input)
 		r := serve(t, h, "POST", "/chats/source/handoff?agent=handoff-source", string(body))
@@ -141,6 +142,18 @@ func TestCrossAgentHandoffHTTP(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
+	// A new source run invalidates the old review before any destination exists.
+	if code, _ := post(request); code != 409 {
+		t.Fatalf("stale review admitted: %d", code)
+	}
+	if _, err := a.registry.Handoff("review"); err != registry.ErrNotFound {
+		t.Fatalf("stale review saved a receipt: %v", err)
+	}
+	refreshed := serve(t, h, "GET", "/chats/source/handoff", "")
+	if json.Unmarshal(refreshed.Body.Bytes(), &preview) != nil {
+		t.Fatal("cannot refresh preview")
+	}
+	request.PreviewDigest = preview.Digest
 	// Fail the state-file admission write after the registry saves its receipt.
 	blocker := filepath.Join(a.registry.Directory(), "state.json.tmp")
 	if err := os.Mkdir(blocker, 0700); err != nil {
@@ -180,7 +193,8 @@ func TestCrossAgentHandoffHTTP(t *testing.T) {
 	if store.Session("handoff-source", "source") != "source-native" || store.Session("handoff-target", "review") != "target-native" || store.ChatCWD("review") != cwd {
 		t.Fatal("session or cwd isolation failed")
 	}
-	if len(store.Messages("review")) != 2 || !strings.Contains(store.Messages("review")[0].Text, reviewed) {
+	encoded, decodeErr := agent.DecodeHandoffPrompt(store.Messages("review")[0].Text)
+	if len(store.Messages("review")) != 2 || decodeErr != nil || !encoded.Context.Reviewed || agent.RenderHandoffContext(encoded.Context) != reviewed {
 		t.Fatal("context did not reach target's normal turn")
 	}
 	if err := a.registry.RenameChat("review", "Reviewed"); err != nil {

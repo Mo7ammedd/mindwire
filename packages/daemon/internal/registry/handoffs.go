@@ -6,7 +6,7 @@ import (
 	"errors"
 )
 
-const HandoffVersion = 1
+const HandoffVersion = 2
 
 // HandoffOrigin is immutable provenance, not a native session to resume.
 type HandoffOrigin struct {
@@ -19,12 +19,15 @@ type HandoffOrigin struct {
 // HandoffReceipt retains the reviewed prompt so retries cannot capture newer
 // source context or execute a different task under the same receipt.
 type HandoffReceipt struct {
-	ChatID        string `json:"chatId"`
-	SourceChatID  string `json:"sourceChatId"`
-	TargetAgentID string `json:"targetAgentId"`
-	RequestID     string `json:"requestId"`
-	Digest        string `json:"digest"`
-	Message       string `json:"message"`
+	ChatID         string `json:"chatId"`
+	SourceChatID   string `json:"sourceChatId"`
+	TargetAgentID  string `json:"targetAgentId"`
+	RequestID      string `json:"requestId"`
+	Digest         string `json:"digest"`
+	Message        string `json:"message"`
+	ContextVersion int    `json:"contextVersion,omitempty"`
+	ContextDigest  string `json:"contextDigest,omitempty"`
+	Codec          string `json:"codec,omitempty"`
 }
 
 func (st *Store) Handoff(chatID string) (HandoffReceipt, error) {

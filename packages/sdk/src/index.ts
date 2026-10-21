@@ -77,4 +77,4 @@ export * from "./surfaces.js";
 export * from "./execution.js";
 export * from "./computer.js";
 
-export type { HandoffOrigin, HandoffPreview, HandoffRequest, HandoffResult } from "./handoffs.js";
+export type { HandoffOrigin, HandoffPreview, HandoffRequest, HandoffResult, HandoffContext, HandoffLoss, HandoffTool, HandoffArtifact } from "./handoffs.js";

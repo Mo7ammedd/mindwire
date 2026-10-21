@@ -544,7 +544,7 @@ enum Strings {
         "chat.handoff.taskTooLong": "Shorten the task before sending.",
         "chat.handoff.start": "Start handoff",
         "chat.handoff.detail": "Starts a separate conversation in this project using the selected agent's own settings and permissions. Review the context and add any important decisions or remaining work.",
-        "chat.handoff.partial": "This context contains excerpts. Add any missing decisions or unresolved issues before sending.",
+        "chat.handoff.partial": "Some source details are unavailable or shortened. Review the listed omissions and add any missing decisions or remaining work.",
         "chat.handoff.fallback": "This context comes from Mindwire's recorded history. Check it for missing information.",
         "chat.handoff.noAgents": "Connect another agent on this computer to hand off this conversation.",
         "chat.handoff.updateRequired": "Update the Mindwire service to use cross-agent handoffs.",

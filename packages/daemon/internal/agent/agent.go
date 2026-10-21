@@ -192,6 +192,8 @@ type ToolPart struct {
 	Input   json.RawMessage `json:"input,omitempty"`
 	Output  string          `json:"output,omitempty"`
 	IsError bool            `json:"isError,omitempty"`
+	// Status is explicit native outcome evidence. Empty or in-progress is unknown.
+	Status string `json:"status,omitempty"`
 	// Action is the deep-normalized view of the tool call (same pointer type as ToolEvent.Action). The
 	// runner sets it from the tool_use, then overwrites with the completed action (with output) at the
 	// tool_result. Best-effort/optional; nil when unclassified. See toolaction.go.

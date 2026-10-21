@@ -430,7 +430,7 @@ final class DaemonSession {
     func previewHandoff(_ chatId: String) async throws -> DaemonHandoffPreview {
         try await ensure()
         let health = await transport.health()
-        guard (health.crossAgentHandoffVersion ?? 0) >= 1 else {
+        guard (health.crossAgentHandoffVersion ?? 0) >= 2 else {
             throw BackendError.message(t("chat.handoff.updateRequired"))
         }
         return try await call { try await $0.previewHandoff(chatId: chatId) }
