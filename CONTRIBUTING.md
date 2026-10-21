@@ -20,7 +20,7 @@ By participating you agree to abide by our [Code of Conduct](./CODE_OF_CONDUCT.m
 
 ## Prerequisites
 
-- **Go 1.27.2+** — matching [`packages/daemon/go.mod`](./packages/daemon/go.mod).
+- **Go 1.27.3+** — matching [`packages/daemon/go.mod`](./packages/daemon/go.mod).
 - **Node.js 24 LTS** — run `nvm use` to select the version in [`.nvmrc`](./.nvmrc).
 - **Bun 1.4.3+** — for workspace installation, builds, and tests.
 - The **agent CLI** you're working with (e.g. `npm i -g @anthropic-ai/claude-code`).
