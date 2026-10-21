@@ -85,7 +85,7 @@
     },
     "packages/sdk": {
       "name": "mindwire",
-      "version": "0.1.54",
+      "version": "0.1.55",
       "bin": {
         "mindwire": "./dist/cli.js",
       },
