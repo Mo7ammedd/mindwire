@@ -14,6 +14,7 @@ import (
 type sseEvent struct {
 	Type       string          `json:"type"`
 	Properties json.RawMessage `json:"properties"`
+	Data       json.RawMessage `json:"data,omitempty"` // OpenCode V2 event envelope
 }
 
 // parseSSE reads an opencode SSE stream and calls fn once per decoded frame. It accumulates the `data:`

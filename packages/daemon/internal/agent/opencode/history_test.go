@@ -120,6 +120,9 @@ func TestNativeHistoryFailsRatherThanReturningPartialOrWrongConversation(t *test
 	if rows, err := (adapter{}).History(agent.HistoryQuery{SessionID: "ses_missing"}); err != nil || len(rows) != 0 {
 		t.Fatalf("absent session: %+v %v", rows, err)
 	}
+	if rows, err := (adapter{}).History(agent.HistoryQuery{SessionID: "ses_v2", Recorded: []agent.Message{{Role: "assistant", Text: "Recorded V2 output"}}}); err == nil || rows != nil {
+		t.Fatalf("missing legacy projection must preserve the recorded fallback: %+v %v", rows, err)
+	}
 	if (adapter{}).Capabilities().History != agent.SupportNative {
 		t.Fatal("API would never read imported history")
 	}

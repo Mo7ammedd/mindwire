@@ -3,6 +3,7 @@ package opencode
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,13 +47,20 @@ type server struct {
 	contextInstructions string
 	cwd                 string
 	resumeID            string
-	interactive         bool // true ⇒ pump permission asks to the user; false ⇒ auto-approve
-	compact             bool // true ⇒ this run is an on-demand compaction (summarize) rather than a prompt
+	interactive         bool   // true ⇒ pump permission asks to the user; false ⇒ auto-approve
+	compact             bool   // true ⇒ this run is an on-demand compaction (summarize) rather than a prompt
+	apiV2               bool   // detected from the running server, not the installed CLI's version string
+	password            string // fresh loopback server credential for this turn
 }
 
 // Run spawns the per-turn opencode server, drives one turn over it, and tears it down. On any failure
 // before a terminal result it surfaces the captured stderr as an error event, mirroring codex's Run.
 func (s server) Run(ctx context.Context, in agent.TurnInput, emit agent.Emit) (agent.TurnResult, error) {
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return agent.TurnResult{}, err
+	}
+	s.password = fmt.Sprintf("%x", secret)
 	port, err := freePort()
 	if err != nil {
 		emit(agent.Event{Type: agent.EventError, Error: err.Error()})
@@ -73,6 +81,9 @@ func (s server) Run(ctx context.Context, in agent.TurnInput, emit agent.Emit) (a
 	for k, v := range s.env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
+	// V1 and V2 use different environment names. Both accept Basic auth as opencode.
+	cmd.Env = append(cmd.Env, "OPENCODE_PASSWORD="+s.password,
+		"OPENCODE_SERVER_PASSWORD="+s.password, "OPENCODE_SERVER_USERNAME=opencode")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
@@ -88,9 +99,10 @@ func (s server) Run(ctx context.Context, in agent.TurnInput, emit agent.Emit) (a
 		result agent.TurnResult
 		got    bool
 	)
-	if herr := waitHealthy(runCtx, base); herr != nil {
+	if v2, herr := s.waitHealthy(runCtx, base); herr != nil {
 		result = agent.TurnResult{Text: "opencode serve did not become healthy: " + herr.Error(), IsError: true}
 	} else {
+		s.apiV2 = v2
 		result, got = s.converse(runCtx, base, in.Inbound, emit)
 	}
 
@@ -115,6 +127,8 @@ func (s server) Run(ctx context.Context, in agent.TurnInput, emit agent.Emit) (a
 // it against an httptest.Server. Returns the terminal result and whether one was seen (got=false ⇒ Run
 // surfaces stderr as the error).
 func (s server) converse(ctx context.Context, base string, inbound <-chan agent.Inbound, rawEmit agent.Emit) (agent.TurnResult, bool) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	// The SSE reader, the inbound pump, and this goroutine's EventSession all emit — serialize them, as
 	// the runner's emit assumes serial calls (same reason as codex's app-server path).
 	emit := serializeEmit(rawEmit)
@@ -168,27 +182,50 @@ func (s server) converse(ctx context.Context, base string, inbound <-chan agent.
 	}
 
 	// 1. Subscribe to the event bus BEFORE prompting so no message.part.* is missed.
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+"/event", nil)
+	eventPath := "/event"
+	if s.apiV2 {
+		eventPath = "/api/event"
+	}
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+eventPath, nil)
+	s.authorize(req)
 	req.Header.Set("Accept", "text/event-stream")
 	resp, err := client.Do(req)
 	if err != nil {
 		return agent.TurnResult{Text: "subscribe /event: " + err.Error(), IsError: true}, false
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+		return agent.TurnResult{Text: fmt.Sprintf("opencode %s returned HTTP %d (%s), expected an event stream", eventPath, resp.StatusCode, resp.Header.Get("Content-Type")), IsError: true}, false
+	}
 
 	connected := make(chan struct{})
 	var connectOnce sync.Once
+	v2stream := newV2Stream()
+	var streamErr error // guarded by mu
 	go func() {
 		defer resp.Body.Close()
-		_ = parseSSE(resp.Body, func(ev sseEvent) bool {
+		err := parseSSE(resp.Body, func(ev sseEvent) bool {
 			select {
 			case <-done:
 				return false // terminal already reached — stop reading
 			default:
 			}
-			s.route(ev, &mu, &sessionID, &lastMeta, &lastUsage, st, answer, &order,
-				connected, &connectOnce, emit, emitTerminal, finalText, client, base)
+			frames := []sseEvent{ev}
+			if s.apiV2 {
+				mu.Lock()
+				sid := sessionID
+				mu.Unlock()
+				frames = v2stream.translate(ev, sid, emit)
+			}
+			for _, frame := range frames {
+				s.route(frame, &mu, &sessionID, &lastMeta, &lastUsage, st, answer, &order,
+					connected, &connectOnce, emit, emitTerminal, finalText, client, base)
+			}
 			return true
 		})
+		mu.Lock()
+		streamErr = err
+		mu.Unlock()
 		closeDone() // stream ended (server gone / ctx cancelled) — unblock any waiter
 	}()
 
@@ -197,12 +234,16 @@ func (s server) converse(ctx context.Context, base string, inbound <-chan agent.
 	case <-connected:
 	case <-done:
 		mu.Lock()
-		r, ok := result, got
+		r, ok, readErr := result, got, streamErr
 		mu.Unlock()
 		if ok {
 			return r, true
 		}
-		return agent.TurnResult{Text: "opencode event stream closed before ready", IsError: true}, false
+		msg := "opencode event stream closed before ready"
+		if readErr != nil {
+			msg += ": " + readErr.Error()
+		}
+		return agent.TurnResult{Text: msg, IsError: true}, false
 	case <-ctx.Done():
 		return agent.TurnResult{Text: ctx.Err().Error(), IsError: true}, false
 	case <-time.After(connectDeadline):
@@ -400,6 +441,10 @@ func (s server) pump(ctx context.Context, client *http.Client, base, sid string,
 			}
 			switch msg.Kind {
 			case "response":
+				if s.apiV2 && msg.Meta["opencodeForm"] != "" {
+					s.replyV2Form(ctx, client, base, sid, msg)
+					continue
+				}
 				pid := agent.FirstNonEmpty(msg.InteractionID, msg.Meta["permissionID"])
 				if pid == "" {
 					continue
@@ -420,6 +465,9 @@ func (s server) pump(ctx context.Context, client *http.Client, base, sid string,
 
 // ensureSession reuses the resume id when present, else creates a session bound to the turn's cwd.
 func (s server) ensureSession(ctx context.Context, client *http.Client, base string) (string, error) {
+	if s.apiV2 {
+		return s.ensureV2Session(ctx, client, base)
+	}
 	if s.resumeID != "" {
 		return s.resumeID, nil
 	}
@@ -443,6 +491,9 @@ func (s server) ensureSession(ctx context.Context, client *http.Client, base str
 // prompt sends the user turn. The model is included only when both halves resolved; agent/system are
 // included only when set. It is fire-and-forget (204) — the turn plays out over the event bus.
 func (s server) prompt(ctx context.Context, client *http.Client, base, sid string) error {
+	if s.apiV2 {
+		return s.promptV2(ctx, client, base, sid)
+	}
 	parts := []any{}
 	if s.contextInstructions != "" {
 		// A native synthetic context part leaves the selected agent's built-in prompt
@@ -471,6 +522,9 @@ func (s server) prompt(ctx context.Context, client *http.Client, base, sid strin
 // The route requires an explicit {providerID,modelID}; Compact guarantees both are resolved before we
 // reach here. Fire-and-forget — the boundary arrives as the session.compacted event on the bus.
 func (s server) summarize(ctx context.Context, client *http.Client, base, sid string) error {
+	if s.apiV2 {
+		return s.doJSON(ctx, client, http.MethodPost, base+"/api/session/"+url.PathEscape(sid)+"/compact", []byte(`{}`), nil)
+	}
 	body, _ := json.Marshal(map[string]any{"providerID": s.provider, "modelID": s.model})
 	return s.doJSON(ctx, client, http.MethodPost, base+"/session/"+url.PathEscape(sid)+"/summarize", body, nil)
 }
@@ -483,6 +537,10 @@ func (s server) decide(ctx context.Context, client *http.Client, base, sid, perm
 	}
 	body, _ := json.Marshal(map[string]any{"response": response})
 	u := base + "/session/" + url.PathEscape(sid) + "/permissions/" + url.PathEscape(permID)
+	if s.apiV2 {
+		u = base + "/api/session/" + url.PathEscape(sid) + "/permission/" + url.PathEscape(permID) + "/reply"
+		body, _ = json.Marshal(map[string]any{"decision": response})
+	}
 	_ = s.doJSON(ctx, client, http.MethodPost, u, body, nil)
 }
 
@@ -491,7 +549,13 @@ func (s server) abort(ctx context.Context, client *http.Client, base, sid string
 	if sid == "" {
 		return
 	}
-	_ = s.doJSON(ctx, client, http.MethodPost, base+"/session/"+url.PathEscape(sid)+"/abort", nil, nil)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	path := "/session/" + url.PathEscape(sid) + "/abort"
+	if s.apiV2 {
+		path = "/api/session/" + url.PathEscape(sid) + "/interrupt?resume=false"
+	}
+	_ = s.doJSON(ctx, client, http.MethodPost, base+path, nil, nil)
 }
 
 // doJSON performs a JSON request and, when out != nil, decodes a 2xx body into it. A non-2xx status is
@@ -508,6 +572,7 @@ func (s server) doJSON(ctx context.Context, client *http.Client, method, u strin
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	s.authorize(req)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -535,27 +600,42 @@ func freePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-// waitHealthy polls GET /global/health until 200 or the deadline / ctx cancellation.
-func waitHealthy(ctx context.Context, base string) error {
+func (s server) authorize(req *http.Request) {
+	if s.password != "" {
+		req.SetBasicAuth("opencode", s.password)
+	}
+}
+
+// V2 serves its HTML app at unknown V1 routes with HTTP 200. Only a JSON health
+// response establishes readiness; otherwise probe V2's authenticated server info.
+func (s server) waitHealthy(ctx context.Context, base string) (bool, error) {
 	client := &http.Client{Timeout: 2 * time.Second}
 	deadline := time.NewTimer(healthDeadline)
 	defer deadline.Stop()
 	tick := time.NewTicker(healthPoll)
 	defer tick.Stop()
 	for {
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+"/global/health", nil)
-		if resp, err := client.Do(req); err == nil {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return nil
+		for _, path := range []string{"/global/health", "/api/info"} {
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+path, nil)
+			s.authorize(req)
+			if resp, err := client.Do(req); err == nil {
+				var info struct {
+					Healthy bool   `json:"healthy"`
+					Version string `json:"version"`
+				}
+				valid := resp.StatusCode == http.StatusOK && strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") &&
+					json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&info) == nil
+				resp.Body.Close()
+				if valid && ((path == "/global/health" && info.Healthy) || (path == "/api/info" && info.Version != "")) {
+					return path == "/api/info", nil
+				}
 			}
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return false, ctx.Err()
 		case <-deadline.C:
-			return errors.New("timeout")
+			return false, errors.New("timeout")
 		case <-tick.C:
 		}
 	}
