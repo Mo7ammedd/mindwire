@@ -7,7 +7,7 @@ import { consoleRows } from "../database";
 import { COMPUTER_CATALOG_VERSION, COMPUTER_PLANS } from "../../shared/cloud";
 import { linkLegacyAccount, legacyStatus, refreshLegacyAccounts } from "./legacy";
 import { ComputerService } from "./service";
-import { CloudError, publicComputer, type ComputerRow } from "./types";
+import { CloudError, contract, publicComputer, type ComputerRow } from "./types";
 import { hostedUrl } from "./provider";
 import { cloudAccount, cloudBody, cloudRawBody } from "./access";
 import { registerComputerGateway } from "./gateway";
@@ -78,9 +78,13 @@ export function startComputerReconciliation(service = new ComputerService()) {
     try {
       await refreshLegacyAccounts();
       if (!service.provider.configured()) return;
-      const rows = await consoleRows<ComputerRow>(sql`SELECT * FROM cloud_computer WHERE state IN ('checkout_pending','payment_pending','paid','provisioning','ready') AND updated_at<${Date.now() - 60000} AND lease_until<${Date.now()} ORDER BY updated_at ASC LIMIT 10`);
+      const rows = await consoleRows<ComputerRow>(sql`SELECT * FROM cloud_computer WHERE state IN ('payment_pending','paid','provisioning','ready') AND updated_at<${Date.now() - 60000} AND lease_until<${Date.now()} ORDER BY updated_at ASC LIMIT 10`);
       for (const row of rows) {
-        try { await service.reconcile(row.owner_id, row.id); }
+        const saved = contract(row);
+        try {
+          if (saved.checkoutStatus?.status !== "expired" && saved.checkoutError?.retryable !== false)
+            await service.reconcile(row.owner_id, row.id);
+        }
         catch (error) { console.warn("[cloud] computer reconciliation deferred", row.id, error instanceof CloudError ? error.code : "cloud_unavailable"); }
         // Failed upstream reads get backoff and cannot starve the rest of the fleet.
         await consoleRows(sql`UPDATE cloud_computer SET updated_at=${Date.now()} WHERE id=${row.id} AND lease_until=0 RETURNING id`);

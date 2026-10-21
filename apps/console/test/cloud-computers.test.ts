@@ -17,8 +17,13 @@ const canceled = new Set<string>();
 const previousTokens = new Set(["fixture-previous-account-session"]);
 let loseDeleteReply = false, redirectWorkspaceRead = false;
 let paid = false, loseCheckoutReply = false, loseCreateReply = false, checkoutWrites = 0, creates = 0;
+let checkoutFailure: { status: number; code: string } | undefined;
+let loseCancelReply = false, cancelLeavesOpen = false, genericCancellation = true, customCheckout = false;
+let statusFailure = false, statusMismatch = false;
+let completeDuringCancel = false;
+const cancellationKeys = new Map<string, string>();
 const issuedRuntimeTokens = new Map<string, string>();
-const providerRequests: Array<{ path: string; namespace: string | null }> = [];
+const providerRequests: Array<{ path: string; method: string; namespace: string | null }> = [];
 const fake = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(request) {
   const u = new URL(request.url), path = u.pathname;
   const body = request.method === "GET" ? {} : await request.json().catch(() => ({})) as any;
@@ -30,7 +35,7 @@ const fake = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(request) {
   }
   const master = request.headers.get("X-Client-ID") === "reseller" && request.headers.get("X-Client-Secret") === "private-secret";
   const namespace = request.headers.get("Authorization")?.replace(/^Bearer namespace:/, "") ?? null;
-  providerRequests.push({ path, namespace });
+  providerRequests.push({ path, method: request.method, namespace });
   const ok = (value: object) => Response.json({ success: true, ...value });
   if (!master && !namespaces.has(namespace ?? "")) return Response.json({}, { status: 401 });
   if (path === "/disks" && request.method === "GET") {
@@ -39,15 +44,32 @@ const fake = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(request) {
     return ok({ disks: [{ id: `disk_${computer.id}`, namespace }] });
   }
   if (path === "/workspace/images") return ok({ images: [{ id: "linux", image: "ubuntu:24.04", base_os: { family: "linux" } }, { id: "mac", image: "macos:15", base_os: { family: "macos" }, minimum_resources: { memory_mb: 11264 } }, { id: "mac-xcode", image: "macos:15", preset: "macos-xcode", vm_defaults: { enable_kvm: true }, base_os: { family: "macos" }, minimum_resources: { cpus: 8, memory_mb: 24576 } }] });
+  if (path === "/billing/catalog") return ok({ reseller: { checkoutCancellation: genericCancellation } });
   if (path === "/billing/capacity/catalog") return ok({ tariffId: "test-tariff", tariff: { monthly: { minimumCents: 500, vcpuCents: 600, memoryGiBCents: 100, diskGiBCents: 5 } }, paymentSources: { monthly: ["stripe"] } });
   if (path === "/namespaces/ensure" && master) { namespaces.add(body.slug); return ok({ data: { slug: body.slug } }); }
   if (path === "/tokens" && master) return ok({ token: `namespace:${body.namespace}`, scope: "namespace", expiresAt: new Date(Date.now() + 300000).toISOString() });
   if (path === "/billing/checkout" && master) {
+    if (checkoutFailure) return Response.json({ code: checkoutFailure.code, error: "private-secret payment details", details: { customer: "private@example.test" } }, { status: checkoutFailure.status });
     let checkout = payments.get(body.idempotencyKey);
-    if (!checkout) { checkout = { id: "cs_" + payments.size, request: body }; payments.set(body.idempotencyKey, checkout); checkoutWrites++; }
+    if (!checkout) { checkout = { id: (customCheckout ? "bco_" : "cs_") + payments.size, custom: customCheckout, request: body }; payments.set(body.idempotencyKey, checkout); checkoutWrites++; }
     else expect(checkout.request).toEqual(body);
     if (loseCheckoutReply) { loseCheckoutReply = false; return Response.json({ error: "lost reply" }, { status: 503 }); }
-    return ok({ url: `https://checkout.stripe.com/c/pay/${checkout.id}`, checkoutId: checkout.id });
+    return ok({ url: checkout.custom ? `https://api.oblien.com/billing/pay#${"a".repeat(43)}` : `https://checkout.stripe.com/c/pay/${checkout.id}`, checkoutId: checkout.id });
+  }
+  const checkoutView = (checkout: any) => ({ id: checkout.id, kind: "subscription", status: checkout.expired ? "expired" : paid ? "complete" : "open",
+    paymentStatus: paid && !checkout.expired ? "paid" : "unpaid", fulfilled: paid && !checkout.expired,
+    fulfillmentStatus: checkout.expired ? "expired" : paid ? "completed" : "pending", ...checkout.status });
+  if (/^\/billing\/checkout\/(cs|bco)_\d+$/.test(path) && master && request.method === "GET") {
+    if (statusFailure) { statusFailure = false; return Response.json({}, { status: 503 }); }
+    const checkout = [...payments.values()].find(p => p.id === path.split("/")[3]);
+    if (!checkout) return Response.json({}, { status: 404 });
+    return ok({ namespace: statusMismatch ? "another-namespace" : checkout.request.namespace, checkout: checkoutView(checkout) });
+  }
+  if (path === "/billing/capacity" && master) {
+    const ns = u.searchParams.get("namespace");
+    const checkout = [...payments.values()].find(p => p.request.namespace === ns);
+    return ok({ namespace: ns, pendingCheckout: checkout && !checkout.expired ? { checkoutId: checkout.id, url: null,
+      quote: { id: `quote_${checkout.id}`, namespace: ns, paymentSource: "stripe" } } : null });
   }
   if (path === "/billing/entitlement" && master) {
     const ns = u.searchParams.get("namespace")!;
@@ -64,9 +86,17 @@ const fake = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(request) {
     if (path.endsWith("/cancel")) canceled.add(body.namespace); else canceled.delete(body.namespace);
     return ok({ namespace: body.namespace, subscription: { status: "active", periodEnd: new Date(Date.now() + 86400000).toISOString(), cancelAtPeriodEnd: canceled.has(body.namespace) } });
   }
-  if (/^\/billing\/checkout\/cs_\d+\/cancel$/.test(path) && master) {
-    const checkout = [...payments.values()].find(p => p.id === path.split("/")[3]);
-    return ok({ namespace: body.namespace, checkout: { id: checkout.id, status: paid ? "complete" : "expired", paymentStatus: paid ? "paid" : "unpaid" } });
+  if ((/^\/billing\/checkout\/(cs|bco)_\d+\/cancel$/.test(path) || path === "/billing/capacity/change/cancel") && master) {
+    const checkout = [...payments.values()].find(p => path === "/billing/capacity/change/cancel" ? `quote_${p.id}` === body.quoteId : p.id === path.split("/")[3]);
+    if (!checkout || checkout.request.namespace !== body.namespace) return Response.json({}, { status: 404 });
+    const previous = cancellationKeys.get(checkout.id);
+    if (previous) expect(body.idempotencyKey).toBe(previous);
+    cancellationKeys.set(checkout.id, body.idempotencyKey);
+    if (completeDuringCancel) checkout.status = { status: "complete", paymentStatus: "paid", fulfilled: false, fulfillmentStatus: "pending" };
+    else if (!paid && !cancelLeavesOpen) checkout.expired = true;
+    if (loseCancelReply) { loseCancelReply = false; return Response.json({}, { status: 503 }); }
+    return path === "/billing/capacity/change/cancel" ? ok({ namespace: body.namespace, pendingCheckout: null })
+      : ok({ namespace: body.namespace, checkout: checkoutView(checkout) });
   }
   if (path === "/workspace" && request.method === "POST" && namespace === body.namespace) {
     let computer = computers.get(body.idempotency_key);
@@ -310,7 +340,9 @@ test("Max preserves the Xcode preset and its approved 24 GB / 240 GB contract", 
 test("canceling an unpaid checkout permits another selection but paid checkout cannot be discarded", async () => {
   const id = (await api("/api/cloud/computers", "POST", purchase())).data.computer.id;
   await api(`/api/cloud/computers/${id}/checkout`, "POST");
-  expect((await api(`/api/cloud/computers/${id}/checkout/cancel`, "POST")).status).toBe(409);
+  const processing = await api(`/api/cloud/computers/${id}/checkout/cancel`, "POST");
+  expect(processing.status).toBe(200);
+  expect(processing.data.computer.purchase).toMatchObject({ status: "processing", canContinue: false, canCancel: false });
   paid = false;
   expect((await api(`/api/cloud/computers/${id}/checkout/cancel`, "POST")).status).toBe(200);
   expect((await api(`/api/cloud/computers/${id}`)).data.computer.state).toBe("deleted");
@@ -452,4 +484,196 @@ test("profile and password use the existing account API and revoke other connect
   expect((await api("/api/portal/sessions", "GET", undefined, second.token)).status).toBe(401);
   expect((await api("/api/account/sign-in/email", "POST", { email, password }, "")).status).toBe(401);
   expect((await api("/api/account/sign-in/email", "POST", { email, password: "replacement-password-456" }, "")).status).toBe(200);
+});
+
+// Each recovery scenario has its own real account and persisted purchase. Only
+// the external provider is a fixture; requests exercise Hono, auth and SQLite/PG.
+function recoveryTest(name: string, work: () => Promise<void>) {
+  test(name, async () => {
+    paid = false;
+    try { await work(); }
+    finally {
+      paid = true; checkoutFailure = undefined; loseCheckoutReply = false;
+      loseCancelReply = false; cancelLeavesOpen = false; genericCancellation = true;
+      customCheckout = false; statusFailure = false; statusMismatch = false; completeDuringCancel = false;
+    }
+  });
+}
+async function recoveryPurchase() {
+  const account = (await api("/api/account/sign-up/email", "POST", {
+    email: `recovery-${randomBytes(8).toString("hex")}@example.test`, password: "fixture-password-123456", name: "Original purchaser",
+  }, "")).data;
+  const created = await api("/api/cloud/computers", "POST", purchase(), account.token);
+  expect(created.status).toBe(201);
+  const id = created.data.computer.id;
+  const call = (suffix = "", method = "POST") => api(`/api/cloud/computers/${id}${suffix}`, method, undefined, account.token);
+  return { id, token: account.token, call, payment: () => payments.get(`mindwire-computer:${id}:checkout:v1`) };
+}
+
+recoveryTest("documented first checkout rejection remains locally cancelable with safe diagnostics", async () => {
+  const { call } = await recoveryPurchase();
+  const before = checkoutWrites;
+  checkoutFailure = { status: 400, code: "billing_redirect_not_allowed" };
+  const rejected = await call("/checkout");
+  expect(rejected.status).toBe(503);
+  expect(rejected.data).toMatchObject({ code: "billing_redirect_not_allowed", details: { retryable: false } });
+  expect(rejected.data.details.reference).toBeTruthy();
+  expect(JSON.stringify(rejected.data)).not.toMatch(/private-secret|private@example/);
+  const saved = await call("", "GET");
+  expect(saved.data.computer).toMatchObject({ state: "draft", purchase: { canCancel: true, error: { retryable: false } } });
+  const requests = providerRequests.length;
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
+  expect(providerRequests).toHaveLength(requests);
+  expect(checkoutWrites).toBe(before);
+});
+
+recoveryTest("polling and cancellation never replay an unconfirmed checkout; Resume keeps original terms", async () => {
+  const { call, payment, token } = await recoveryPurchase();
+  const writes = checkoutWrites; loseCheckoutReply = true;
+  expect((await call("/checkout")).status).toBe(503);
+  const original = structuredClone(payment().request), calls = providerRequests.length;
+  expect((await call("", "GET")).data.computer.purchase).toMatchObject({ status: "recovering", canContinue: true, canCancel: false });
+  for (let i = 0; i < 3; i++) expect((await call("/reconcile")).status).toBe(200);
+  const canceled = await call("/checkout/cancel");
+  expect(canceled.status).toBe(409); expect(canceled.data.code).toBe("checkout_unconfirmed");
+  expect(providerRequests).toHaveLength(calls);
+  await api("/api/account/update-user", "POST", { name: "Changed after lost reply" }, token);
+  const resumed = await call("/checkout");
+  expect(resumed.status).toBe(200); expect(resumed.data.computer.state).toBe("payment_pending");
+  expect(payment().request).toEqual(original); expect(checkoutWrites - writes).toBe(1);
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
+});
+
+recoveryTest("a later rejection cannot release an earlier uncertain checkout", async () => {
+  const { call } = await recoveryPurchase();
+  loseCheckoutReply = true;
+  expect((await call("/checkout")).status).toBe(503);
+  checkoutFailure = { status: 422, code: "invalid_offer" };
+  expect((await call("/checkout")).status).toBe(502);
+  expect((await call("", "GET")).data.computer.state).toBe("checkout_pending");
+  expect((await call("/checkout/cancel")).data.code).toBe("checkout_unconfirmed");
+  checkoutFailure = undefined;
+  expect((await call("/checkout")).status).toBe(200);
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
+});
+
+recoveryTest("explicit expiry can close an unidentified checkout without replaying payment during cancellation", async () => {
+  const { call } = await recoveryPurchase();
+  loseCheckoutReply = true;
+  expect((await call("/checkout")).status).toBe(503);
+  checkoutFailure = { status: 410, code: "capacity_checkout_expired" };
+  expect((await call("/checkout")).data.code).toBe("capacity_checkout_expired");
+  expect((await call("", "GET")).data.computer.purchase).toMatchObject({ status: "expired", canContinue: false, canCancel: true });
+  const requests = providerRequests.length;
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
+  expect(providerRequests).toHaveLength(requests);
+});
+
+recoveryTest("a lost status response retains the checkout identity for cancellation", async () => {
+  const { call, id } = await recoveryPurchase();
+  const writes = checkoutWrites; statusFailure = true;
+  expect((await call("/checkout")).status).toBe(503);
+  const stored = (await control("stored", id))[0];
+  expect(stored.state).toBe("payment_pending"); expect(stored.checkout_id).toBeTruthy();
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
+  expect(checkoutWrites - writes).toBe(1);
+});
+
+recoveryTest("lost cancellation replies resolve from the original checkout and remain idempotent", async () => {
+  const { call } = await recoveryPurchase();
+  await call("/checkout");
+  const writes = checkoutWrites; loseCancelReply = true;
+  const canceled = await call("/checkout/cancel");
+  expect(canceled.status).toBe(200); expect(canceled.data.computer.state).toBe("deleted");
+  const requests = providerRequests.length;
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
+  expect(providerRequests).toHaveLength(requests); expect(checkoutWrites).toBe(writes);
+});
+
+recoveryTest("pending cancellations preserve their method and key and block reopening payment", async () => {
+  const { call, id } = await recoveryPurchase();
+  await call("/checkout"); cancelLeavesOpen = true;
+  const pending = await call("/checkout/cancel");
+  expect(pending.status).toBe(200);
+  expect(pending.data.computer).toMatchObject({ checkout: null, purchase: { status: "canceling", canContinue: false, canCancel: true } });
+  const original = JSON.parse((await control("stored", id))[0].contract).cancellation;
+  expect((await call("/checkout")).data.code).toBe("checkout_cancellation_pending");
+  const requests = providerRequests.length;
+  await call("/reconcile");
+  expect(providerRequests.slice(requests).every(r => r.method === "GET")).toBe(true);
+  genericCancellation = false; cancelLeavesOpen = false;
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
+  expect(cancellationKeys.get(original.checkoutId)).toBe(original.idempotencyKey);
+  expect(providerRequests.slice(requests).some(r => r.path === "/billing/capacity/change/cancel")).toBe(false);
+});
+
+recoveryTest("legacy cancellation uses only the matching namespace capacity quote", async () => {
+  const { call } = await recoveryPurchase();
+  await call("/checkout"); genericCancellation = false;
+  const requests = providerRequests.length;
+  const canceled = await call("/checkout/cancel");
+  expect(canceled.status).toBe(200); expect(canceled.data.computer.state).toBe("deleted");
+  expect(providerRequests.slice(requests).some(r => r.path === "/billing/capacity/change/cancel")).toBe(true);
+});
+
+recoveryTest("expired checkout links are hidden and closing them needs no cancellation mutation", async () => {
+  const { call, payment } = await recoveryPurchase();
+  await call("/checkout"); payment().expired = true;
+  const expired = await call("/reconcile");
+  expect(expired.data.computer).toMatchObject({ checkout: null, purchase: { status: "expired", canContinue: false, canCancel: true } });
+  const requests = providerRequests.length;
+  expect((await call("/reconcile")).status).toBe(200);
+  expect(providerRequests).toHaveLength(requests);
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
+  expect(providerRequests.slice(requests).every(r => r.method === "GET")).toBe(true);
+});
+
+recoveryTest("submitted unpaid payments show processing without canceling or creating a computer", async () => {
+  const { call, payment } = await recoveryPurchase();
+  await call("/checkout");
+  payment().status = { status: "complete", paymentStatus: "unpaid", fulfilled: false, fulfillmentStatus: "pending" };
+  const requests = providerRequests.length, writes = checkoutWrites, vms = creates;
+  const result = await call("/checkout/cancel");
+  expect(result.status).toBe(200);
+  expect(result.data.computer).toMatchObject({ state: "payment_pending", checkout: null, purchase: { status: "processing", canContinue: false, canCancel: false } });
+  expect((await call("/checkout")).data.computer.checkout).toBeNull();
+  await call("/reconcile");
+  expect(checkoutWrites).toBe(writes); expect(creates).toBe(vms);
+  expect(providerRequests.slice(requests).every(r => r.method === "GET")).toBe(true);
+});
+
+recoveryTest("a concurrent payment wins over cancellation and setup waits for paid capacity", async () => {
+  const { call } = await recoveryPurchase();
+  await call("/checkout"); completeDuringCancel = true;
+  const vms = creates, writes = checkoutWrites;
+  const result = await call("/checkout/cancel");
+  expect(result.status).toBe(200);
+  expect(result.data.computer).toMatchObject({ state: "payment_pending", checkout: null, purchase: { status: "processing", canContinue: false, canCancel: false } });
+  expect((await call("/reconcile")).data.computer.state).toBe("payment_pending");
+  expect(creates).toBe(vms);
+  paid = true;
+  expect((await call("/reconcile")).data.computer.state).toBe("ready");
+  expect(creates - vms).toBe(1); expect(checkoutWrites).toBe(writes);
+});
+
+recoveryTest("provider checkout namespace mismatches cannot expose a payment link or cancel a different payment", async () => {
+  const { call } = await recoveryPurchase();
+  statusMismatch = true;
+  expect((await call("/checkout")).data.code).toBe("invalid_checkout");
+  expect((await call("", "GET")).data.computer.checkout).toBeNull();
+  const requests = providerRequests.length;
+  expect((await call("/checkout/cancel")).data.code).toBe("invalid_checkout");
+  expect(providerRequests.slice(requests).every(r => r.method === "GET")).toBe(true);
+  statusMismatch = false;
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
+});
+
+recoveryTest("opaque Oblien checkout IDs and hosted pages use the same recovery and cancellation flow", async () => {
+  const { call } = await recoveryPurchase(); customCheckout = true;
+  const opened = await call("/checkout");
+  expect(opened.status).toBe(200);
+  expect(opened.data.computer.checkout.id).toStartWith("bco_");
+  expect(opened.data.computer.checkout.url).toBe(`https://api.oblien.com/billing/pay#${"a".repeat(43)}`);
+  expect((await call("/checkout")).data.computer.checkout.id).toBe(opened.data.computer.checkout.id);
+  expect((await call("/checkout/cancel")).data.computer.state).toBe("deleted");
 });

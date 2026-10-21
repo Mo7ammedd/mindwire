@@ -183,3 +183,9 @@ jobs:
         env:
           CLOUD_TEST_POSTGRES_URL: postgresql://mindwire_test:local_test_only@127.0.0.1:5432/postgres
         run: bun --cwd apps/console test test/cloud-computers.test.ts
+      - name: Install checkout browser
+        working-directory: apps/console
+        run: bunx playwright install --with-deps chromium --only-shell
+      - name: Test checkout recovery and cancellation on desktop and mobile
+        working-directory: apps/console
+        run: bun run test:e2e

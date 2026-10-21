@@ -5,6 +5,7 @@ import { request } from "@/lib/api";
 import { useCloud, computerState } from "@/lib/cloud";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ComputerPurchase } from "./ComputerPurchase";
 import {
   ConfirmAction,
   date,
@@ -23,9 +24,14 @@ export function ComputerDetail() {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const workspace = computer?.workspaceId;
+  const cloudAction = cloud.action;
   const refresh = useCallback(async () => {
-    if (!workspace) return;
     try {
+      setError("");
+      if (!workspace) {
+        if (id) await cloudAction(id, "reconcile");
+        return;
+      }
       const data = await request<{
         workspace?: {
           status?: string;
@@ -46,10 +52,10 @@ export function ComputerDetail() {
     } catch (error) {
       setError((error as Error).message);
     }
-  }, [workspace]);
+  }, [workspace, id, cloudAction]);
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (workspace) void refresh();
+  }, [refresh, workspace]);
   async function power(operation: "start" | "stop" | "restart") {
     if (!workspace || busy) return;
     setBusy(true);
@@ -83,6 +89,26 @@ export function ComputerDetail() {
   const pending = ["draft", "checkout_pending", "payment_pending"].includes(
     computer.state,
   );
+  if (pending) return <ComputerPurchase computer={computer} busy={busy} error={error || computer.error || undefined}
+    onContinue={async () => {
+      if (busy) return;
+      setBusy(true); setError("");
+      try { await cloud.action(computer.id, "checkout"); }
+      catch (error) { setError((error as Error).message); }
+      finally { setBusy(false); }
+    }}
+    onRefresh={async () => {
+      if (busy) return;
+      setBusy(true);
+      try { await refresh(); } finally { setBusy(false); }
+    }}
+    onCancel={async () => {
+      setBusy(true); setError("");
+      try {
+        const result = await cloud.action(computer.id, "checkout/cancel");
+        if (result.computer?.state === "deleted") navigate("/computers");
+      } finally { setBusy(false); }
+    }} />;
   return (
     <div className="space-y-7">
       <Button asChild size="sm" variant="ghost"><Link to="/computers"><ArrowLeft />All computers</Link></Button>
@@ -100,8 +126,8 @@ export function ComputerDetail() {
           </Button>
         }
       />
-      {error && <ErrorNotice message={error} retry={() => void refresh()} />}
-      {computer.error && <ErrorNotice message={computer.error} />}
+      {error && error !== cloud.error && <ErrorNotice message={error} retry={() => void refresh()} />}
+      {computer.error && computer.error !== cloud.error && computer.error !== error && <ErrorNotice message={computer.error} />}
       <div className="grid gap-4 sm:grid-cols-3">
         {[
           {
@@ -195,32 +221,18 @@ export function ComputerDetail() {
                 ? `${computer.subscription.cancelAtPeriodEnd ? "Paid through" : "Next renewal"} ${date(computer.subscription.paidThrough)}`
                 : computerState(computer)}
             </p>
-            {pending ? (
-              <Button
-                onClick={async () => {
-                  try {
-                    await cloud.action(computer.id, "checkout");
-                  } catch (error) {
-                    setError((error as Error).message);
-                  }
-                }}
-              >
-                Continue checkout
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    await cloud.action(computer.id, "billing-portal");
-                  } catch (error) {
-                    setError((error as Error).message);
-                  }
-                }}
-              >
-                Manage billing
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await cloud.action(computer.id, "billing-portal");
+                } catch (error) {
+                  setError((error as Error).message);
+                }
+              }}
+            >
+              Manage billing
+            </Button>
             <Link
               className="ml-3 text-xs text-muted-foreground hover:underline"
               to="/billing"
@@ -232,37 +244,26 @@ export function ComputerDetail() {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-6">
         <div>
-          <h2 className="text-sm font-medium">
-            {pending ? "Cancel this purchase" : "Delete this computer"}
-          </h2>
+          <h2 className="text-sm font-medium">Delete this computer</h2>
           <p className="mt-1 max-w-lg text-xs leading-relaxed text-muted-foreground">
-            {pending
-              ? "Close an unpaid checkout to choose another computer or plan."
-              : "Permanently remove the computer and stop its next renewal. Storage retention follows your subscription terms."}
+            Permanently remove the computer and stop its next renewal. Storage retention follows your subscription terms.
           </p>
         </div>
         <ConfirmAction
           destructive
-          label={pending ? "Cancel purchase" : "Delete computer"}
-          title={pending ? "Cancel this purchase?" : `Delete ${computer.name}?`}
-          description={
-            pending
-              ? "An already completed payment cannot be discarded. Your other computers are unaffected."
-              : "The computer will be removed. Running work will stop, and this action cannot be undone. Your other computers are unaffected."
-          }
+          label="Delete computer"
+          title={`Delete ${computer.name}?`}
+          description="The computer will be removed. Running work will stop, and this action cannot be undone. Your other computers are unaffected."
           onConfirm={async () => {
-            if (pending) await cloud.action(computer.id, "checkout/cancel");
-            else {
-              if (!workspace)
-                throw new Error(
-                  "Computer setup must finish before deletion. You can stop renewal from Billing.",
-                );
-              await request(
-                `/api/cloud/provider/workspace/${encodeURIComponent(workspace)}`,
-                "DELETE",
+            if (!workspace)
+              throw new Error(
+                "Computer setup must finish before deletion. You can stop renewal from Billing.",
               );
-              await cloud.reload();
-            }
+            await request(
+              `/api/cloud/provider/workspace/${encodeURIComponent(workspace)}`,
+              "DELETE",
+            );
+            await cloud.reload();
             navigate("/computers");
           }}
         />

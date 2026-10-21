@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { consoleRows, postgres } from "../database";
 import { COMPUTER_CATALOG_VERSION, type ComputerPlan } from "../../shared/cloud";
 import { CloudError, contract, type ComputerRow } from "./types";
+import { operationFailure } from "../errors";
 
 export class ComputerStore {
   async list(owner: string): Promise<ComputerRow[]> {
@@ -56,10 +57,15 @@ export class ComputerStore {
     };
     try { return await work(row, save); }
     catch (error) {
-      const message = error instanceof CloudError ? error.message : "The computer operation could not finish. Retry shortly.";
-      await consoleRows(sql`UPDATE cloud_computer SET error=${message},updated_at=${Date.now()}
+      const failure = operationFailure(error);
+      const message = failure.message;
+      const saved = contract(row);
+      saved.checkoutError = { code: failure.code,
+        retryable: failure.details?.retryable ?? (failure.status >= 500 || failure.status === 429 || failure.code === "computer_busy"),
+        ...(failure.details?.reference ? { reference: failure.details.reference } : {}) };
+      await consoleRows(sql`UPDATE cloud_computer SET error=${message},contract=${JSON.stringify(saved)},updated_at=${Date.now()}
         WHERE id=${id} AND owner_id=${owner} AND lease_token=${token} AND lease_until>${Date.now()} RETURNING id`);
-      throw error;
+      throw failure;
     }
     finally { await consoleRows(sql`UPDATE cloud_computer SET lease_token=NULL,lease_until=0 WHERE id=${id} AND owner_id=${owner} AND lease_token=${token} RETURNING id`); }
   }

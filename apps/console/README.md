@@ -10,11 +10,49 @@ From the repository root, run `bun install` then `bun dev` to start the landing 
 
 Run `bun --filter=@mindwire/console run check`, `run test`, and `run build` to validate changes. Cloud ownership, billing reconciliation, push migration and account management tests use a local provider fixture. Set `CLOUD_TEST_POSTGRES_URL` to run the Cloud tests against PostgreSQL.
 
+For checkout browser tests, run `bunx playwright install chromium --only-shell`
+then `bun run test:e2e` from `apps/console`. These test checkout recovery,
+cancellation, errors and payment confirmation at desktop and iPhone widths with
+intercepted APIs. They never use a real provider account or payment.
+
 ## Hosted deployment
 
 The root `docker-compose.yml` builds the website and Console from source and starts PostgreSQL. Configure `.env.example` before deployment. Required production values are `AUTH_SECRET`, a separate `SECRETS_ENCRYPTION_KEY`, `POSTGRES_PASSWORD` (or `DATABASE_URL`) and the public `BASE_URL`. Preserve signing/encryption keys across releases. Cloud purchases also require server-only `OBLIEN_CLIENT_ID`, `OBLIEN_CLIENT_SECRET` and the webhook secret; configure `computers.mindwire.sh` with the runtime gateway before releasing the native app.
 
 See [Cloud Computers](../web/content/docs/guides/cloud-computers.mdx) and [source deployment](../../docker/README.md). Firebase credentials remain outside the repository and build context; mount them read-only using the push Compose overlay.
+
+The reseller credentials must belong to an Enterprise provider account with the
+permissions needed for namespaces, billing and computers. The provider must also
+allow the host of `BASE_URL` (normally `console.mindwire.sh`) in its own
+`REDIRECT_ALLOWED_HOSTS`. Setting that variable on Console does not update the
+provider's allowlist.
+
+Cloud failures return a stable code and diagnostic reference. Find the matching
+`[cloud] provider request failed` line in the Console server log for the upstream
+operation, status and provider request reference. Credentials and response bodies
+are excluded. For example, `billing_redirect_not_allowed` requires the provider's
+return-host configuration; `reseller_enterprise_required` requires enabling the
+provider account for resale. These are not fixed by resetting the Console database.
+After correcting the configuration, use **Continue checkout** on the saved
+computer. Its original purchase and idempotency key are reused.
+
+Checkout recovery follows the tracked purchase flow used by OpenShip:
+
+- Save the exact request before dispatch, and reuse it on **Resume checkout**.
+- Inventory reads and automatic reconciliation never replay an unidentified
+  checkout. A lost creation reply requires explicit resumption before cancellation.
+- A documented rejection of the first attempt leaves a locally cancelable draft.
+  A later rejection cannot discard an earlier uncertain payment.
+- Read the scoped checkout status before resuming or canceling. Submitted payments
+  show **Confirming payment** and cannot open another payment or be discarded.
+- Persist the cancellation method and key before dispatch, then read the original
+  checkout again. A lost cancellation reply is resolved from that status. The
+  provider's advertised generic cancellation is preferred; a legacy capacity
+  cancellation must match the same namespace and checkout.
+
+The pinned Oblien SDK is 2.10.0, which already exposes checkout status. Its missing
+generic cancellation endpoint and capability type stay inside the bounded provider
+adapter, as in OpenShip. Confirmed paid capacity remains required for provisioning.
 
 ## API boundaries
 
