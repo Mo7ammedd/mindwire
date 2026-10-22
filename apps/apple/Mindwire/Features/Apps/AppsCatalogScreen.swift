@@ -13,8 +13,7 @@ struct AppsCatalogScreen: View {
 
     private var apps: [AppShortcut] {
         _ = stores.apps.revision
-        return stores.apps.list().filter { !$0.archived && WorkspaceRepository.shared.get($0.workspaceId) != nil }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return AppShortcut.catalog(stores.apps.list(), workspaceIDs: Set(WorkspaceRepository.shared.all.map(\.id)))
     }
 
     var body: some View {

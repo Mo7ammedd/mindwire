@@ -20,7 +20,7 @@ struct NotificationConnectionSheet: View {
                         Text("Know when your agent needs you")
                             .font(.title2.weight(.semibold))
                             .multilineTextAlignment(.center)
-                        Text("Sign in to Oblien for alerts when work finishes, an agent needs your answer, or a turn fails.")
+                        Text("Sign in to Mindwire for alerts when work finishes, an agent needs your answer, or a turn fails.")
                             .font(.subheadline).foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                         Text("Works with your Mac, servers and cloud workspaces.")

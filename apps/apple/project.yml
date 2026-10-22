@@ -74,6 +74,7 @@ targets:
         buildPhase: resources
       - path: scripts/mindwire-cli.sh
         buildPhase: resources
+      - path: Shared/Widgets
     dependencies:
       - package: OblienKit
       - package: RoyalVNCKit
@@ -128,6 +129,8 @@ targets:
       - package: Firebase
         product: FirebaseMessaging
       - target: NotifyService   # embed the notification service extension
+      - target: MindwireWidgets
+        platformFilter: iOS
     postBuildScripts:
       - name: Embed local Mac runtime
         path: scripts/embed-local-runtime.sh
@@ -148,6 +151,23 @@ targets:
       configs:
         Debug:
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG"
+
+  MindwireWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: MindwireWidgets
+      - path: Shared/Widgets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire.widgets
+        INFOPLIST_FILE: MindwireWidgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: MindwireWidgets/MindwireWidgets.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        SUPPORTS_MACCATALYST: NO
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
 
   MindwireTests:
     type: bundle.unit-test
@@ -186,6 +206,7 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: NotifyService
+      - path: Shared/Widgets
       - path: Mindwire/Resources/Assets.xcassets
       - path: Mindwire/Models/AgentBrand.swift
       - path: Mindwire/DesignSystem/BotPalette.swift
@@ -199,6 +220,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire.notifyservice
         "TARGETED_DEVICE_FAMILY[sdk=macosx*]": "6"
+        CODE_SIGN_ENTITLEMENTS: NotifyService/NotifyService.entitlements
         INFOPLIST_FILE: NotifyService/Info.plist
         GENERATE_INFOPLIST_FILE: NO
 

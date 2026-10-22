@@ -116,7 +116,7 @@ struct NotificationDeviceSection: View {
             guard scenePhase == .active else { return }
             await refresh()
         }
-        .mindwireLoginSheet(isPresented: $showLogin) {
+        .mindwireSignIn(isPresented: $showLogin) {
             Task { await refresh() }
         }
     }
@@ -221,7 +221,7 @@ struct NotificationPreferencesScreen: View {
         .onChange(of: stores.bots.revision) { reload() }
         .task { await refresh() }
         .refreshable { await refresh(force: true) }
-        .mindwireLoginSheet(isPresented: $showLogin) {
+        .mindwireSignIn(isPresented: $showLogin) {
             Task { await WorkspaceRepository.shared.refresh(); await refresh() }
         }
     }

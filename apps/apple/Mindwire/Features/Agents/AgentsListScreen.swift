@@ -7,6 +7,7 @@ struct AgentsListScreen: View {
     @Environment(\.stores) private var stores
     @Environment(\.appExperienceMode) private var experienceMode
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(AppModel.self) private var app
     @Environment(\.sidebarNavigation) private var sidebar
     @State private var entries: [Entry] = []
@@ -77,7 +78,7 @@ struct AgentsListScreen: View {
         }
         .searchable(text: $search, prompt: t("bots.search"))
         .navigationTitle(t("assistant.bots.title"))
-        .principalBrand()
+        .principalBrand(visible: !usesCards)
         .toolbar {
             AppToolbarItem(placement: .topBarLeading) {
                 Menu {
@@ -136,34 +137,50 @@ struct AgentsListScreen: View {
     }
 
     private func card(_ entry: Entry) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            AssistantBotAvatar(botId: entry.id, icon: entry.bot.icon,
-                               size: EntityCardStyle.iconSize, isWorking: isWorking(entry))
-                .padding(.vertical, 2)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(entry.bot.name).font(.body.weight(.semibold)).foregroundStyle(.primary)
-                    .lineLimit(2, reservesSpace: true)
-                Text(entry.bot.purpose).font(.subheadline).foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true)
-            }
-            VStack(alignment: .leading, spacing: 6) {
+        let working = isWorking(entry)
+        let tint = AssistantBotIcon.resolve(botId: entry.id, icon: entry.bot.icon).color.fill
+        let computer = repository.all.first { $0.id == entry.bot.workspaceId }
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                AssistantBotAvatar(botId: entry.id, icon: entry.bot.icon, size: 40, isWorking: working)
+                Spacer(minLength: 8)
                 if let agent = stores.agents.get(entry.bot.agentId) {
-                    HStack(spacing: 6) {
-                        AgentLogo(id: agent.agentType, size: 14).accessibilityHidden(true)
-                        Text(agent.typeDisplayName).lineLimit(1)
-                    }
+                    AgentLogo(id: agent.agentType, size: 18)
+                        .padding(6)
+                        .background(Palette.surface.opacity(0.8), in: .circle)
+                        .accessibilityLabel(agent.typeDisplayName)
                 }
-                Label { Text(entry.computer).lineLimit(1) } icon: {
-                    AppIcon(Icon.computer, size: 14, decorative: true)
-                }
-                .labelIconToTitleSpacing(6)
             }
-            .font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(entry.bot.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                    .lineLimit(2).multilineTextAlignment(.leading)
+                Text(entry.bot.purpose)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(2).multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? nil : 64, alignment: .topLeading)
+            Spacer(minLength: 0)
+            HStack(spacing: 5) {
+                AppIcon(computer?.isCloud == true ? .cloud : .laptop, size: 12, decorative: true)
+                Text(entry.computer).lineLimit(1).truncationMode(.middle)
+                Spacer(minLength: 0)
+                if working {
+                    Circle().fill(tint).frame(width: 5, height: 5).accessibilityHidden(true)
+                }
+            }
+            .font(.caption2).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(EntityCardStyle.padding)
-        .background(EntityCardBackground())
-        .contentShape(.rect(cornerRadius: EntityCardStyle.cornerRadius))
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 210 : 168, alignment: .topLeading)
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Palette.surface)
+                .overlay(alignment: .top) {
+                    LinearGradient(colors: [tint.opacity(colorScheme == .dark ? 0.10 : 0.08), .clear],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                        .clipShape(.rect(cornerRadius: 22))
+                }
+        }
+        .contentShape(.rect(cornerRadius: 22))
         .accessibilityElement(children: .combine)
     }
 

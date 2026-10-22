@@ -13,6 +13,7 @@ struct AppStorePreviewScene: View {
     @State private var showHistory = false
     @State private var showDesktop = false
     @State private var showSchedules = false
+    @State private var showAddComputer = true
     @State private var previewBot: AssistantBot?
     @State private var notificationReminderOwner = UUID()
     @State private var error: String?
@@ -25,6 +26,7 @@ struct AppStorePreviewScene: View {
             if let fixture, let git {
                 content(fixture, git: git)
                     .restoringNavigation(fixture.app, store: fixture.navigationStore)
+                    .modifier(WidgetNavigation(repository: fixture.repository))
                     .environment(fixture.app)
                     .environment(\.stores, fixture.stores)
                     .environment(\.appExperienceMode, fixture.stores.experience.mode ?? .developer)
@@ -77,7 +79,7 @@ struct AppStorePreviewScene: View {
                     data.app.projectsPath = NavigationPath([AppRoute.projectDetail(id: data.projects[0].id), .chat(chatId: data.chatID)])
                 } else if (scenario == "projects" && UIDevice.current.userInterfaceIdiom == .pad) || scenario == "switch" {
                     data.app.openProject(data.projects[0].id)
-                } else if scenario == "workspaces" { data.app.selectedTab = .workspaces }
+                } else if scenario == "workspaces" || scenario == "add-computer" { data.app.selectedTab = .workspaces }
                 else if scenario == "agents" { data.app.selectedTab = .agents }
                 else if scenario.hasPrefix("assistant") || scenario == "onboarding" || scenario == "mode-settings" {
                     data.stores.experience.mode = scenario == "onboarding" ? nil : scenario == "mode-settings" ? .developer : .general
@@ -133,6 +135,21 @@ struct AppStorePreviewScene: View {
 
     @ViewBuilder private func content(_ data: AppStoreFixture, git: GitModel) -> some View {
         switch scenario {
+        case "account-empty":
+            NavigationStack {
+                Form {
+                    Section { MindwireSignInPrompt(bodyKey: "account.signIn.body") {} }
+                        .listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+                }
+                .navigationTitle("Account").navigationBarTitleDisplayMode(.inline)
+            }
+        case "projects-sign-in":
+            MainScene(repository: data.repository)
+        case "add-computer":
+            MainScene(repository: data.repository)
+                .sheet(isPresented: $showAddComputer) { AddComputerScreen(repository: data.repository) }
+        case "widgets":
+            WidgetPreviewScene(apps: data.stores.apps.list())
         case "chat", "chat-loading":
             #if targetEnvironment(macCatalyst)
             assistantConversation(data)
@@ -151,6 +168,12 @@ struct AppStorePreviewScene: View {
             #endif
         case "bot-integrations":
             if let previewBot { BotIntegrationsScreen(bot: previewBot) }
+        case "bot-integrations-slack", "bot-integrations-telegram", "bot-integrations-discord", "bot-integrations-teams":
+            if let previewBot, let provider = MessagingProvider(rawValue: String(scenario.dropFirst("bot-integrations-".count))) {
+                MessagingIntegrationSetupScreen(bot: previewBot, provider: provider)
+            }
+        case "bot-schedules":
+            if let previewBot { BotSchedulesScreen(bot: previewBot) }
         case "bot-detail":
             if let previewBot {
                 NavigationStack { BotDetailScreen(botId: previewBot.id, repository: data.repository) }

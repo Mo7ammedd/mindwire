@@ -5,7 +5,6 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
-    var computerCollection: ComputerCollection = .personal
     var selectedTab: AppTab = ApplePlatform.isDesktop ? .agents : .projects { didSet { navigationDidChange?() } }
     var assistantChatID: String? { didSet { navigationDidChange?() } }
     var assistantBotID: String? { didSet { navigationDidChange?() } }
@@ -293,9 +292,6 @@ final class AppModel {
         }
         enterDeveloper()
         selectedTab = .workspaces
-        if let computer = WorkspaceRepository.shared.get(id) {
-            computerCollection = computer.isCloud ? .cloud : .personal
-        }
         if ApplePlatform.isDesktop {
             desktopWorkspaceID = id
             workspacesPath = NavigationPath()

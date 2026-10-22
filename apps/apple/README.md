@@ -93,6 +93,30 @@ to **Connect your phone** in the desktop app. The Terminal tab provides `npm ins
 and `mindwire connect pair`, with QR scanning and pasting a connection link as separate choices.
 Do not point this setting at the daemon binary or the command-line installation guide.
 
+### Home Screen widgets
+
+On iPhone and iPad, **Your apps** offers four configurable shortcuts in medium or large sizes.
+Long-press it and choose **Edit Widget** to select each shortcut. Empty slots fill from the
+current catalog; renamed, archived and removed apps follow the same rules as the app.
+
+**Ask Mindwire** comes in small and medium sizes. It prioritizes bots needing approval or a reply,
+then errors, working bots and recent results. Tap a status to open that exact conversation for
+review; approvals always happen inside the existing chat. With no activity, it opens the default
+bot's latest conversation, creating one if needed. The medium widget also has a direct assistant
+shortcut and shows up to two different bots.
+
+The app and notification service share display metadata, status and cached artwork through the
+`group.com.oblien.mindwire` App Group. Existing chat activity drives foreground updates; delivered
+bot notifications update approval, reply, completion and error states in the background. WidgetKit
+controls refresh timing, so this is a last-known view, not a continuous live connection. After five
+minutes, active status wording changes to “Last seen working” or “Approval requested”. Muted or
+undelivered notifications cannot update a suspended app's widget.
+
+Widgets make no network requests and store no transcript bodies, credentials, commands or approval
+responses. App links use the existing startup checks and private tunnel recovery. Activity changes
+reuse icon images, skip identical snapshots and reload only Ask Mindwire; the Apps widget reloads
+only when its catalog changes.
+
 ### Mac runtime
 
 The Mac opens its bot messenger and automatically prepares **This Mac**. It reuses the current account's

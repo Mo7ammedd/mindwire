@@ -73,17 +73,18 @@ private struct MindwireWindow: View {
     @State private var app: AppModel
     @State private var sheet: RootSheet?
     @State private var nextSheet: RootSheet?
+    @State private var showAccountSignIn = false
+    @State private var signInAfterSheet = false
     @State private var notificationReminderOwner = UUID()
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("mindwire.appearance") private var appearance = "system"
 
     private enum RootSheet: Identifiable {
-        case computerPairing(String), notificationIntro, notificationLogin
+        case computerPairing(String), notificationIntro
         var id: String {
             switch self {
             case .computerPairing: "computer"
             case .notificationIntro: "notification-intro"
-            case .notificationLogin: "notification-login"
             }
         }
     }
@@ -97,6 +98,7 @@ private struct MindwireWindow: View {
     var body: some View {
         MainScene()
             .restoringNavigation(app, store: .shared)
+            .modifier(WidgetNavigation(onOtherURL: handleDeepLink))
             .environment(app)
             .environment(\.stores, stores)
             .preferredColorScheme(preferredScheme)
@@ -111,7 +113,6 @@ private struct MindwireWindow: View {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { offerNotificationSignIn() }
             }
-            .onOpenURL(perform: handleDeepLink)
             .sheet(item: $sheet, onDismiss: rootSheetDismissed) { item in
                 switch item {
                 case .computerPairing(let code):
@@ -125,7 +126,8 @@ private struct MindwireWindow: View {
                 case .notificationIntro:
                     NotificationConnectionSheet {
                         stores.notificationSignInReminder.finish(.signIn, owner: notificationReminderOwner)
-                        present(.notificationLogin)
+                        signInAfterSheet = true
+                        sheet = nil
                     } onLater: {
                         stores.notificationSignInReminder.finish(.later, owner: notificationReminderOwner)
                         sheet = nil
@@ -133,13 +135,12 @@ private struct MindwireWindow: View {
                         stores.notificationSignInReminder.finish(.notNow, owner: notificationReminderOwner)
                         sheet = nil
                     }
-                case .notificationLogin:
-                    MindwireLoginSheet {
-                        Task {
-                            await MindwireAuth.shared.refresh()
-                            await BackendFactory.pushService().start()
-                        }
-                    }
+                }
+            }
+            .mindwireSignIn(isPresented: $showAccountSignIn) {
+                Task {
+                    await MindwireAuth.shared.refresh()
+                    await BackendFactory.pushService().start()
                 }
             }
             .labelIconToTitleSpacing(Spacing.md)
@@ -165,6 +166,7 @@ private struct MindwireWindow: View {
         // A swipe dismissal has the same meaning as Not now.
         stores.notificationSignInReminder.finish(.notNow, owner: notificationReminderOwner)
         if let next = nextSheet { nextSheet = nil; sheet = next }
+        else if signInAfterSheet { signInAfterSheet = false; showAccountSignIn = true }
     }
 
     private func offerNotificationSignIn() {
@@ -179,7 +181,8 @@ private struct MindwireWindow: View {
         let modalIsOpen = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows).contains { $0.isKeyWindow && $0.rootViewController?.presentedViewController != nil }
         guard stores.notificationSignInReminder.claim(owner: notificationReminderOwner, signedOut: MindwireAuth.shared.isSignedOut,
-            active: scenePhase == .active, canPresent: atRoot && sheet == nil && nextSheet == nil && !modalIsOpen) else { return }
+            active: scenePhase == .active, canPresent: atRoot && sheet == nil && nextSheet == nil
+                && !showAccountSignIn && !signInAfterSheet && !modalIsOpen) else { return }
         sheet = .notificationIntro
         #endif
     }

@@ -102,7 +102,7 @@ struct ChatHistorySheet: View {
         .onChange(of: app.selectedTab) { _, _ in if desktopDeveloper { search = "" } }
         .sheet(isPresented: $showingNewProject) { NewProjectScreen().frame(width: 660, height: 580) }
         .sheet(isPresented: $showingNewComputer) {
-            NewWorkspaceScreen(assistantCloud: app.computerCollection == .cloud) { app.openWorkspace($0.id) }.frame(width: 660, height: 580)
+            AddComputerScreen { app.openWorkspace($0.id) }.frame(width: 660, height: 580)
         }
         .sheet(isPresented: $showingService) {
             if let id = globalWorkspaceId, let workspace = WorkspaceRepository.shared.get(id) {

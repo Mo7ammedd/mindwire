@@ -103,13 +103,6 @@ final class MindwireAuth {
     }
 }
 
-extension View {
-    /// Presents the Oblien login modal when `isPresented` flips true; `onSignedIn` runs after success.
-    func mindwireLoginSheet(isPresented: Binding<Bool>, onSignedIn: @escaping () -> Void = {}) -> some View {
-        sheet(isPresented: isPresented) { MindwireLoginSheet(onSignedIn: onSignedIn) }
-    }
-}
-
 /// Identifiable URL for `.fullScreenCover(item:)`.
 struct IdentifiedURL: Identifiable {
     let id = UUID()
@@ -137,44 +130,49 @@ struct SafariView: UIViewControllerRepresentable {
     }
 }
 
-/// Optional cloud login, shared by account settings and cloud feature entry points.
-struct MindwireLoginSheet: View {
-    var onSignedIn: () -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            AssistantPage {
-                AssistantBrandMark(size: 36).padding(.top, 20)
-                AssistantHeading(title: "Your Mindwire account.", detail: t("login.body"))
-                CloudSignIn(onboarding: true) { onSignedIn(); dismiss() }
-            }
-            .navigationTitle(t("login.navTitle"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                AppToolbarItem(placement: .cancellationAction) {
-                    Button(t("common.cancel")) { dismiss() }.tint(.primary)
-                }
-            }
-        }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-    }
-}
-
-/// Gate content shown when an Oblien session isn't authenticated — a clear sign-in CTA.
+/// Shared signed-out presentation for account and cloud destinations.
 struct MindwireSignInPrompt: View {
     var bodyKey = "auth.required.body"
     var onSignIn: () -> Void
     var body: some View {
-        ContentUnavailableView {
-            Label(t("auth.required.title"), icon: .userCircle)
-        } description: {
-            Text(t(bodyKey))
-        } actions: {
-            Button(t("auth.required.cta")) { onSignIn() }
-                .buttonStyle(.glassProminent).controlSize(.large).tint(Palette.accent)
+        if ApplePlatform.isDesktop {
+            HStack(spacing: 16) {
+                mark(size: 28, tile: 52)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Your Mindwire account").font(.system(size: 14, weight: .semibold))
+                    Text(t(bodyKey)).font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 20)
+                signInButton.controlSize(.regular)
+            }
+            .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            VStack(spacing: 24) {
+                mark(size: 48, tile: 88)
+                VStack(spacing: 10) {
+                    Text("Your Mindwire account").font(.title2.weight(.semibold))
+                    Text(t(bodyKey)).font(.subheadline).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .multilineTextAlignment(.center)
+                signInButton.controlSize(.large)
+            }
+            .frame(maxWidth: 360).padding(.horizontal, 24).padding(.vertical, 32)
+            .frame(maxWidth: .infinity)
         }
+    }
+
+    private var signInButton: some View {
+        Button(t("account.signIn"), action: onSignIn)
+            .buttonStyle(.glassProminent).tint(Palette.accent)
+            .accessibilityIdentifier("mindwire.signIn")
+    }
+
+    private func mark(size: CGFloat, tile: CGFloat) -> some View {
+        AssistantBrandMark(size: size)
+            .frame(width: tile, height: tile)
+            .background(Palette.accent.opacity(0.10), in: .rect(cornerRadius: tile * 0.3))
+            .accessibilityHidden(true)
     }
 }
 
@@ -185,16 +183,21 @@ struct MindwireSignInRow: View {
 
     var body: some View {
         Button(action: onSignIn) {
-            Label {
+            HStack(spacing: 14) {
+                AssistantBrandMark(size: 28)
+                    .frame(width: 48, height: 48)
+                    .background(Palette.accent.opacity(0.08), in: .rect(cornerRadius: 15))
                 VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(t("auth.required.title")).foregroundStyle(.primary)
-                    Text(t(bodyKey)).font(.subheadline).foregroundStyle(.secondary)
+                    Text(t("account.signIn")).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                    Text(t(bodyKey)).font(.footnote).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            } icon: {
-                AppIcon(.userCircle).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "arrow.up.right").font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
             }
+            .contentShape(.rect)
         }
-        .tint(.primary)
+        .buttonStyle(.plain).tint(.primary)
         .accessibilityIdentifier("oblien-sign-in-row")
     }
 }

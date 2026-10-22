@@ -41,6 +41,14 @@ struct AppShortcut: Codable, Identifiable, Hashable {
     }
     var isLocalLink: Bool { destination?.host.map { ["localhost", "127.0.0.1", "::1", "[::1]"].contains($0.lowercased()) } ?? false }
     var needsComputer: Bool { isLocalLink || !(startupCommand ?? "").isEmpty }
+
+    static func catalog(_ apps: [Self], workspaceIDs: Set<String>) -> [Self] {
+        apps.filter { !$0.archived && workspaceIDs.contains($0.workspaceId) }
+            .sorted {
+                let order = $0.name.localizedStandardCompare($1.name)
+                return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
+            }
+    }
 }
 
 struct AppShortcutMutation: Decodable {

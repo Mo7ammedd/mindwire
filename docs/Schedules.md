@@ -12,8 +12,9 @@ choose another saved conversation, including on an authenticated linked
 computer by passing its `workspaceId` and explicit `chatId`. Remote schedules
 execute on their owning computer and do not depend on the phone staying online.
 
-In a chat, open **… → Schedules** to add, edit, pause/resume or delete a
-schedule. The list shows next run, last run and errors. Pausing or deleting
+In a chat, tap the **calendar button** to add, edit, pause/resume or delete a
+schedule. Bot details also has **Schedules**, with a conversation picker; it
+loads only the selected chat's schedules. The list shows next run, last run and errors. Pausing or deleting
 stops future occurrences; a report already running finishes normally and can
 be stopped through the ordinary chat controls. Editing its prompt or timing
 waits until that run finishes. Schedule reads happen only when this screen

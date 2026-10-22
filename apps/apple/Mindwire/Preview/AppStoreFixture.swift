@@ -68,10 +68,11 @@ final class AppStoreFixture {
                 full: true, agents: agents, projects: localProjects, chats: chats, deleted: [])
             remotes[workspace.id] = remote
             stores.workspaces.save(workspace)
-            stores.connections.save(.ssh(RemoteHostConnection(id: workspace.id,
-                name: workspace.id == "store-cloud" ? "Mindwire Cloud" : "Personal computer",
-                type: .ssh, host: "demo.invalid", port: 22, username: "demo", auth: .agent,
-                createdAt: workspace.createdAt)))
+            if !workspace.isCloud {
+                stores.connections.save(.ssh(RemoteHostConnection(id: workspace.id,
+                    name: workspace.name, type: .ssh, host: "demo.invalid", port: 22, username: "demo", auth: .agent,
+                    createdAt: workspace.createdAt)))
+            }
             DaemonWorkCoordinator.shared.recordWorkspaceStatus(.init(power: .running), for: .init(workspaceId: workspace.id))
             DaemonWorkCoordinator.shared.recordHealth(DaemonHealth(ok: true, version: "0.1.42", workspaceMetadataVersion: 1,
                 projectOperationsVersion: 1, projectIconsVersion: 1), for: .init(workspaceId: workspace.id))
@@ -295,6 +296,7 @@ private final class StoreRegistryRemote: WorkspaceRegistryRemote {
 
 @MainActor
 private final class StoreWorkspaceAdapter: WorkspaceAdapter {
+    var requiresSignIn: Bool { ProcessInfo.processInfo.environment["MINDWIRE_STORE_SCENE"] == "projects-sign-in" }
     var workspaces: [Workspace]
     init(workspaces: [Workspace]) { self.workspaces = workspaces }
     func owns(_ workspace: Workspace) -> Bool { workspaces.contains { $0.id == workspace.id } }

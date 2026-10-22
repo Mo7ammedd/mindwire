@@ -32,12 +32,10 @@ struct GitHubAccountsScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: .gitHubAccountsChanged, object: stores)) { _ in
             accounts = stores.gitHubAccounts()
         }
-        .sheet(isPresented: $showLogin) {
-            MindwireLoginSheet {
-                authed = true
-                if let step = pendingStep { pendingStep = nil; startStep(step) }
-                else { Task { await reload() } }
-            }
+        .mindwireSignIn(isPresented: $showLogin) {
+            authed = true
+            if let step = pendingStep { pendingStep = nil; startStep(step) }
+            else { Task { await reload() } }
         }
         .sheet(isPresented: $showConnect) {
             GitHubConnectScreen(workspaceId: nil) { added in

@@ -77,7 +77,9 @@ private struct ChatTranscriptTable<Row: Identifiable & Equatable, Content: View>
         let table = TranscriptTableView(frame: .zero, style: .plain)
         table.accessibilityIdentifier = "chat.transcript"
         table.backgroundColor = .clear
-        table.topEdgeEffect.style = .soft
+        // The mobile title is outside the glass controls. Keep scrolled message text and
+        // colored bubbles obscured behind it; the desktop has its own separate header.
+        table.topEdgeEffect.style = ApplePlatform.isDesktop ? .soft : .hard
         table.bottomEdgeEffect.style = .soft
         table.separatorStyle = .none
         table.allowsSelection = false

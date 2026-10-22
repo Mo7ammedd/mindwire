@@ -174,15 +174,14 @@ struct DesktopDeveloperItems: View {
         projects.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) || $0.path.localizedCaseInsensitiveContains(query) }
     }
     private var computers: [Workspace] {
-        repository.all.filter { $0.isCloud == (app.computerCollection == .cloud) }
-            .filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) || ($0.runtime.isLocal && "This Mac".localizedCaseInsensitiveContains(query)) }
+        repository.all.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) || $0.computerKind(in: stores).localizedCaseInsensitiveContains(query) }
             .sorted { lhs, rhs in
                 if lhs.runtime.isLocal != rhs.runtime.isLocal { return lhs.runtime.isLocal }
                 return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
             }
     }
     private var unassignedConnections: [Connection] {
-        (app.computerCollection == .cloud ? [] : ComputerInventory(workspaces: repository.all, connections: connections).unassignedConnections)
+        ComputerInventory(workspaces: repository.all, connections: connections).unassignedConnections
             .filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) || $0.displayAddress.localizedCaseInsensitiveContains(query) }
     }
 
@@ -208,18 +207,11 @@ struct DesktopDeveloperItems: View {
                     .desktopSidebarRow()
                 }
             } else {
-                ComputerCollectionPicker(selection: Binding(get: { app.computerCollection }, set: { collection in
-                    app.navigateDesktop {
-                        app.computerCollection = collection
-                        app.showComputers()
-                    }
-                }))
-                    .controlSize(.small).padding(.bottom, 10).desktopSidebarRow()
                 if computers.isEmpty && unassignedConnections.isEmpty { empty("No computers") }
                 ForEach(computers) { workspace in
                     Button { app.openWorkspace(workspace.id) } label: {
                         DesktopDeveloperRow(title: workspace.runtime.isLocal ? "This Mac" : workspace.name,
-                                            subtitle: workspace.runtime.isLocal ? "On this Mac" : workspace.isCloud ? "Mindwire Cloud" : "Remote computer",
+                                            subtitle: workspace.computerKind(in: stores),
                                             selected: app.desktopWorkspaceID == workspace.id) {
                             AppIcon(workspace.runtime.isLocal ? .laptop : workspace.isCloud ? .cloud : .server, size: 24)
                                 .foregroundStyle(.secondary).frame(width: 30, height: 30)
@@ -333,7 +325,7 @@ struct DesktopDeveloperLanding: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $creating) {
             if section == .projects { NewProjectScreen().frame(width: 660, height: 580) }
-            else { NewWorkspaceScreen(assistantCloud: app.computerCollection == .cloud) { app.openWorkspace($0.id) }.frame(width: 660, height: 580) }
+            else { AddComputerScreen { app.openWorkspace($0.id) }.frame(width: 660, height: 580) }
         }
     }
 }

@@ -33,7 +33,7 @@ struct WorkspacePortsView: View {
         ) {
             submitExpose()
         }
-        .mindwireLoginSheet(isPresented: $showLogin) {
+        .mindwireSignIn(isPresented: $showLogin) {
             if let port = pendingPort { pendingPort = nil; Task { await model.exposePort(port) } }
         }
     }

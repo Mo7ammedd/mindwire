@@ -13,7 +13,8 @@ struct WorkspaceRow: View {
             Text(subtitle)
         } icon: {
             EntityCardIcon {
-                if workspace.runtime.isLocal { AppIcon(.monitor, size: 28) }
+                if workspace.runtime.isLocal { AppIcon(.laptop, size: 28) }
+                else if workspace.isCloud { AppIcon(.cloud, size: 28) }
                 else { WorkspaceImageIcon(image: workspace.image, catalog: catalog, size: 28) }
             }
         } accessory: {
@@ -24,21 +25,19 @@ struct WorkspaceRow: View {
     }
 
     private var subtitle: String {
-        let platform: String
-        if workspace.runtime.isLocal {
-            platform = "This Mac"
-        } else if workspace.runtime.sandbox != nil {
-            platform = t("newWorkspace.sandbox")
-        } else if let image = workspace.image, !image.isEmpty {
-            platform = CloudImages.displayName(image, in: catalog)
-        } else if let serverId = workspace.runtime.serverId {
-            platform = stores.connections.get(serverId)?.name ?? t("workspaces.selfHosted")
-        } else {
-            platform = t("runtime.cloud.label")
-        }
         let count = stores.projects(forWorkspaceId: workspace.id).count
         let projects = count == 1 ? t("workspaces.oneProject") : t("workspaces.projectCount", ["count": "\(count)"])
-        return "\(platform) · \(projects)"
+        return [workspace.computerKind(in: stores), projects].joined(separator: " · ")
+    }
+}
+
+extension Workspace {
+    func computerKind(in stores: Stores) -> String {
+        if runtime.isLocal { return "This Mac" }
+        if isCloud { return t("assistant.setup.cloud") }
+        if runtime.sandbox != nil { return t("newWorkspace.sandbox") }
+        if let serverID = runtime.serverId, stores.connections.get(serverID)?.pairedComputer != nil { return "Computer" }
+        return "SSH"
     }
 }
 

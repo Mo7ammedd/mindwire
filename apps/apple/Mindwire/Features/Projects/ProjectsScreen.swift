@@ -153,7 +153,7 @@ struct ProjectsScreen: View {
             if !projects.isEmpty { managingFolder = folder }
         }
         .sheet(item: $selectedOperation, onDismiss: reload) { ProjectOperationScreen(reference: $0, repository: repository) }
-        .mindwireLoginSheet(isPresented: $showLogin) {
+        .mindwireSignIn(isPresented: $showLogin) {
             Task { await repository.refresh(); reload() }
         }
     }
@@ -167,7 +167,8 @@ struct ProjectsScreen: View {
 
     private var signInFooter: some View {
         MindwireSignInRow(bodyKey: "projects.signIn.body") { showLogin = true }
-            .padding(.vertical, Spacing.sm)
+            .padding(16)
+            .background(Palette.surface, in: .rect(cornerRadius: 20))
     }
 
     private func cards(_ contents: ProjectLibraryContents, minimumHeight: CGFloat) -> some View {

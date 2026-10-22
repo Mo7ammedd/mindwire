@@ -64,6 +64,12 @@ adapter, as in OpenShip. Confirmed paid capacity remains required for provisioni
 
 Console does not expose agent execution, chat, SSH or local Docker APIs. Existing database records are retained; this refactor does not erase stored account, Cloud, directory or notification data.
 
+Native device approval shows the browser account with **Switch account** and **Sign out**.
+Both use the existing browser-session sign-out action and retain the `/device?user_code=…`
+URL for the next login. Merely opening the page verifies the code without browser credentials;
+the authenticated verification that claims it runs only after an explicit Sign in or Cancel.
+An already claimed request keeps Better Auth's ownership checks and cannot be reassigned.
+
 ## Visual theme
 
 The portal and sign-in screens share the website palette in

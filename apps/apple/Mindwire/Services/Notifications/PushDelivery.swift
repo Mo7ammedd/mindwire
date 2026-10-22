@@ -28,10 +28,11 @@ final class PushRouter {
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any],
                      fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        let widgetChanged = WidgetPushUpdates.record(data: PushPayload.data(from: userInfo))
         guard let notification = CKNotification(fromRemoteNotificationDictionary: userInfo),
               notification.containerIdentifier == CloudKitConnectionCloud.containerID,
               notification.subscriptionID == "mindwire-connection-sync." + CloudKitConnectionCloud.zoneName else {
-            completionHandler(.noData)
+            completionHandler(widgetChanged ? .newData : .noData)
             return
         }
         Task { @MainActor in
@@ -76,6 +77,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     // Other chats still alert while the app is open, including chats of the same agent.
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        WidgetPushUpdates.record(data: PushPayload.data(from: notification.request.content.userInfo))
         let target = PushTarget(payload: notification.request.content.userInfo)
         return await MainActor.run {
             PushPresentation.shared.options(for: target,

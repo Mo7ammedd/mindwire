@@ -26,9 +26,7 @@ struct AccountScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await reload() }
         .refreshable { await reload() }
-        .sheet(isPresented: $showLogin) {
-            MindwireLoginSheet { Task { await reload() } }
-        }
+        .mindwireSignIn(isPresented: $showLogin) { Task { await reload() } }
         .sheet(item: $pendingPurchase) { computer in
             CloudPurchaseSheet(computer: computer) { _ in
                 pendingPurchase = nil
@@ -58,6 +56,8 @@ struct AccountScreen: View {
                         }
                     }
                     Spacer()
+                    switchAccountButton.buttonStyle(.bordered).controlSize(.regular)
+                    signOutButton.buttonStyle(.borderless).controlSize(.regular)
                 }
                 .padding(.vertical, 6)
             } else {
@@ -70,6 +70,8 @@ struct AccountScreen: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Spacing.sm)
+                switchAccountButton
+                signOutButton
             }
         }
         Section {
@@ -110,41 +112,28 @@ struct AccountScreen: View {
                 }
             } footer: { Text("Connect your previous account to keep its computers, files and paid terms. Nothing is moved or deleted.") }
         }
-        Section {
-            Button(t("account.signOut"), role: .destructive) { confirmingSignOut = true }
-                .foregroundStyle(Palette.danger)
-        }
+    }
+
+    private var switchAccountButton: some View {
+        Button("Switch account") { showLogin = true }
+            .tint(.primary).accessibilityIdentifier("account.switch")
+    }
+
+    private var signOutButton: some View {
+        Button(t("account.signOut"), role: .destructive) { confirmingSignOut = true }
+            .foregroundStyle(Palette.danger).accessibilityIdentifier("account.signOut")
     }
 
     // MARK: Signed out
 
     private var signedOut: some View {
         Section {
-            if ApplePlatform.isDesktop {
-                HStack(spacing: 12) {
-                    AppIcon(.userCircle, size: 32, decorative: true).foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Oblien account").font(.system(size: 13, weight: .semibold))
-                        Text(t("account.notSignedIn")).font(.system(size: 12)).foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 16)
-                    signInButton.buttonStyle(.borderedProminent).controlSize(.regular)
-                }
-                .padding(.vertical, 6)
-            } else {
-                ContentUnavailableView {
-                    Label(t("account.title"), icon: .userCircle)
-                } description: {
-                    Text(t("account.notSignedIn"))
-                } actions: {
-                    signInButton.buttonStyle(.glassProminent)
-                }
+            MindwireSignInPrompt(bodyKey: "account.signIn.body") {
+                showLogin = true
             }
         }
-    }
-
-    private var signInButton: some View {
-        Button(t("account.signIn")) { showLogin = true }.tint(Palette.accent)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets())
     }
 
     @ViewBuilder private func avatar(_ user: AuthUser?, size: CGFloat = 72) -> some View {

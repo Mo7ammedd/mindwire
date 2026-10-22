@@ -32,6 +32,7 @@ struct DesktopChatHeader<Actions: View>: View {
     let computerName: String?
     let status: String?
     let canOpenComputer: Bool
+    let openSchedules: () -> Void
     let openHistory: () -> Void
     let openComputer: () -> Void
     @ViewBuilder let actions: () -> Actions
@@ -66,6 +67,11 @@ struct DesktopChatHeader<Actions: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 6) {
+                Button(action: openSchedules) {
+                    Image(systemName: "calendar.badge.clock").font(.system(size: 17))
+                        .foregroundStyle(.secondary).frame(width: 34, height: 34)
+                }
+                .help("Schedules").accessibilityLabel("Schedules").accessibilityIdentifier("chat.schedules")
                 if canOpenComputer {
                     Button(action: openComputer) { actionIcon(.monitor) }
                         .help(computerName ?? t("assistant.computer"))

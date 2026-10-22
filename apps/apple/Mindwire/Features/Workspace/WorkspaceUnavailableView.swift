@@ -22,7 +22,7 @@ struct WorkspaceUnavailableView: View {
                 unavailable
             }
         }
-        .mindwireLoginSheet(isPresented: $showLogin) {
+        .mindwireSignIn(isPresented: $showLogin) {
             Task { await repository.refresh() }
         }
     }

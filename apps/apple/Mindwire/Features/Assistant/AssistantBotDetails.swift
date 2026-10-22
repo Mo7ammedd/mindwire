@@ -29,6 +29,10 @@ struct AssistantBotDetails: View {
                 .listRowBackground(Color.clear)
                 Section {
                     NavigationLink {
+                        BotSchedulesScreen(bot: bot, embedded: true)
+                    } label: { Label("Schedules", systemImage: "calendar.badge.clock") }
+                    .tint(.primary).accessibilityIdentifier("bot.schedules")
+                    NavigationLink {
                         BotIntegrationsScreen(bot: bot, embedded: true)
                     } label: {
                         Label("Integrations", icon: .plug)

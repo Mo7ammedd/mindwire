@@ -3,8 +3,6 @@ import Foundation
 /// The four bottom tabs.
 enum AppTab: String, Hashable, Codable, CaseIterable { case agents, projects, workspaces, settings }
 
-enum ComputerCollection: String, Hashable { case personal, cloud }
-
 /// One shared set of pushed destinations, resolved by EVERY content tab (`withAppRoutes()`).
 /// In-app drill-down uses `NavigationLink(value:)` / appends to the *current* tab's path, so the
 /// destination opens within the stack you're already in and the bottom tab never changes.

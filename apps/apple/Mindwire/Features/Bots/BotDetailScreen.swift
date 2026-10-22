@@ -18,7 +18,7 @@ struct BotDetailScreen: View {
     @State private var pendingChat: Chat?
     @State private var running = false
     @State private var error: String?
-    private static let recentChatLimit = 4
+    private var recentChatLimit: Int { experienceMode == .developer ? 2 : 4 }
 
     var body: some View {
         Group {
@@ -89,7 +89,7 @@ struct BotDetailScreen: View {
                     }
                     .accessibilityIdentifier("bot.chat.new")
                 }
-                ForEach(activity.ordered(chats, limit: Self.recentChatLimit)) { chat in
+                ForEach(activity.ordered(chats, limit: recentChatLimit)) { chat in
                     ChatListRow(chat: chat, subtitle: stores.projects.get(chat.projectId)?.name, onChanged: reload)
                 }
                 if !chats.isEmpty {
@@ -117,6 +117,10 @@ struct BotDetailScreen: View {
             }
             Section(t("bots.detail.settings")) {
                 Button { editing = true } label: { Label(t("bots.edit.title"), systemImage: "pencil") }
+                NavigationLink {
+                    BotSchedulesScreen(bot: bot, embedded: true)
+                } label: { Label("Schedules", systemImage: "calendar.badge.clock") }
+                .accessibilityIdentifier("bot.schedules")
                 NavigationLink {
                     NotificationPreferencesScreen(scope: .bot(bot.id))
                 } label: { Label(t("notifications.title"), icon: .bell) }

@@ -47,11 +47,9 @@ struct GitHubConnectScreen: View {
             .sheet(item: $appSafari, onDismiss: { Task { await onAppSafariDone() } }) { item in
                 SafariView(url: item.url) { appSafari = nil }.ignoresSafeArea()
             }
-            .sheet(isPresented: $showLogin) {
-                MindwireLoginSheet {
-                    if let step = pendingStep { pendingStep = nil; openStep(step) }
-                    else { Task { await loadGitHubStatus() } }
-                }
+            .mindwireSignIn(isPresented: $showLogin) {
+                if let step = pendingStep { pendingStep = nil; openStep(step) }
+                else { Task { await loadGitHubStatus() } }
             }
             .onReceive(NotificationCenter.default.publisher(for: .oblienGitHubConnected)) { _ in
                 if appSafari != nil { appSafari = nil } else { Task { await onAppSafariDone() } }

@@ -12,6 +12,10 @@ export default function App() {
   const [user, setUser] = useState<AuthUser | null>(),
     [error, setError] = useState("");
   const location = useLocation();
+  const signOut = useCallback(async () => {
+    await api.account.signOut();
+    setUser(null);
+  }, []);
   const refreshAccount = useCallback(async () => {
     try {
       const result = await api.account.me();
@@ -37,16 +41,13 @@ export default function App() {
       ) : user === null ? (
         <AuthScreen onAuthed={setUser} />
       ) : location.pathname === "/device" ? (
-        <DeviceAuthorization email={user.email} />
+        <DeviceAuthorization key={user.id} user={user} onSignOut={signOut} />
       ) : (
         <Portal
           user={user}
           onUpdated={refreshAccount}
           onSignedOut={() => setUser(null)}
-          onSignOut={async () => {
-            await api.account.signOut();
-            setUser(null);
-          }}
+          onSignOut={signOut}
         />
       )}
       <Toaster />

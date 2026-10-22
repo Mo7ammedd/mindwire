@@ -141,7 +141,7 @@ struct NewProjectScreen: View {
                     selectedWorkspaceId = workspace.id
                 }
             case .newWorkspace:
-                NewWorkspaceScreen(contextMessage: t("newProject.workspace.setupHint")) { workspace in
+                AddComputerScreen(repository: repository) { workspace in
                     reload()
                     selectedWorkspaceId = workspace.id
                     flow.didCreateWorkspace()

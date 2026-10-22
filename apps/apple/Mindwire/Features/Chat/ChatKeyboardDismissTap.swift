@@ -1,9 +1,11 @@
 import SwiftUI
 import UIKit
 
-/// A placeholder tap ends native editing as well as clearing the SwiftUI focus binding.
-/// Attach to the conversation content before its composer bar, never to a window or sheet.
+/// Ends native editing without consuming button taps or scroll gestures.
+/// Containers that include search fields opt into ignoring taps inside editable controls.
 struct ChatKeyboardDismissTap: UIGestureRecognizerRepresentable {
+    var avoidsEditableControls = false
+    var enabled = true
     let onDismiss: () -> Void
 
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
@@ -14,7 +16,14 @@ struct ChatKeyboardDismissTap: UIGestureRecognizerRepresentable {
         tap.delaysTouchesBegan = false
         tap.delaysTouchesEnded = false
         tap.delegate = context.coordinator
+        tap.isEnabled = enabled
+        context.coordinator.avoidsEditableControls = avoidsEditableControls
         return tap
+    }
+
+    func updateUIGestureRecognizer(_ recognizer: UITapGestureRecognizer, context: Context) {
+        recognizer.isEnabled = enabled
+        context.coordinator.avoidsEditableControls = avoidsEditableControls
     }
 
     func handleUIGestureRecognizerAction(_ recognizer: UITapGestureRecognizer, context: Context) {
@@ -24,6 +33,18 @@ struct ChatKeyboardDismissTap: UIGestureRecognizerRepresentable {
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var avoidsEditableControls = false
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard avoidsEditableControls else { return true }
+            var view = touch.view
+            while let current = view {
+                if current is UITextField || (current as? UITextView)?.isEditable == true { return false }
+                view = current.superview
+            }
+            return true
+        }
+
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
     }

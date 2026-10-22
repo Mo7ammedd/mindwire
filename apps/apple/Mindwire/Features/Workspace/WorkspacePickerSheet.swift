@@ -158,7 +158,7 @@ struct WorkspacePickerSheet: View {
             guard workspaces.contains(where: { $0.runtime.isCloud && $0.image != nil }) else { return }
             catalog = await CloudImages.cached()
         }
-        .mindwireLoginSheet(isPresented: $showLogin) {
+        .mindwireSignIn(isPresented: $showLogin) {
             Task { await repository.refresh() }
         }
     }

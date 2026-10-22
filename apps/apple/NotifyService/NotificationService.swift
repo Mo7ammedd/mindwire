@@ -16,6 +16,7 @@ final class NotificationService: UNNotificationServiceExtension {
         handler = contentHandler
         fallback = request.content
         work = Task { @MainActor [weak self] in
+            WidgetPushUpdates.record(data: PushPayload.data(from: request.content.userInfo))
             do {
                 let content = try await CommunicationNotification.content(from: request.content)
                 Self.log.info("Prepared communication notification")

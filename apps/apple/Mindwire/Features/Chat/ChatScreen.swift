@@ -119,18 +119,7 @@ struct ChatScreen: View {
         .navigationTitle(chat?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(desktopMessenger ? .hidden : .visible, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                ChatNavigationTitle(title: experienceMode == .general ? generalBotName : chat?.title ?? "",
-                                    subtitle: experienceMode == .general ? computerName ?? "" : "Mindwire",
-                                    refreshing: model.hasLoadedHistory && (model.preparing || model.loadingHistory
-                                        || model.restoringRun || model.reconnecting || model.checkingOwnership),
-                                    bot: chat?.botId.flatMap(stores.bots.get), working: model.thinking)
-            }
-            AppToolbarItem(placement: .topBarTrailing) {
-                chatMenu
-            }
-        }
+        .toolbar { chatToolbar }
         .inputDialog(
             titleKey: "chat.rename.title",
             isPresented: $renaming,
@@ -330,10 +319,27 @@ struct ChatScreen: View {
 
     // MARK: - Thread
 
+    @ToolbarContentBuilder
+    private var chatToolbar: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            ChatNavigationTitle(title: experienceMode == .general ? generalBotName : chat?.title ?? "",
+                                subtitle: experienceMode == .general ? computerName ?? "" : "Mindwire",
+                                refreshing: model.hasLoadedHistory && (model.preparing || model.loadingHistory
+                                    || model.restoringRun || model.reconnecting || model.checkingOwnership),
+                                bot: chat?.botId.flatMap(stores.bots.get), working: model.thinking)
+        }
+        AppToolbarItemGroup(placement: .topBarTrailing) {
+            Button { showingSchedules = true } label: { Image(systemName: "calendar.badge.clock") }
+                .accessibilityLabel("Schedules").accessibilityIdentifier("chat.schedules")
+            chatMenu
+        }
+    }
+
     private var desktopHeader: some View {
         DesktopChatHeader(bot: chat?.botId.flatMap(stores.bots.get), title: desktopConversationTitle,
                           computerName: remoteChatWorkspace?.name, status: desktopStatus,
                           canOpenComputer: remoteChatWorkspace != nil,
+                          openSchedules: { showingSchedules = true },
                           openHistory: { showingCommandHistory = true },
                           openComputer: { showingComputer = true }) { chatMenuActions }
     }
@@ -588,7 +594,7 @@ struct ChatScreen: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: canSend)
         .padding(.horizontal, desktopMessenger ? AssistantDesktopStyle.gutter : Spacing.lg)
         .padding(.top, Spacing.sm)
-        .padding(.bottom, desktopMessenger ? 16 : Spacing.sm)
+        .padding(.bottom, desktopMessenger ? 16 : Spacing.xs)
         .frame(maxWidth: desktopMessenger ? AssistantDesktopStyle.conversationWidth + 2 * AssistantDesktopStyle.gutter
                : AdaptiveLayout.readableWidth + 2 * Spacing.lg)
         .frame(maxWidth: .infinity)

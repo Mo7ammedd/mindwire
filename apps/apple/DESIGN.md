@@ -44,6 +44,11 @@ requiring setup again; transient offline state never wipes completion, credentia
 Keep **Your bot is ready** visible while Start chatting creates the conversation through the shared
 registry. Select that chat before completing setup or dismissing its cover, so there is no second start screen.
 Settings → App mode reuses the compact mode choice with Cancel and the current selection.
+Mindwire account sign-in opens Safari directly from the first action. Use `mindwireSignIn`
+for all entry points, including onboarding; never insert a second sign-in sheet. Preparation,
+retry and cancellation stay in the current view. Continue a pending feature only after Safari
+dismisses. Signed-out account content uses the Mindwire mark and one native sign-in action;
+the project-home footer is a compact account card. Desktop account content keeps a horizontal layout.
 Chat, its composer, message rendering, attachments, tools, caches and Mac startup stay shared.
 The General mobile visual trial extends the onboarding palette to the chat canvas, compact bot
 header, empty state and unified composer. The sidebar uses Gellix labels and quiet rounded
@@ -96,8 +101,15 @@ Developer's mobile Agents library uses compact adaptive cards with the bot's nam
 base-agent mark and computer. Use the shared entity-card surfaces and switch to one column at
 accessibility text sizes. Sidebar navigation on iPad and Mac keeps its native rows.
 Integrations uses the connection/plug icon and pushes from bot details with a native Back action.
-Reuse one integrations screen and editor for both modes; show loading, retry and Add integration
-states explicitly. Editing credentials remains an explicit user action.
+Reuse one integrations screen for both modes. Choose a messaging app before setup; show only
+that provider's credentials, allowed channels and behavior. Keep optional controls disclosed.
+Saved connections use compact rows with actions in a menu. Saving a new connection leads to
+its webhook instructions; never imply provider setup is complete just because credentials saved.
+Editing blank credential fields retains saved secrets. Show loading and retry explicitly.
+Chats have a visible Schedules calendar button. Bot details offers the same editor through a
+conversation picker, with no background reads across history. Developer bot pages show two
+recent conversations followed by View all. Sidebar search resigns focus on outside taps without
+consuming row actions, text editing or navigation gestures.
 Bot context menus offer New chat, Conversations, About,
 Edit with Mindwire, and Archive. Archive retains history and can be restored from the header menu.
 About shows the real saved purpose, instructions, memory and knowledge. Tool acknowledgements link
@@ -136,10 +148,13 @@ Opening management must not start login or logout, change the selected assistant
 new profile. A changed account affects other bots using that computer's native account. Models
 reuse the existing schema-driven picker and daemon cache; General shows model and reasoning controls.
 
-Computers has Your computers and Mindwire Cloud collections. The plus button opens the shared
-Add computer flow directly; it must not repeat that flow's connection choices in another menu.
-Personal computer setup does not wait for a cloud inventory refresh. Cloud billing and account
-ownership use the shared cloud adapter; the Mindwire account migration is maintained in PR #49.
+Developer's Computers inventory shows local, paired, SSH and Mindwire Cloud computers together,
+on both mobile and Mac. Use small type labels and search, never separate ownership collections.
+The plus button opens one Add computer chooser, with direct paths for pairing a computer, SSH,
+and Mindwire Cloud. Reuse AddServerScreen and the cloud purchase flow; do not repeat these choices
+in another menu. Pairing and SSH setup do not wait for a cloud inventory refresh. Cloud billing
+and account ownership use the shared cloud adapter; the Mindwire account migration is maintained
+in PR #49.
 
 Connect your phone opens a dedicated Mac window with a QR code, explicit device approval and the
 CLI's saved phones. The desktop executes the installed CLI's standard JSON commands through the
@@ -325,7 +340,9 @@ orange; bot avatars and conversation accents retain each bot’s chosen identity
   animate height on each text delta. Restore the latest measured row without replaying history;
   pagination keeps stable message anchors and starts only when the reader scrolls up. Preserve the
   reader's position while they inspect older output, including when more history arrives.
-  Use iOS 26 soft scroll-edge effects under the navigation bar and a native `safeAreaBar` composer.
+  Use the native hard top scroll-edge effect on iPhone/iPad so text and colored bubbles do not
+  compete with the title outside the glass buttons. Keep the desktop top edge and the native
+  `safeAreaBar` composer's bottom edge soft.
   The transcript extends behind the bars; SwiftUI's safe-area insets keep the newest row above the
   composer and keyboard. Individual hosted cells ignore safe areas already handled by the table.
   Do not add solid bar backgrounds or hand-drawn gradients to the chat.

@@ -68,6 +68,8 @@ struct AssistantHistorySidebar<Content: View>: View {
             }
         }
         .accessibilityAction(.escape, close)
+        .gesture(ChatKeyboardDismissTap(avoidsEditableControls: true, enabled: searching) { searching = false })
+        .onDisappear { searching = false }
     }
 
     private var desktopSidebar: some View {
@@ -89,9 +91,10 @@ struct AssistantHistorySidebar<Content: View>: View {
                     TextField(desktopSearchTitle, text: $search)
                         .textFieldStyle(.plain).focused($searching)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .onSubmit { searching = false }
                         .accessibilityIdentifier("assistant.sidebar.search")
                     if !search.isEmpty {
-                        Button { search = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                        Button { search = ""; searching = false } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
                             .accessibilityLabel(t("assistant.sidebar.clearSearch"))
                     }
                 }
@@ -154,6 +157,7 @@ struct AssistantHistorySidebar<Content: View>: View {
         .buttonStyle(.plain).tint(.primary).foregroundStyle(.primary)
         .background(AssistantDesktopStyle.sidebar)
         .onChange(of: compact) { if compact { searching = false } }
+        .gesture(ChatKeyboardDismissTap(avoidsEditableControls: true, enabled: searching) { searching = false })
     }
 
     private var appsButton: some View {
@@ -301,6 +305,7 @@ struct AssistantHistorySidebar<Content: View>: View {
                         .font(theme.font(16, relativeTo: .subheadline)).textFieldStyle(.plain)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                         .submitLabel(.search).focused($searching)
+                        .onSubmit { searching = false }
                         .accessibilityIdentifier("assistant.sidebar.search")
                     if !search.isEmpty {
                         Button { search = ""; searching = false } label: {

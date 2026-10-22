@@ -3,8 +3,25 @@ import SwiftUI
 /// Fetches only while open; schedules execute on their computer, not on a phone timer.
 struct ChatSchedulesSheet: View {
     let chatID: String
-    @Environment(\.stores) private var stores
     @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ChatSchedulesContent(chatID: chatID)
+                .toolbar {
+                    AppToolbarItem(placement: .cancellationAction) {
+                        Button(t("common.done")) { dismiss() }.tint(.primary)
+                    }
+                }
+        }
+        .frame(minWidth: ApplePlatform.isDesktop ? 520 : nil, minHeight: ApplePlatform.isDesktop ? 480 : nil)
+    }
+}
+
+/// Shared by the conversation shortcut and the bot's schedule browser.
+struct ChatSchedulesContent: View {
+    let chatID: String
+    @Environment(\.stores) private var stores
     @State private var schedules: [SavedSchedule] = []
     @State private var loading = true
     @State private var working = false
@@ -13,88 +30,82 @@ struct ChatSchedulesSheet: View {
     @State private var deleting: SavedSchedule?
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if loading { ProgressView().chatActivityTint() }
-                else if schedules.isEmpty && error == nil {
-                    ContentUnavailableView {
-                        Label("No schedules", systemImage: "calendar.badge.clock")
-                    } description: {
-                        Text("Ask for a daily report in this chat, or add a schedule.")
-                    } actions: {
-                        Button("Add schedule") { editing = .init(schedule: nil) }.tint(.primary)
+        Group {
+            if loading { ProgressView().chatActivityTint() }
+            else if schedules.isEmpty && error == nil {
+                ContentUnavailableView {
+                    Label("No schedules", systemImage: "calendar.badge.clock")
+                } description: {
+                    Text("Ask for a daily report in this chat, or add a schedule.")
+                } actions: {
+                    Button("Add schedule") { editing = .init(schedule: nil) }.tint(.primary)
+                }
+            } else {
+                List {
+                    ForEach(schedules) { schedule in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Button { editing = .init(schedule: schedule) } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(schedule.name).font(.headline).foregroundStyle(.primary)
+                                        Text(schedule.timingLabel).font(.caption).foregroundStyle(.secondary)
+                                    }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                                }.buttonStyle(.plain).disabled(schedule.state == "running")
+                                Toggle("Enabled", isOn: Binding(get: { schedule.active }, set: { set(schedule, enabled: $0) }))
+                                    .labelsHidden().tint(BotColor.brand.fill)
+                            }
+                            if let prompt = schedule.prompt {
+                                Text(prompt).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                            }
+                            if schedule.state == "running" {
+                                Label("Running", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
+                            } else if let next = schedule.retryAt ?? schedule.nextRunAt, schedule.active, let date = RelativeTime.date(next) {
+                                Text("Next: \(date.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            if let message = schedule.lastError, !message.isEmpty {
+                                Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                            }
+                            if let last = schedule.lastRunAt, let date = RelativeTime.date(last), schedule.lastRunId != nil {
+                                Text("Last run: \(date.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 6)
+                        .contextMenu {
+                            Button("Edit", systemImage: "pencil") { editing = .init(schedule: schedule) }
+                                .disabled(schedule.state == "running")
+                            Button("Delete schedule", systemImage: "trash", role: .destructive) { deleting = schedule }
+                        }
+                        .swipeActions {
+                            Button("Delete", role: .destructive) { deleting = schedule }
+                        }
                     }
-                } else {
-                    List {
-                        ForEach(schedules) { schedule in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Button { editing = .init(schedule: schedule) } label: {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(schedule.name).font(.headline).foregroundStyle(.primary)
-                                            Text(schedule.timingLabel).font(.caption).foregroundStyle(.secondary)
-                                        }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                                    }.buttonStyle(.plain).disabled(schedule.state == "running")
-                                    Toggle("Enabled", isOn: Binding(get: { schedule.active }, set: { set(schedule, enabled: $0) }))
-                                        .labelsHidden().tint(BotColor.brand.fill)
-                                }
-                                if let prompt = schedule.prompt {
-                                    Text(prompt).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-                                }
-                                if schedule.state == "running" {
-                                    Label("Running", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
-                                } else if let next = schedule.retryAt ?? schedule.nextRunAt, schedule.active, let date = RelativeTime.date(next) {
-                                    Text("Next: \(date.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                                if let message = schedule.lastError, !message.isEmpty {
-                                    Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(3)
-                                }
-                                if let last = schedule.lastRunAt, let date = RelativeTime.date(last), schedule.lastRunId != nil {
-                                    Text("Last run: \(date.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(.vertical, 6)
-                            .contextMenu {
-                                Button("Edit", systemImage: "pencil") { editing = .init(schedule: schedule) }
-                                    .disabled(schedule.state == "running")
-                                Button("Delete schedule", systemImage: "trash", role: .destructive) { deleting = schedule }
-                            }
-                            .swipeActions {
-                                Button("Delete", role: .destructive) { deleting = schedule }
-                            }
-                        }
-                        Section {
-                            Text("Runs in this chat while its computer is awake and Mindwire is running.")
-                                .font(.footnote).foregroundStyle(.secondary)
-                        }
-                    }.listStyle(.insetGrouped)
-                }
+                    Section {
+                        Text("Runs in this chat while its computer is awake and Mindwire is running.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }.listStyle(.insetGrouped)
             }
-            .disabled(working)
-            .navigationTitle("Schedules").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                AppToolbarItem(placement: .cancellationAction) {
-                    Button(t("common.done")) { dismiss() }.tint(.primary)
-                }
-                AppToolbarItem(placement: .primaryAction) {
-                    Button { editing = .init(schedule: nil) } label: { Image(systemName: "plus") }
-                        .tint(.primary).accessibilityLabel("Add schedule").disabled(loading || working)
-                }
+        }
+        .disabled(working)
+        .navigationTitle("Schedules").navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            AppToolbarItem(placement: .primaryAction) {
+                Button { editing = .init(schedule: nil) } label: { Image(systemName: "plus") }
+                    .tint(.primary).accessibilityLabel("Add schedule").disabled(loading || working)
             }
-            .safeAreaInset(edge: .bottom) {
-                if let error {
-                    HStack {
-                        Text(error).font(.footnote).foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Retry") { Task { await load() } }.tint(.primary)
-                    }.padding().background(.regularMaterial)
-                }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let error {
+                HStack {
+                    Text(error).font(.footnote).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Retry") { Task { await load() } }.tint(.primary)
+                }.padding().background(.regularMaterial)
             }
         }
         .task { await load() }.refreshable { await load() }
-        .frame(minWidth: ApplePlatform.isDesktop ? 520 : nil, minHeight: ApplePlatform.isDesktop ? 480 : nil)
         .sheet(item: $editing) { item in
             ChatScheduleEditor(schedule: item.schedule) { input in
                 let http = try await connection()

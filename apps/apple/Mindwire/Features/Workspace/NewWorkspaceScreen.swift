@@ -103,7 +103,7 @@ struct NewWorkspaceScreen: View {
                 }
             }
         }
-        .mindwireLoginSheet(isPresented: $showLogin) {
+        .mindwireSignIn(isPresented: $showLogin) {
             if loginForImages {
                 loginForImages = false
                 Task {

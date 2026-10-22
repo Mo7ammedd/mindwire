@@ -30,26 +30,36 @@ struct WorkspacesScreen: View {
     @Environment(AppModel.self) private var app
 
     @State private var showNew = false
-    @State private var showLogin = false
     @State private var catalog: [WorkspaceImage] = []
     @State private var actions = WorkspaceActionState()
     @State private var newProjectWorkspace: Workspace?
     @State private var connections: [Connection] = []
-    private var isCloud: Bool { app.computerCollection == .cloud }
-    private var workspaces: [Workspace] { repository.all.filter { $0.isCloud == isCloud } }
-    private var inventory: ComputerInventory { ComputerInventory(workspaces: repository.all, connections: connections) }
-    private var unassignedConnections: [Connection] { isCloud ? [] : inventory.unassignedConnections }
+    @State private var search = ""
+    private var workspaces: [Workspace] { repository.all }
+    private var inventory: ComputerInventory { ComputerInventory(workspaces: workspaces, connections: connections) }
+    private var unassignedConnections: [Connection] { inventory.unassignedConnections }
     private var isEmpty: Bool { workspaces.isEmpty && unassignedConnections.isEmpty }
+    private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var matchingWorkspaces: [Workspace] {
+        workspaces.filter { query.isEmpty || $0.name.localizedStandardContains(query)
+            || $0.computerKind(in: stores).localizedStandardContains(query) }
+    }
+    private var matchingConnections: [Connection] {
+        unassignedConnections.filter { query.isEmpty || $0.name.localizedStandardContains(query)
+            || $0.displayAddress.localizedStandardContains(query) }
+    }
 
     var body: some View {
         let _ = stores.workspaceData.revision
         list
         .overlay {
-            if isEmpty {
-                if isCloud, !repository.requiresSignIn, !repository.hasRefreshed {
+            if !query.isEmpty && matchingWorkspaces.isEmpty && matchingConnections.isEmpty {
+                ContentUnavailableView.search(text: search)
+            } else if isEmpty {
+                if !repository.requiresSignIn, !repository.hasRefreshed {
                     ProgressView(t("workspaces.loading"))
                         .accessibilityIdentifier("workspaces-loading")
-                } else if isCloud, !repository.requiresSignIn, repository.refreshError != nil {
+                } else if !repository.requiresSignIn, repository.refreshError != nil {
                     ContentUnavailableView {
                         Label(t("workspaces.loadFailed"), icon: .wifiOff)
                     } description: {
@@ -64,14 +74,8 @@ struct WorkspacesScreen: View {
             }
         }
         .navigationTitle(t("tabs.workspaces"))
-        .principalBrand()
-        .safeAreaBar(edge: .top) {
-            ComputerCollectionPicker(selection: Binding(get: { app.computerCollection }, set: {
-                app.workspacesPath = NavigationPath()
-                app.computerCollection = $0
-            }))
-                .padding(.horizontal).padding(.bottom, Spacing.sm)
-        }
+        .principalBrand(visible: false)
+        .searchable(text: $search, prompt: "Search computers")
         .toolbar {
             if !workspaces.isEmpty {
                 AppToolbarItem(placement: .topBarLeading) {
@@ -85,9 +89,7 @@ struct WorkspacesScreen: View {
                     .accessibilityIdentifier("computers.add")
             }
         }
-        .task(id: app.computerCollection) {
-            if isCloud { await repository.refreshIfNeeded() }
-        }
+        .task { await repository.refreshIfNeeded() }
         .onAppear { connections = stores.connections.list() }
         .onChange(of: stores.connections.revision) { connections = stores.connections.list() }
         .task(id: workspaces.compactMap(\.image)) {
@@ -95,7 +97,7 @@ struct WorkspacesScreen: View {
             catalog = await CloudImages.cached()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, isCloud { Task { await repository.refreshIfNeeded() } }
+            if phase == .active { Task { await repository.refreshIfNeeded() } }
         }
         .refreshable {
             async let release = stores.serviceUpdates.refreshRelease(force: true)
@@ -103,29 +105,18 @@ struct WorkspacesScreen: View {
             _ = await release
         }
         .serviceUpdatePresentation(repository: repository)
-        .sheet(isPresented: $showNew) {
-            NewWorkspaceScreen(assistantCloud: isCloud) { computer in
-                app.computerCollection = computer.isCloud ? .cloud : .personal
-                Task { await repository.refresh() }
-            }
+        .sheet(isPresented: $showNew, onDismiss: { Task { await repository.refreshIfNeeded() } }) {
+            AddComputerScreen(repository: repository)
         }
         .sheet(item: $newProjectWorkspace) { workspace in
             NewProjectScreen(presetWorkspaceId: workspace.id, repository: repository)
         }
         .workspaceActionPresentation(actions, repository: repository)
-        .mindwireLoginSheet(isPresented: $showLogin) {
-            Task { await repository.refresh() }
-        }
     }
 
     private var list: some View {
         List {
-            if isCloud, !isEmpty, repository.requiresSignIn {
-                Section {
-                    MindwireSignInRow(bodyKey: "workspaces.signIn.body") { showLogin = true }
-                }
-            }
-            if isCloud, !isEmpty, repository.refreshError != nil {
+            if !isEmpty, repository.refreshError != nil {
                 Section {
                     HStack {
                         Label(t("workspaces.refreshFailed"), icon: .wifiOff)
@@ -136,7 +127,7 @@ struct WorkspacesScreen: View {
                 }
             }
             // Keep runtime cards and their existing navigation stable.
-            ForEach(workspaces) { workspace in
+            ForEach(matchingWorkspaces) { workspace in
                 Section {
                     RootNavigationLink(value: AppRoute.workspaceDetail(id: workspace.id), usesDefaultRowBackground: false) {
                         WorkspaceRow(workspace: workspace, catalog: catalog)
@@ -155,7 +146,7 @@ struct WorkspacesScreen: View {
                     .accessibilityIdentifier("workspace.card.\(workspace.id)")
                 }
             }
-            ForEach(unassignedConnections) { connection in
+            ForEach(matchingConnections) { connection in
                 Section {
                     RootNavigationLink(value: SettingsRoute.serverDetail(id: connection.id), usesDefaultRowBackground: false) {
                         EntityRow(style: .card) {
@@ -177,14 +168,11 @@ struct WorkspacesScreen: View {
 
     private var emptyState: some View {
         ContentUnavailableView {
-            Label(t(isCloud ? "computers.cloud.empty.title" : "workspaces.empty.title"), icon: isCloud ? Icon.cloud : Icon.computer)
+            Label(t("workspaces.empty.title"), icon: Icon.computer)
         } description: {
-            Text(t(isCloud ? "computers.cloud.empty.body" : "workspaces.empty.body"))
+            Text("Connect a computer or use Mindwire Cloud.")
         } actions: {
-            Button(t(isCloud && repository.requiresSignIn ? "auth.required.cta" : isCloud ? "assistant.setup.createCloud" : "workspaces.empty.cta")) {
-                if isCloud && repository.requiresSignIn { showLogin = true }
-                else { showNew = true }
-            }
+            Button(t("workspaces.empty.cta")) { showNew = true }
                 .buttonStyle(.glassProminent)
                 .controlSize(.large)
                 .tint(Palette.accent)
@@ -203,19 +191,6 @@ struct WorkspacesScreen: View {
         .disabled(repository.isRefreshing)
     }
 
-}
-
-struct ComputerCollectionPicker: View {
-    @Binding var selection: ComputerCollection
-
-    var body: some View {
-        Picker(t("tabs.workspaces"), selection: $selection) {
-            Text(t("computers.personal")).tag(ComputerCollection.personal)
-            Text(t("assistant.setup.cloud")).tag(ComputerCollection.cloud)
-        }
-        .pickerStyle(.segmented)
-        .accessibilityIdentifier("computers.collection")
-    }
 }
 
 /// The desktop sidebar reuses the existing connection manager.
