@@ -150,74 +150,132 @@ struct AssistantPairingArtwork: View {
     }
 }
 
-/// Inventory appears only after choosing its destination. Cloud prices and provisioning
-/// are loaded by NewWorkspaceScreen only when the user chooses to create a computer.
+/// Inventory appears only after choosing its destination. Account resolution and a successful
+/// inventory read precede cloud creation; the shared services still own sign-in and computers.
 struct AssistantComputerPicker: View {
     let destination: AssistantComputerDestination
     var repository: WorkspaceRepository = .shared
     let onChoose: (Workspace) -> Void
     let onAdd: () -> Void
     @State private var loading = true
+    @State private var inventoryAccountID: String?
+    @State private var loadError: String?
+    @State private var switchingAccount = false
 
-    private var needsSignIn: Bool { destination == .cloud && repository.requiresSignIn }
+    private var auth: MindwireAuth { .shared }
+    private var isCloud: Bool { destination == .cloud }
+    private var needsSignIn: Bool { isCloud && repository.requiresSignIn }
+    private var computers: [Workspace] { repository.all.filter(destination.includes) }
+    private var inventoryReady: Bool {
+        !loading && loadError == nil && auth.authenticated && auth.user?.id != nil
+            && inventoryAccountID == auth.user?.id
+    }
+
+    private var title: String {
+        if !isCloud { return t("onboarding.computer.chooseSaved") }
+        if needsSignIn { return t("onboarding.cloud.signIn.title") }
+        if inventoryReady {
+            return t(computers.isEmpty ? "onboarding.cloud.empty.title" : "onboarding.computer.chooseSaved")
+        }
+        return destination.title
+    }
+
+    private var detail: String {
+        if needsSignIn { return t("onboarding.cloud.signIn.body") }
+        if isCloud && !inventoryReady { return "" }
+        if isCloud && computers.isEmpty { return t("onboarding.cloud.empty.body") }
+        return t("assistant.setup.saved.body")
+    }
 
     var body: some View {
-        let computers = repository.all.filter(destination.includes)
         AssistantPage {
             AssistantSetupProgress(step: 0)
-            AssistantHeading(title: t(needsSignIn ? "onboarding.cloud.signIn.title" : "onboarding.computer.chooseSaved"), detail: t(needsSignIn ? "onboarding.cloud.signIn.body"
-                : computers.isEmpty ? (loading ? "assistant.setup.loadingComputers" : "assistant.cloud.create.body") : "assistant.setup.saved.body"))
-            if computers.isEmpty && !loading {
+            AssistantHeading(title: title, detail: detail)
+            if isCloud && auth.authenticated {
+                HStack(spacing: 10) {
+                    AppIcon(.userCircle, size: 20, decorative: true).foregroundStyle(.secondary)
+                    Text(auth.user?.email ?? auth.user?.name ?? t("account.title"))
+                        .font(.subheadline).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: 8)
+                    Button(t("onboarding.cloud.switchAccount")) { switchingAccount = true }
+                        .font(.footnote.weight(.medium)).buttonStyle(.plain).tint(.primary)
+                        .accessibilityIdentifier("onboarding.cloud.switchAccount")
+                }
+                .padding(.vertical, 10)
+            }
+            if needsSignIn || inventoryReady && computers.isEmpty {
                 AssistantDeviceArtwork(destination: destination)
                     .frame(maxWidth: .infinity).padding(.vertical, 24)
             }
-            if needsSignIn {
-                CloudSignIn(onboarding: true) {
-                    Task {
-                        await MindwireAuth.shared.refresh()
-                        await refresh(force: true)
-                    }
-                }
-            } else {
+            if !needsSignIn {
                 if loading && computers.isEmpty {
                     HStack(spacing: 12) {
                         ProgressView()
                         Text(t("assistant.setup.loadingComputers")).font(.subheadline).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("onboarding.computers.loading")
                 }
-                if !computers.isEmpty {
+                if !computers.isEmpty && (!isCloud || auth.authenticated) {
                     VStack(spacing: 12) {
                         ForEach(computers) { computer in
                             AssistantOption(title: computer.name, detail: t("onboarding.computer.verify"), icon: destination.icon) { onChoose(computer) }
                         }
                     }
                 }
-                if destination == .cloud, let error = repository.refreshError {
-                    AssistantSetupIssue(message: error, retry: { Task { await refresh(force: true) } }).disabled(loading)
+                if let loadError {
+                    AssistantSetupIssue(message: loadError, retry: { Task { await refresh(force: true) } }).disabled(loading)
                 }
             }
         } footer: {
-            if !needsSignIn {
-                AssistantPrimaryButton(title: t(destination == .cloud ? "assistant.setup.createCloud" : "assistant.setup.addComputer"),
-                                       icon: .plus, action: onAdd)
-                    .disabled(loading && computers.isEmpty)
-                if destination == .cloud {
-                    Text(t("assistant.cloud.costHint")).font(.footnote).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+            if needsSignIn {
+                // The shared handoff updates MindwireAuth. The account-scoped task below then
+                // loads this account's inventory, including sign-ins started elsewhere.
+                CloudSignIn(onboarding: true)
+            } else if isCloud {
+                if inventoryReady {
+                    if computers.isEmpty {
+                        AssistantPrimaryButton(title: t("assistant.setup.createCloud"), icon: .plus, action: onAdd)
+                            .accessibilityIdentifier("onboarding.cloud.create")
+                        Text(t("assistant.cloud.costHint")).font(.footnote).foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    } else {
+                        Button(t("assistant.setup.addCloud"), icon: .plus, action: onAdd)
+                            .buttonStyle(.glass).controlSize(.large).tint(.primary)
+                            .accessibilityIdentifier("onboarding.cloud.add")
+                    }
                 }
+            } else {
+                AssistantPrimaryButton(title: t("assistant.setup.addComputer"), icon: .plus, action: onAdd)
             }
         }
         .navigationTitle(destination.title).navigationBarTitleDisplayMode(.inline)
-        .task { await refresh() }
+        .task(id: isCloud ? auth.user?.id : nil) { await refresh() }
         .refreshable { await refresh(force: true) }
+        .mindwireSignIn(isPresented: $switchingAccount)
     }
 
     private func refresh(force: Bool = false) async {
         loading = true
-        defer { loading = false }
-        guard destination == .cloud, !needsSignIn else { return }
-        if force { await repository.refresh() }
-        else { await repository.refreshIfNeeded() }
+        loadError = nil
+        inventoryAccountID = nil
+        defer { if !Task.isCancelled { loading = false } }
+        guard isCloud else { return }
+        do {
+            guard try await auth.check(force: force) else { return }
+            try Task.checkCancellation()
+            guard let accountID = auth.user?.id else {
+                throw BackendError.message(t("assistant.cloud.signIn.body"))
+            }
+            // A cached empty list from before sign-in cannot stand in for this account's inventory.
+            // Concurrent sign-in/startup refreshes join the repository's existing request.
+            await repository.refresh()
+            try Task.checkCancellation()
+            guard auth.user?.id == accountID else { return }
+            if let error = repository.refreshError { loadError = error }
+            else { inventoryAccountID = accountID }
+        } catch {
+            if !error.isRequestCancellation { loadError = error.localizedDescription }
+        }
     }
 }

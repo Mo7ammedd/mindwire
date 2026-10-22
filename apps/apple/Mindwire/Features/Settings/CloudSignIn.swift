@@ -3,7 +3,7 @@ import SwiftUI
 /// Onboarding keeps its own first action; every entry point uses the same browser handoff.
 struct CloudSignIn: View {
     var onboarding = false
-    let onDone: () -> Void
+    var onDone: () -> Void = {}
     @State private var signingIn = false
 
     var body: some View {
