@@ -5,9 +5,9 @@ import OblienKit
 
 @MainActor
 final class WorkspaceSignInTests: XCTestCase {
-    func testCloudManagementAndRuntimeUseSeparateMindwireOrigins() {
+    func testCloudManagementUsesMindwireAndRuntimeUsesOblienGateway() {
         XCTAssertEqual(MindwireCloud.client.config.baseURL.absoluteString, AppConstants.mindwireServicesBase + "/api/cloud/provider")
-        XCTAssertEqual(MindwireCloud.client.config.runtimeURL.absoluteString, "https://computers.mindwire.sh")
+        XCTAssertEqual(MindwireCloud.client.config.runtimeURL.absoluteString, "https://workspace.oblien.com")
         XCTAssertNotEqual(MindwireCloud.client.config.baseURL.host, MindwireCloud.client.config.runtimeURL.host)
     }
 
