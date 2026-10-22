@@ -12,6 +12,7 @@ export default function App() {
   const [user, setUser] = useState<AuthUser | null>(),
     [error, setError] = useState("");
   const location = useLocation();
+  const isRecovery = ["/forgot-password", "/reset-password"].includes(location.pathname);
   const signOut = useCallback(async () => {
     await api.account.signOut();
     setUser(null);
@@ -26,11 +27,13 @@ export default function App() {
     }
   }, []);
   useEffect(() => {
-    void refreshAccount();
-  }, [refreshAccount]);
+    if (!isRecovery) void refreshAccount();
+  }, [refreshAccount, isRecovery]);
   return (
     <TooltipProvider>
-      {user === undefined ? (
+      {isRecovery ? (
+        <AuthScreen onAuthed={setUser} onPasswordReset={() => setUser(null)} />
+      ) : user === undefined ? (
         <div className="mx-auto flex min-h-dvh max-w-lg items-center px-5">
           {error ? (
             <ErrorNotice message={error} retry={() => void refreshAccount()} />

@@ -125,6 +125,15 @@ export const env = {
     google: socialCreds("GOOGLE"),
   },
 
+  /** Account email delivery. These settings stay on the Console server. */
+  smtp: {
+    host: optional("SMTP_HOST"),
+    port: Number(str("SMTP_PORT", "587")),
+    user: optional("SMTP_USER"),
+    password: optional("SMTP_PASSWORD"),
+    from: optional("SMTP_FROM"),
+  },
+
   /** Postgres URL, explicit or assembled from POSTGRES_* settings; otherwise SQLite is used. */
   databaseUrl: databaseUrl(),
 

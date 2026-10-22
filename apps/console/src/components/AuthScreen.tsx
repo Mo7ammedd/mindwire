@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowUpRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, Loader2, Mail } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import { api, type AuthUser } from "@/lib/api";
+import { api, HttpError, type AuthUser } from "@/lib/api";
 import type { PublicConfig, SocialProvider } from "@shared/api";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
@@ -18,9 +19,15 @@ const GITHUB_FALLBACK = "https://github.com/oblien/mindwire";
 
 export function AuthScreen({
   onAuthed,
+  onPasswordReset,
 }: {
   onAuthed: (user: AuthUser) => void;
+  onPasswordReset?: () => void;
 }) {
+  const location = useLocation();
+  const isRecovery = ["/forgot-password", "/reset-password"].includes(
+    location.pathname,
+  );
   const [mode, setMode] = useState<Mode>("signin");
   const [cfg, setCfg] = useState<PublicConfig | null>(null);
   const [name, setName] = useState("");
@@ -43,7 +50,8 @@ export function AuthScreen({
     };
   }, []);
 
-  const appName = !cfg?.appName || cfg.appName === "MindWire" ? "Mindwire" : cfg.appName;
+  const appName =
+    !cfg?.appName || cfg.appName === "MindWire" ? "Mindwire" : cfg.appName;
   const socials = cfg?.socials ?? [];
   const docsUrl = cfg?.docsUrl ?? DOCS_FALLBACK;
   const githubUrl = cfg?.githubUrl ?? GITHUB_FALLBACK;
@@ -111,129 +119,179 @@ export function AuthScreen({
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <a href="https://mindwire.sh" aria-label="Mindwire home"><BrandMark size={26} /></a>
-        <div className="flex items-center gap-3"><ThemeButton /><a href={docsUrl} className={styles.docsLink}>Documentation<ArrowUpRight className="size-4" /></a></div>
+        <a href="https://mindwire.sh" aria-label="Mindwire home">
+          <BrandMark size={26} />
+        </a>
+        <div className="flex items-center gap-3">
+          <ThemeButton />
+          <a href={docsUrl} className={styles.docsLink}>
+            Documentation
+            <ArrowUpRight className="size-4" />
+          </a>
+        </div>
       </header>
       <main className={styles.main}>
         <section className={styles.welcome} aria-label="Your Mindwire account">
           <AccountArtwork className={styles.art} />
-          <div><h1>Your ideas.<br />A place to go further.</h1><p>Give your bots a home, keep your devices connected, and pick up wherever life takes you.</p></div>
-          <a href="https://mindwire.sh/use-cases">A few things you could do<ArrowUpRight className="size-4" /></a>
+          <div>
+            <h1>
+              Your ideas.
+              <br />A place to go further.
+            </h1>
+            <p>
+              Give your bots a home, keep your devices connected, and pick up
+              wherever life takes you.
+            </p>
+          </div>
+          <a href="https://mindwire.sh/use-cases">
+            A few things you could do
+            <ArrowUpRight className="size-4" />
+          </a>
         </section>
         <section className={styles.formSection}>
           <div className={styles.form}>
-            <div className="mb-6 space-y-1.5">
-              <h2 className="text-[28px] font-medium leading-tight tracking-tight">
-                {isSignup
-                  ? `Create your ${appName} account`
-                  : `Sign in to ${appName}`}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {isSignup
-                  ? "Manage your devices and Cloud Computers with one account."
-                  : "Welcome back — pick up where you left off."}
-              </p>
-            </div>
+            {isRecovery ? (
+              <PasswordRecoveryForm
+                key={location.pathname + location.search}
+                emailDeliveryEnabled={cfg?.passwordResetEnabled}
+                onPasswordReset={onPasswordReset}
+              />
+            ) : (
+              <>
+                <div className="mb-6 space-y-1.5">
+                  <h2 className="text-[28px] font-medium leading-tight tracking-tight">
+                    {isSignup
+                      ? `Create your ${appName} account`
+                      : `Sign in to ${appName}`}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {isSignup
+                      ? "Manage your devices and Cloud Computers with one account."
+                      : "Welcome back — pick up where you left off."}
+                  </p>
+                </div>
 
-            <div className="space-y-6">
-                {socials.length > 0 && (
-                  <>
-                    <div className="space-y-2">
-                      {socials.includes("github") && (
-                        <SocialButton
-                          label="Continue with GitHub"
-                          icon={<GitHubIcon />}
-                          busy={social === "github"}
-                          disabled={locked}
-                          onClick={() => onSocial("github")}
-                        />
-                      )}
-                      {socials.includes("google") && (
-                        <SocialButton
-                          label="Continue with Google"
-                          icon={<GoogleIcon />}
-                          busy={social === "google"}
-                          disabled={locked}
-                          onClick={() => onSocial("google")}
-                        />
-                      )}
-                    </div>
-                    <Divider>or continue with email</Divider>
-                  </>
-                )}
+                <div className="space-y-6">
+                  {socials.length > 0 && (
+                    <>
+                      <div className="space-y-2">
+                        {socials.includes("github") && (
+                          <SocialButton
+                            label="Continue with GitHub"
+                            icon={<GitHubIcon />}
+                            busy={social === "github"}
+                            disabled={locked}
+                            onClick={() => onSocial("github")}
+                          />
+                        )}
+                        {socials.includes("google") && (
+                          <SocialButton
+                            label="Continue with Google"
+                            icon={<GoogleIcon />}
+                            busy={social === "google"}
+                            disabled={locked}
+                            onClick={() => onSocial("google")}
+                          />
+                        )}
+                      </div>
+                      <Divider>or continue with email</Divider>
+                    </>
+                  )}
 
-                <form onSubmit={onSubmit} className="space-y-4">
-                  {isSignup && (
+                  <form onSubmit={onSubmit} className="space-y-4">
+                    {isSignup && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="name">Name</Label>
+                        <Input
+                          id="name"
+                          className="h-12"
+                          autoComplete="name"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder="Ada Lovelace"
+                          disabled={locked}
+                        />
+                      </div>
+                    )}
                     <div className="space-y-1.5">
-                      <Label htmlFor="name">Name</Label>
+                      <Label htmlFor="email">Email</Label>
                       <Input
-                        id="name"
+                        id="email"
                         className="h-12"
-                        autoComplete="name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Ada Lovelace"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
                         disabled={locked}
                       />
                     </div>
-                  )}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      className="h-12"
-                      type="email"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      disabled={locked}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      className="h-12"
-                      type="password"
-                      autoComplete={
-                        isSignup ? "new-password" : "current-password"
-                      }
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={
-                        isSignup ? "At least 8 characters" : "••••••••"
-                      }
-                      disabled={locked}
-                    />
-                  </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="password">Password</Label>
+                        {!isSignup && (
+                          <Link
+                            to={recoveryPath(
+                              "/forgot-password",
+                              location.pathname + location.search,
+                            )}
+                            className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                          >
+                            Forgot password?
+                          </Link>
+                        )}
+                      </div>
+                      <Input
+                        id="password"
+                        className="h-12"
+                        type="password"
+                        autoComplete={
+                          isSignup ? "new-password" : "current-password"
+                        }
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={
+                          isSignup ? "At least 8 characters" : "••••••••"
+                        }
+                        disabled={locked}
+                      />
+                    </div>
 
-                  {error && <p role="alert" className="rounded-xl bg-destructive/8 p-3 text-sm text-destructive">{error}</p>}
+                    {error && (
+                      <p
+                        role="alert"
+                        className="rounded-xl bg-destructive/8 p-3 text-sm text-destructive"
+                      >
+                        {error}
+                      </p>
+                    )}
 
-                  <Button
-                    type="submit"
-                    className="h-12 w-full"
+                    <Button
+                      type="submit"
+                      className="h-12 w-full"
+                      disabled={locked}
+                    >
+                      {busy && <Loader2 className="size-4 animate-spin" />}
+                      {isSignup ? "Create account" : "Sign in"}
+                    </Button>
+                  </form>
+                </div>
+
+                <p className="mt-7 text-center text-sm text-muted-foreground">
+                  {isSignup ? "Already have an account?" : "Need an account?"}{" "}
+                  <button
+                    type="button"
                     disabled={locked}
+                    onClick={() => switchMode(isSignup ? "signin" : "signup")}
+                    className="font-medium text-foreground underline-offset-4 hover:underline"
                   >
-                    {busy && <Loader2 className="size-4 animate-spin" />}
-                    {isSignup ? "Create account" : "Sign in"}
-                  </Button>
-                </form>
-            </div>
-
-            <p className="mt-7 text-center text-sm text-muted-foreground">
-              {isSignup ? "Already have an account?" : "Need an account?"}{" "}
-              <button
-                type="button"
-                disabled={locked}
-                onClick={() => switchMode(isSignup ? "signin" : "signup")}
-                className="font-medium text-foreground underline-offset-4 hover:underline"
-              >
-                {isSignup ? "Sign in" : "Create one"}
-              </button>
-            </p>
+                    {isSignup ? "Sign in" : "Create one"}
+                  </button>
+                </p>
+              </>
+            )}
           </div>
         </section>
       </main>
@@ -254,6 +312,263 @@ export function AuthScreen({
           </span>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/** Keep native device approval (including its user code) when returning from account recovery. */
+function safeReturnPath(value: string | null): string {
+  if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\"))
+    return "/";
+  const url = new URL(value, window.location.origin);
+  if (
+    url.origin !== window.location.origin ||
+    ["/forgot-password", "/reset-password"].includes(url.pathname)
+  )
+    return "/";
+  return url.pathname + url.search;
+}
+
+function recoveryPath(route: string, returnTo: string): string {
+  const destination = safeReturnPath(returnTo);
+  return destination === "/"
+    ? route
+    : `${route}?${new URLSearchParams({ returnTo: destination })}`;
+}
+
+function PasswordRecoveryForm({
+  emailDeliveryEnabled,
+  onPasswordReset,
+}: {
+  emailDeliveryEnabled?: boolean;
+  onPasswordReset?: () => void;
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const query = new URLSearchParams(location.search);
+  const returnTo = safeReturnPath(query.get("returnTo"));
+  const resetting = location.pathname === "/reset-password";
+  const token = query.get("token");
+  const alreadyReset =
+    resetting && location.state?.passwordResetComplete === true;
+  const [invalidLink, setInvalidLink] = useState(
+    resetting && !alreadyReset && (!token || Boolean(query.get("error"))),
+  );
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [complete, setComplete] = useState(alreadyReset);
+  const [error, setError] = useState<string | null>(null);
+  const unavailable = !resetting && emailDeliveryEnabled === false;
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (busy || invalidLink || unavailable) return;
+    setError(null);
+    if (resetting && (password.length < 8 || password.length > 128)) {
+      setError("Use between 8 and 128 characters for your new password.");
+      return;
+    }
+    if (resetting && password !== confirmation) {
+      setError("Your passwords don’t match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (resetting && token) {
+        await api.account.resetPassword(token, password);
+        setPassword("");
+        setConfirmation("");
+        // Only the reset action revokes Mindwire account sessions. No sign-out request is needed.
+        onPasswordReset?.();
+        // Replace the consumed token in browser history with the success page.
+        navigate(recoveryPath("/reset-password", returnTo), {
+          replace: true,
+          state: { passwordResetComplete: true },
+        });
+        return;
+      } else {
+        const redirect = new URL(
+          recoveryPath("/reset-password", returnTo),
+          window.location.origin,
+        );
+        await api.account.requestPasswordReset(email.trim(), redirect.href);
+      }
+      setComplete(true);
+    } catch (error) {
+      if (error instanceof HttpError && error.code === "INVALID_TOKEN") {
+        setInvalidLink(true);
+      } else {
+        setError(
+          error instanceof Error
+            ? error.message
+            : "This request could not finish. Please retry.",
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const title = complete
+    ? resetting
+      ? "Password updated"
+      : "Check your email"
+    : invalidLink
+      ? "This link has expired"
+      : resetting
+        ? "Choose a new password"
+        : "Forgot your password?";
+  const description = complete
+    ? resetting
+      ? "Sign in with your new password to continue."
+      : "If an account exists for that email, you’ll receive a reset link. Check your spam folder too."
+    : invalidLink
+      ? "Request a new link to reset your password."
+      : resetting
+        ? "Use at least 8 characters. You’ll sign in again on your connected devices."
+        : "Enter your account email and we’ll send you a reset link.";
+
+  return (
+    <div className="space-y-6">
+      {complete && (
+        <div
+          className="flex size-12 items-center justify-center rounded-2xl bg-muted"
+          aria-hidden
+        >
+          {resetting ? (
+            <Check className="size-6" />
+          ) : (
+            <Mail className="size-6" />
+          )}
+        </div>
+      )}
+      <div className="space-y-2" role={complete ? "status" : undefined}>
+        <h2 className="text-[28px] font-medium leading-tight tracking-tight">
+          {title}
+        </h2>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      {invalidLink && !complete ? (
+        <Button
+          className="h-12 w-full"
+          onClick={() =>
+            navigate(recoveryPath("/forgot-password", returnTo), {
+              replace: true,
+            })
+          }
+        >
+          Request a new link
+        </Button>
+      ) : complete ? (
+        <div className="space-y-4">
+          <Button
+            className="h-12 w-full"
+            onClick={() => navigate(returnTo, { replace: true })}
+          >
+            Back to sign in
+          </Button>
+          {!resetting && (
+            <p className="text-center">
+              <button
+                type="button"
+                className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                onClick={() => {
+                  setComplete(false);
+                  setError(null);
+                }}
+              >
+                Use another email
+              </button>
+            </p>
+          )}
+        </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-4">
+          {resetting ? (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-password">New password</Label>
+                <Input
+                  id="new-password"
+                  className="h-12"
+                  type="password"
+                  autoComplete="new-password"
+                  autoFocus
+                  minLength={8}
+                  maxLength={128}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                  disabled={busy}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="confirm-password">Confirm password</Label>
+                <Input
+                  id="confirm-password"
+                  className="h-12"
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={128}
+                  required
+                  value={confirmation}
+                  onChange={(e) => setConfirmation(e.target.value)}
+                  placeholder="Repeat your new password"
+                  disabled={busy}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="recovery-email">Email</Label>
+              <Input
+                id="recovery-email"
+                className="h-12"
+                type="email"
+                autoComplete="email"
+                autoFocus
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                disabled={busy || unavailable}
+              />
+            </div>
+          )}
+          {(error || unavailable) && (
+            <p
+              role="alert"
+              className="rounded-xl bg-destructive/8 p-3 text-sm text-destructive"
+            >
+              {error ||
+                "Password reset email is not available yet. Please contact Mindwire support."}
+            </p>
+          )}
+          <Button
+            type="submit"
+            className="h-12 w-full"
+            disabled={busy || unavailable}
+          >
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            {resetting ? "Update password" : "Send reset link"}
+          </Button>
+        </form>
+      )}
+      {!complete && (
+        <Link
+          to={returnTo}
+          className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Back to sign in
+        </Link>
+      )}
     </div>
   );
 }
@@ -289,9 +604,7 @@ function Divider({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-3">
       <span className="h-px flex-1 bg-border" />
-      <span className="text-xs text-muted-foreground">
-        {children}
-      </span>
+      <span className="text-xs text-muted-foreground">{children}</span>
       <span className="h-px flex-1 bg-border" />
     </div>
   );

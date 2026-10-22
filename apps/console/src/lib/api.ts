@@ -97,6 +97,16 @@ export const api = {
         email,
         password,
       }),
+    requestPasswordReset: (email: string, redirectTo: string) =>
+      request<{ status: boolean }>("/api/account/request-password-reset", "POST", {
+        email,
+        redirectTo,
+      }),
+    resetPassword: (token: string, newPassword: string) =>
+      request<{ status: boolean }>("/api/account/reset-password", "POST", {
+        token,
+        newPassword,
+      }),
     socialSignIn: (provider: SocialProvider, callbackURL: string) =>
       request<{ url?: string }>("/api/account/sign-in/social", "POST", {
         provider,

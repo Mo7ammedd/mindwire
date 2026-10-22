@@ -4,6 +4,7 @@ export interface PublicConfig {
   appName: string;
   mode: "cloud";
   socials: SocialProvider[];
+  passwordResetEnabled?: boolean;
   docsUrl: string;
   githubUrl: string;
 }

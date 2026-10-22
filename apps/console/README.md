@@ -54,6 +54,26 @@ The pinned Oblien SDK is 2.10.0, which already exposes checkout status. Its miss
 generic cancellation endpoint and capability type stay inside the bounded provider
 adapter, as in OpenShip. Confirmed paid capacity remains required for provisioning.
 
+## Password recovery
+
+The sign-in page links to `/forgot-password`; reset links return to `/reset-password`.
+Console uses Better Auth's single-use, one-hour reset tokens and existing rate limits.
+Resetting a password revokes that Mindwire account's sessions, so connected devices sign in again.
+Recovery preserves the native `/device?user_code=…` approval destination when it is still valid.
+Coding-agent credentials and personal-computer approvals are independent of this account flow.
+
+Set server-only `SMTP_HOST`, `SMTP_PORT` (default `587`), `SMTP_USER`, `SMTP_PASSWORD`
+and `SMTP_FROM`, then redeploy Console. Use a sender address verified with your email provider.
+Port `587` requires STARTTLS; `465` uses implicit TLS. A trusted SMTP relay may omit
+both username and password; partial credentials disable delivery. With no valid SMTP
+configuration, recovery explicitly reports email as unavailable; other account features stay usable.
+No credentials appear in public config or browser bundles.
+
+Delivery runs in the background, keeping SMTP latency out of the recovery response.
+Registered and unregistered addresses receive the same response. If delivery fails,
+Console logs a fixed message without recipients, reset URLs or raw SMTP errors; inspect
+your provider's delivery logs to diagnose credentials, sender approval or delivery issues.
+
 ## API boundaries
 
 - `/api/account`: Better Auth sessions, profile, password and native device authorization.

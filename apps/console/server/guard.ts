@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
 import { auth, AUTH_BASE_PATH, userIdFromRequest } from "./auth";
+import { emailDeliveryEnabled } from "./email";
 
 /** Each account, Cloud, push and directory module owns its authentication boundary. */
 export function registerAuth(app: Hono): void {
@@ -30,6 +31,19 @@ export function registerAuth(app: Hono): void {
       return next();
     if (!(await userIdFromRequest(c)))
       return c.json({ error: "Not authenticated." }, 401);
+    return next();
+  });
+  app.post(`${AUTH_BASE_PATH}/request-password-reset`, (c, next) => {
+    if (!emailDeliveryEnabled) {
+      return c.json(
+        {
+          code: "EMAIL_DELIVERY_UNAVAILABLE",
+          message:
+            "Password reset email is not available yet. Please contact Mindwire support.",
+        },
+        503,
+      );
+    }
     return next();
   });
   app.on(["POST", "GET"], `${AUTH_BASE_PATH}/*`, (c) =>

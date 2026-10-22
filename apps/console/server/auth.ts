@@ -6,6 +6,7 @@ import { bearer, deviceAuthorization } from "better-auth/plugins";
 
 import { env } from "./env";
 import { authDatabase, migrateConsoleDatabase } from "./database";
+import { emailDeliveryEnabled, sendPasswordResetEmail } from "./email";
 import type { PublicConfig, SocialProvider } from "../shared/api";
 
 /** Base path the Better Auth handler is mounted on — kept distinct from the agent-auth `/api/auth/*`. */
@@ -23,7 +24,23 @@ const socialProviders = {
 /** Console owns Mindwire accounts. Personal computers authenticate independently. */
 export const auth = betterAuth({
   database: consoleDatabase,
-  emailAndPassword: { enabled: true, autoSignIn: true },
+  emailAndPassword: {
+    enabled: true,
+    autoSignIn: true,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    ...(emailDeliveryEnabled
+      ? {
+          sendResetPassword: ({
+            user,
+            url,
+          }: {
+            user: { email: string };
+            url: string;
+          }) => sendPasswordResetEmail(user.email, url),
+        }
+      : {}),
+  },
   socialProviders,
   secret: env.authSecret,
   baseURL: env.baseUrl,
@@ -42,6 +59,15 @@ export const auth = betterAuth({
   // Secure attributes so production cookies retain the browser-enforced __Host-
   // prefix: guest computer subdomains cannot plant a parent-domain auth cookie.
   advanced: {
+    // A persistent Node server can finish SMTP delivery after the response. Avoid exposing account
+    // existence through SMTP latency; Better Auth retains its own token and rate-limit handling.
+    backgroundTasks: {
+      handler: (task) => {
+        void task.catch(() =>
+          console.error("[console] Account background task failed."),
+        );
+      },
+    },
     useSecureCookies: false,
     cookiePrefix: env.isProd ? "__Host-mindwire" : "mindwire",
     defaultCookieAttributes: {
@@ -68,6 +94,7 @@ export function publicConfig(): PublicConfig {
     appName: env.appName,
     mode: env.mode,
     socials: enabledSocials(),
+    passwordResetEnabled: emailDeliveryEnabled,
     docsUrl: env.docsUrl,
     githubUrl: env.githubUrl,
   };

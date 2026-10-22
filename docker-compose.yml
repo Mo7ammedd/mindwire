@@ -56,6 +56,11 @@ services:
       # Better Auth's canonical public origin. Override BASE_URL for a custom SaaS domain; it is also
       # the OAuth callback origin and is automatically included in the trusted-origin allowlist.
       BASE_URL: ${BASE_URL:-https://console.mindwire.sh}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     ports:
       - "${MINDWIRE_BIND_ADDR:-127.0.0.1}:${CONSOLE_PORT:-8787}:8787"
     depends_on:
