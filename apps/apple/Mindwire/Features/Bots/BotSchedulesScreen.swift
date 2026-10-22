@@ -35,10 +35,10 @@ struct BotSchedulesScreen: View {
                     }
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "bubble.left").foregroundStyle(.secondary)
+                        AppIcon(.message, decorative: true).foregroundStyle(.secondary)
                         Text(chats.first(where: { $0.id == chatID })?.title ?? "New chat")
                             .lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
-                        Image(systemName: "chevron.up.chevron.down").font(.caption).foregroundStyle(.secondary)
+                        AppIcon(.chevronsUpDown, size: 14, decorative: true).foregroundStyle(.secondary)
                     }
                     .contentShape(.rect)
                 }
@@ -49,7 +49,7 @@ struct BotSchedulesScreen: View {
                 ChatSchedulesContent(chatID: chatID).id(chatID)
             } else {
                 ContentUnavailableView {
-                    Label("Start with a chat", systemImage: "calendar.badge.clock")
+                    Label("Start with a chat", icon: .calendar)
                 } description: {
                     Text("Schedules send a prompt to a chat and keep the results there.")
                 } actions: {

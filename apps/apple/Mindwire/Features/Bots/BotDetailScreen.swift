@@ -119,7 +119,7 @@ struct BotDetailScreen: View {
                 Button { editing = true } label: { Label(t("bots.edit.title"), systemImage: "pencil") }
                 NavigationLink {
                     BotSchedulesScreen(bot: bot, embedded: true)
-                } label: { Label("Schedules", systemImage: "calendar.badge.clock") }
+                } label: { Label("Schedules", icon: .calendar) }
                 .accessibilityIdentifier("bot.schedules")
                 NavigationLink {
                     NotificationPreferencesScreen(scope: .bot(bot.id))

@@ -329,8 +329,10 @@ struct ChatScreen: View {
                                 bot: chat?.botId.flatMap(stores.bots.get), working: model.thinking)
         }
         AppToolbarItemGroup(placement: .topBarTrailing) {
-            Button { showingSchedules = true } label: { Image(systemName: "calendar.badge.clock") }
-                .accessibilityLabel("Schedules").accessibilityIdentifier("chat.schedules")
+            if experienceMode == .general {
+                Button { showingSchedules = true } label: { AppIcon(.calendar) }
+                    .accessibilityLabel("Schedules").accessibilityIdentifier("chat.schedules")
+            }
             chatMenu
         }
     }
@@ -400,7 +402,9 @@ struct ChatScreen: View {
             showingNotifications = true
             #endif
         } label: { Label(t("notifications.title"), icon: .bell) }
-        Button { showingSchedules = true } label: { Label("Schedules", systemImage: "calendar.badge.clock") }
+        if experienceMode == .developer {
+            Button { showingSchedules = true } label: { Label("Schedules", icon: .calendar) }
+        }
         DestructiveButton(t("common.delete"), icon: Icon.trash) { confirmingDelete = true }
     }
 

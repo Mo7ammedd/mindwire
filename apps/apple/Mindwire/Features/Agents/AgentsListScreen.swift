@@ -16,6 +16,7 @@ struct AgentsListScreen: View {
     @State private var showHistory = false
     @State private var showArchived = false
     @State private var showConnections = false
+    @State private var schedulingBot: AssistantBot?
     @State private var pendingBot: AssistantBot?
     @State private var pendingAssistance = false
     @State private var error: String?
@@ -110,6 +111,7 @@ struct AgentsListScreen: View {
         }
         .sheet(isPresented: $showHistory, onDismiss: reload) { ChatHistorySheet() }
         .sheet(isPresented: $showConnections) { BotConnectionsScreen(repository: repository) }
+        .sheet(item: $schedulingBot) { bot in BotSchedulesScreen(bot: bot) }
         .alert(t("assistant.bots.saveFailed"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button(t("common.ok"), role: .cancel) {}
         } message: { Text(error ?? "") }
@@ -132,6 +134,9 @@ struct AgentsListScreen: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Schedules", icon: .calendar) { schedulingBot = entry.bot }
+        }
         .accessibilityIdentifier("bots.bot.\(entry.id)")
         .accessibilityValue(isWorking(entry) ? t("chat.running") : "")
     }

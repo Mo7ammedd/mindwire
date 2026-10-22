@@ -43,6 +43,7 @@ struct ChatHistorySheet: View {
     @State private var changingBotIcon: AssistantBot?
     @State private var editingBot: AssistantBot?
     @State private var historyBot: AssistantBot?
+    @State private var schedulingBot: AssistantBot?
     @State private var showingArchivedBots = false
     @State private var botError: String?
     @State private var showingNewProject = false
@@ -122,6 +123,7 @@ struct ChatHistorySheet: View {
             })
         }
         .sheet(item: $changingBotIcon) { bot in AssistantBotIconPicker(bot: bot) }
+        .sheet(item: $schedulingBot) { bot in BotSchedulesScreen(bot: bot) }
         .sheet(item: $editingBot) { bot in BotEditorScreen(bot: bot) }
         .sheet(isPresented: $showingArchivedBots) {
             NavigationStack {
@@ -323,6 +325,7 @@ struct ChatHistorySheet: View {
     @ViewBuilder private func botMenu(_ bot: AssistantBot) -> some View {
         Button { onNewBotChat?(bot) } label: { Label(t("assistant.newChat"), icon: Icon.edit) }
         Button { historyBot = bot } label: { Label(t("assistant.history"), systemImage: "clock") }
+        Button { schedulingBot = bot } label: { Label("Schedules", icon: .calendar) }
         Button { inspectingBot = bot } label: { Label(t("assistant.bots.about"), systemImage: "info.circle") }
         Button { changingBotIcon = bot } label: { Label(t("assistant.icons.change"), systemImage: "face.smiling") }
         Button { editingBot = bot } label: { Label(t("common.edit"), systemImage: "slider.horizontal.3") }

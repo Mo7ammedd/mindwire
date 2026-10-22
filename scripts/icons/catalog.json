@@ -100,6 +100,13 @@
       "inset": 0,
       "label": "Building"
     },
+    "calendar": {
+      "file": "calendar time-18-1688358192.png",
+      "origin": "collection",
+      "sha256": "396c5fedd47d5ae8e72ffa13195ee2e5ba82bb9054a9da08c85718fe44d58f1d",
+      "inset": 0,
+      "label": "Schedules"
+    },
     "camera": {
       "file": "camera-166-1658434699.png",
       "origin": "collection",

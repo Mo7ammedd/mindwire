@@ -34,7 +34,7 @@ struct ChatSchedulesContent: View {
             if loading { ProgressView().chatActivityTint() }
             else if schedules.isEmpty && error == nil {
                 ContentUnavailableView {
-                    Label("No schedules", systemImage: "calendar.badge.clock")
+                    Label("No schedules", icon: .calendar)
                 } description: {
                     Text("Ask for a daily report in this chat, or add a schedule.")
                 } actions: {
@@ -58,7 +58,7 @@ struct ChatSchedulesContent: View {
                                 Text(prompt).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                             }
                             if schedule.state == "running" {
-                                Label("Running", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
+                                Label("Running", icon: .clock).font(.caption).foregroundStyle(.secondary)
                             } else if let next = schedule.retryAt ?? schedule.nextRunAt, schedule.active, let date = RelativeTime.date(next) {
                                 Text("Next: \(date.formatted(date: .abbreviated, time: .shortened))")
                                     .font(.caption).foregroundStyle(.secondary)
@@ -73,9 +73,9 @@ struct ChatSchedulesContent: View {
                         }
                         .padding(.vertical, 6)
                         .contextMenu {
-                            Button("Edit", systemImage: "pencil") { editing = .init(schedule: schedule) }
+                            Button("Edit", icon: .edit) { editing = .init(schedule: schedule) }
                                 .disabled(schedule.state == "running")
-                            Button("Delete schedule", systemImage: "trash", role: .destructive) { deleting = schedule }
+                            Button("Delete schedule", icon: .trash, role: .destructive) { deleting = schedule }
                         }
                         .swipeActions {
                             Button("Delete", role: .destructive) { deleting = schedule }
@@ -92,7 +92,7 @@ struct ChatSchedulesContent: View {
         .navigationTitle("Schedules").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             AppToolbarItem(placement: .primaryAction) {
-                Button { editing = .init(schedule: nil) } label: { Image(systemName: "plus") }
+                Button { editing = .init(schedule: nil) } label: { AppIcon(.plus) }
                     .tint(.primary).accessibilityLabel("Add schedule").disabled(loading || working)
             }
         }

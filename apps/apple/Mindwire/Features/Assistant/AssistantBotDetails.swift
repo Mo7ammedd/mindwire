@@ -30,7 +30,7 @@ struct AssistantBotDetails: View {
                 Section {
                     NavigationLink {
                         BotSchedulesScreen(bot: bot, embedded: true)
-                    } label: { Label("Schedules", systemImage: "calendar.badge.clock") }
+                    } label: { Label("Schedules", icon: .calendar) }
                     .tint(.primary).accessibilityIdentifier("bot.schedules")
                     NavigationLink {
                         BotIntegrationsScreen(bot: bot, embedded: true)

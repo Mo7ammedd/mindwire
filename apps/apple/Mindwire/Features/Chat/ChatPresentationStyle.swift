@@ -27,6 +27,7 @@ extension EnvironmentValues {
 /// The header receives presentation state only; all actions still belong to the shared chat.
 struct DesktopChatHeader<Actions: View>: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.appExperienceMode) private var experienceMode
     let bot: AssistantBot?
     let title: String
     let computerName: String?
@@ -67,15 +68,14 @@ struct DesktopChatHeader<Actions: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 6) {
-                Button(action: openSchedules) {
-                    Image(systemName: "calendar.badge.clock").font(.system(size: 17))
-                        .foregroundStyle(.secondary).frame(width: 34, height: 34)
-                }
-                .help("Schedules").accessibilityLabel("Schedules").accessibilityIdentifier("chat.schedules")
                 if canOpenComputer {
                     Button(action: openComputer) { actionIcon(.monitor) }
                         .help(computerName ?? t("assistant.computer"))
                         .accessibilityLabel(computerName ?? t("assistant.computer"))
+                }
+                if experienceMode == .general {
+                    Button(action: openSchedules) { actionIcon(.calendar) }
+                        .help("Schedules").accessibilityLabel("Schedules").accessibilityIdentifier("chat.schedules")
                 }
                 AppMenu {
                     Button(action: openHistory) { Label(t("assistant.history"), icon: .history) }

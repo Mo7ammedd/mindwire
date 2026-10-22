@@ -17,6 +17,7 @@ enum AppIconName: String, CaseIterable, Sendable {
     case bellOff
     case brain
     case building
+    case calendar
     case camera
     case chartLine
     case check
@@ -151,6 +152,7 @@ enum AppIconName: String, CaseIterable, Sendable {
         case .bellOff: "Notifications muted"
         case .brain: "Thinking"
         case .building: "Building"
+        case .calendar: "Schedules"
         case .camera: "Camera"
         case .chartLine: "Chart line"
         case .check: "Done"
@@ -286,6 +288,7 @@ enum AppIconName: String, CaseIterable, Sendable {
         case .bellOff: .init(bounds: CGRect(x: 0.15625, y: 0.09375, width: 0.671875, height: 0.8125), inset: 0.0)
         case .brain: .init(bounds: CGRect(x: 0.09375, y: 0.1015625, width: 0.8125, height: 0.796875), inset: 0.0)
         case .building: .init(bounds: CGRect(x: 0.1171875, y: 0.109375, width: 0.78125, height: 0.78125), inset: 0.0)
+        case .calendar: .init(bounds: CGRect(x: 0.1328125, y: 0.09375, width: 0.734375, height: 0.8125), inset: 0.0)
         case .camera: .init(bounds: CGRect(x: 0.09375, y: 0.140625, width: 0.8125, height: 0.71875), inset: 0.0)
         case .chartLine: .init(bounds: CGRect(x: 0.1484375, y: 0.1328125, width: 0.703125, height: 0.703125), inset: 0.0)
         case .check: .init(bounds: CGRect(x: 0.171875, y: 0.265625, width: 0.65625, height: 0.46875), inset: 0.0)
