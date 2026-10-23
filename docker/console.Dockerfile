@@ -14,7 +14,10 @@ COPY apps/web/package.json apps/web/
 # Use a self-contained, hoisted install for the image. Copying the isolated
 # workspace layout can leave dangling links into node_modules/.bun in the runner.
 # Native dependencies use the same Node version and glibc as the runner.
-RUN bun install --frozen-lockfile --linker hoisted
+# better-sqlite3 13 ships prebuilt binaries and sets gypfile=false. Skip Bun's
+# implicit node-gyp lifecycle; prepare esbuild explicitly with Node instead.
+RUN bun install --frozen-lockfile --linker hoisted --ignore-scripts \
+ && npm rebuild esbuild
 
 # Now the sources (node_modules/dist are excluded by .dockerignore, so the installed deps survive).
 COPY . .
