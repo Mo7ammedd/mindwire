@@ -2,6 +2,7 @@
 import SwiftUI
 
 struct ChatHistorySheet: View {
+    var repository: WorkspaceRepository = .shared
     var projectId: String? = nil
     var botId: String? = nil
     var agentId: String? = nil
@@ -18,6 +19,8 @@ struct ChatHistorySheet: View {
     var onEditBot: ((AssistantBot) -> Void)? = nil
     var onApps: (() -> Void)? = nil
     var appsSelected = false
+    var botPreparationError: String? = nil
+    var onRetryBots: (() -> Void)? = nil
 
     @Environment(AppModel.self) private var app
     @Environment(\.stores) private var stores
@@ -88,6 +91,7 @@ struct ChatHistorySheet: View {
         .onAppear(perform: reload)
         .onDisappear { openingTask?.cancel(); openingTask = nil }
         .observeWorkspaceCache(reload)
+        .onChange(of: repository.revision) { reload() }
         .onChange(of: stores.bots.revision) { reload() }
         .onChange(of: stores.chats.revision) { reload() }
         .observeChatActivity(agentIds: chats.map(\.agentId))
@@ -117,7 +121,7 @@ struct ChatHistorySheet: View {
             }
         }
         .sheet(item: $historyBot) { bot in
-            ChatHistorySheet(botId: bot.id, onOpenChat: { chat in
+            ChatHistorySheet(repository: repository, botId: bot.id, onOpenChat: { chat in
                 historyBot = nil
                 open(chat)
             })
@@ -197,14 +201,15 @@ struct ChatHistorySheet: View {
         AssistantHistorySidebar(search: $search, close: close, newChat: onNewChat,
                                 settings: onSettings, account: onAccount, newBot: onNewBot,
                                 archivedBots: bots.contains(where: \.archived) ? { showingArchivedBots = true } : nil,
-                                groupedByBots: !bots.isEmpty,
+                                groupedByBots: experienceMode == .general || !bots.isEmpty,
                                 developerSection: desktopDeveloper ? Binding(get: { app.selectedTab }, set: { app.selectDesktopSection($0) }) : nil,
                                 newProject: { showingNewProject = true }, newComputer: { showingNewComputer = true },
                                 apps: experienceMode == .general ? onApps : nil, appsSelected: appsSelected) {
             if compactSidebar { botGroups }
             else if desktopDeveloper, app.selectedTab == .projects || app.selectedTab == .workspaces {
                 DesktopDeveloperItems(section: app.selectedTab, search: search)
-            } else if bots.isEmpty { historyRows }
+            } else if experienceMode == .general { generalBotRows }
+            else if bots.isEmpty { historyRows }
             else {
                 botGroups
                 if desktopDeveloper {
@@ -220,6 +225,31 @@ struct ChatHistorySheet: View {
             }
         }
         .refreshable { await refresh() }
+    }
+
+    @ViewBuilder private var generalBotRows: some View {
+        // A temporarily empty metadata cache must never change the drawer into
+        // conversation history. Each bot owns its existing history presentation.
+        if bots.isEmpty && search.isEmpty && botPreparationError == nil {
+            HStack(spacing: Spacing.sm) {
+                ProgressView().chatActivityTint()
+                Text(t("assistant.setup.preparing")).font(.subheadline).foregroundStyle(.secondary)
+            }
+            .padding(.vertical, Spacing.lg)
+            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+        } else {
+            botGroups
+        }
+        if let botPreparationError {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text(botPreparationError).font(.subheadline).foregroundStyle(.secondary)
+                if let onRetryBots {
+                    Button(t("common.retry"), action: onRetryBots).tint(.primary)
+                }
+            }
+            .padding(.vertical, Spacing.sm)
+            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+        }
     }
 
     @ViewBuilder
@@ -426,7 +456,7 @@ struct ChatHistorySheet: View {
         if let history { await history.load(force: true) }
         else if let id = botId.flatMap({ stores.bots.get($0)?.workspaceId })
             ?? projectId.flatMap({ stores.projects.get($0)?.workspaceId }),
-                let workspace = WorkspaceRepository.shared.get(id) {
+                let workspace = repository.get(id) {
             await stores.workspaceData.refresh(workspace)
         }
         reload()
@@ -436,11 +466,12 @@ struct ChatHistorySheet: View {
         projects = Dictionary(stores.projects.list().map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         agents = Dictionary(stores.agents.list().map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         let all = stores.chatsByRecency()
-        let connectedWorkspaces = Set(stores.workspaces.list().map(\.id))
+        let connectedWorkspaces = Set(repository.all.map(\.id))
         let connectedBots = stores.bots.list().filter { connectedWorkspaces.contains($0.workspaceId) }
         bots = BotPresentation.visibleBots(connectedBots, preferredAgentId: stores.experience.assistantAgentID,
             projectIDs: stores.experience.projectIDs).sorted { left, right in
             if left.isMaster != right.isMaster { return left.isMaster }
+            if left.isAppBuilder != right.isAppBuilder { return left.isAppBuilder }
             return left.name.localizedStandardCompare(right.name) == .orderedAscending
         }
         savedChats = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })

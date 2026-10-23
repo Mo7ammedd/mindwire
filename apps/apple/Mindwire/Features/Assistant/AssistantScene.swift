@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Chat is the root, history opens from the left, and settings/setup are sheets. ChatScreen continues to
+/// Chat is the root, bots open from the left, and settings/setup are sheets. ChatScreen continues to
 /// own the composer and transcript through the existing shared session and draft stores.
 struct AssistantScene: View {
     var repository: WorkspaceRepository = .shared
@@ -23,6 +23,11 @@ struct AssistantScene: View {
     @State private var createTask: Task<Void, Never>?
     @State private var error: String?
     @State private var selectedChatWasPresent = false
+    #if !targetEnvironment(macCatalyst)
+    @State private var botPreparationError: String?
+    @State private var botPreparationAttempt = 0
+    @State private var preparedBots: BotPreparationContext?
+    #endif
     #if targetEnvironment(macCatalyst)
     @Environment(\.openWindow) private var openWindow
     @State private var desktopStartup = DesktopAssistantBootstrap()
@@ -49,7 +54,7 @@ struct AssistantScene: View {
             }
             #endif
         } sidebar: {
-            ChatHistorySheet(onOpenChat: { chat in app.assistantAppsVisible = false; app.openChat(chat.id) },
+            ChatHistorySheet(repository: repository, onOpenChat: { chat in app.assistantAppsVisible = false; app.openChat(chat.id) },
                 onNewChat: { app.assistantAppsVisible = false; showingSidebar = false; newChat() },
                 onSettings: { openSettings(account: false) },
                 onAccount: { openSettings(account: true) },
@@ -62,7 +67,9 @@ struct AssistantScene: View {
                 },
                 onEditBot: { bot in app.assistantAppsVisible = false; talkToMindwire(for: bot) },
                 onApps: app.usesAssistant ? { app.assistantAppsVisible = true; showingSidebar = false } : nil,
-                appsSelected: app.assistantAppsVisible)
+                appsSelected: app.assistantAppsVisible,
+                botPreparationError: sidebarBotPreparationError,
+                onRetryBots: retryBotPreparation)
         }
         #if targetEnvironment(macCatalyst)
         .overlay(alignment: .topLeading) {
@@ -133,15 +140,20 @@ struct AssistantScene: View {
             selectedChatWasPresent = app.assistantChatID.flatMap(stores.chats.get) != nil
             #if targetEnvironment(macCatalyst)
             await prepareDesktop()
-            #else
-            do {
-                try await prepareBots()
-                if app.assistantChatID == nil { newChat() }
-            } catch {
-                if !error.isRequestCancellation { self.error = error.localizedDescription }
-            }
             #endif
         }
+        #if !targetEnvironment(macCatalyst)
+        .task(id: botPreparationContext) {
+            guard let context = botPreparationContext, preparedBots != context else { return }
+            botPreparationError = nil
+            do {
+                try await prepareBots(context)
+                if app.assistantChatID == nil { newChat() }
+            } catch {
+                if !error.isRequestCancellation { botPreparationError = error.localizedDescription }
+            }
+        }
+        #endif
         #if targetEnvironment(macCatalyst)
         .onChange(of: app.selectedTab) { _, tab in
             if tab == .agents { openDesktopConversation() }
@@ -381,15 +393,61 @@ struct AssistantScene: View {
         return botId.flatMap(stores.bots.get)
     }
 
-    private func prepareBots() async throws {
+    private var sidebarBotPreparationError: String? {
+        #if targetEnvironment(macCatalyst)
+        return desktopStartup.error
+        #else
+        if let botPreparationError { return botPreparationError }
+        if botPreparationContext == nil, repository.hasRefreshed, !repository.isRefreshing {
+            return "Choose a computer and AI connection to load your bots."
+        }
+        return nil
+        #endif
+    }
+
+    private func retryBotPreparation() {
+        #if targetEnvironment(macCatalyst)
+        retryDesktop()
+        #else
+        if botPreparationContext == nil { showingSidebar = false; showingSetup = true }
+        else { botPreparationAttempt += 1 }
+        #endif
+    }
+
+    #if !targetEnvironment(macCatalyst)
+    private struct BotPreparationContext: Hashable {
+        let agentID: String
+        let workspaceID: String
+        let projectID: String?
+        let connectionError: String?
+        let attempt: Int
+    }
+
+    private var botPreparationContext: BotPreparationContext? {
+        // Observe metadata arrival without keying preparation on every registry
+        // revision: ensuring bots itself updates that registry.
+        _ = stores.agents.revision
+        _ = stores.projects.revision
+        _ = repository.revision
         guard let agent = stores.experience.assistantAgentID.flatMap(stores.agents.get),
-              let workspaceID = agent.workspaceId,
-              let projectID = stores.experience.projectIDs[workspaceID] else { return }
-        let master = try await stores.workspaceData.ensureGeneralBots(agentId: agent.id, projectId: projectID)
+              let workspaceID = agent.workspaceId, repository.get(workspaceID) != nil,
+              let projectID = stores.experience.projectIDs[workspaceID],
+              stores.projects.get(projectID)?.workspaceId == workspaceID else { return nil }
+        return .init(agentID: agent.id, workspaceID: workspaceID,
+                     projectID: projectID,
+                     connectionError: stores.workspaceData.errors[workspaceID], attempt: botPreparationAttempt)
+    }
+
+    private func prepareBots(_ context: BotPreparationContext) async throws {
+        guard let projectID = context.projectID else { throw WorkspaceRegistryError.missing }
+        let master = try await stores.workspaceData.ensureGeneralBots(agentId: context.agentID, projectId: projectID)
+        try Task.checkCancellation()
+        preparedBots = context
         if app.assistantBotID == nil {
             app.assistantBotID = app.assistantChatID.flatMap(stores.chats.get)?.botId ?? master.id
         }
     }
+    #endif
 
     private func talkToMindwire(for bot: AssistantBot) {
         showingSidebar = false

@@ -380,6 +380,8 @@ struct ChatScreen: View {
             renameText = chat?.title ?? ""
             renaming = true
         } label: { Label(t("chat.rename.title"), icon: Icon.edit) }
+        Button { showingSchedules = true } label: { Label("Schedules", icon: .calendar) }
+            .accessibilityIdentifier("chat.schedules")
         if experienceMode == .developer, let settings, settings.hasConfig, !model.nativeState.ownsConversation {
             Button { showingSettings = true } label: { Label(t("chat.modelSettings"), icon: .sliders) }
         }
@@ -397,9 +399,6 @@ struct ChatScreen: View {
             showingNotifications = true
             #endif
         } label: { Label(t("notifications.title"), icon: .bell) }
-        if experienceMode == .developer {
-            Button { showingSchedules = true } label: { Label("Schedules", icon: .calendar) }
-        }
         DestructiveButton(t("common.delete"), icon: Icon.trash) { confirmingDelete = true }
     }
 
