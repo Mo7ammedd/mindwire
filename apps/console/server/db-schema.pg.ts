@@ -84,3 +84,15 @@ export const cloudLegacyAccount = pgTable("cloud_legacy_account", {
   nextRefreshAt: bigint("next_refresh_at", { mode: "number" }).notNull().default(0),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 }, t => [uniqueIndex("cloud_legacy_account_owner").on(t.ownerId), index("cloud_legacy_account_refresh").on(t.nextRefreshAt)]);
+
+export const accountDeletion = pgTable("account_deletion", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").unique(),
+  receiptHash: text("receipt_hash").notNull().unique(),
+  status: text("status").notNull().default("pending"),
+  requestedAt: bigint("requested_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  leaseToken: text("lease_token"),
+  leaseUntil: bigint("lease_until", { mode: "number" }).notNull().default(0),
+  errorCode: text("error_code"),
+}, t => [index("account_deletion_due").on(t.status, t.updatedAt)]);

@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { auth, AUTH_BASE_PATH, userIdFromRequest } from "./auth";
 import { emailDeliveryEnabled } from "./email";
+import { accountDeletionPending } from "./account/deletion-state";
 
 /** Each account, Cloud, push and directory module owns its authentication boundary. */
 export function registerAuth(app: Hono): void {
@@ -43,6 +44,15 @@ export function registerAuth(app: Hono): void {
         },
         503,
       );
+    }
+    return next();
+  });
+  app.use(`${AUTH_BASE_PATH}/*`, async (c, next) => {
+    const action = c.req.path.slice(AUTH_BASE_PATH.length);
+    if (!["/get-session", "/sign-out", "/list-sessions", "/revoke-session", "/revoke-sessions", "/revoke-other-sessions"].includes(action)) {
+      const owner = await userIdFromRequest(c);
+      if (owner && await accountDeletionPending(owner))
+        return c.json({ code: "ACCOUNT_DELETION_PENDING", message: "Your Mindwire account is being deleted." }, 409);
     }
     return next();
   });

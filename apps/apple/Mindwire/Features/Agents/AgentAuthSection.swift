@@ -54,8 +54,9 @@ struct AgentAuthPresenter<Content: View>: View {
                 if id != nil { didPresentPreferredMethod = true }
             }
             .sheet(item: $presentation.sheet, onDismiss: {
-                model?.cancelInteractive()
-                Task { await model?.refresh() }
+                let completed = model?.completedAuthMethod != nil
+                model?.cancelInteractive(notifyRemote: !completed)
+                if !completed { Task { await model?.refresh() } }
             }) { item in
                 if let model {
                     switch item {
@@ -413,7 +414,17 @@ struct AgentAuthMethodSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if method.interactive, let service = assistantService, !ApplePlatform.isDesktop {
+                if model.confirmingInteractive {
+                    if assistantService != nil, !ApplePlatform.isDesktop {
+                        AssistantPage {
+                            AssistantHeading(title: t("assistant.ai.finishing"))
+                            AssistantSetupStatus(title: t("agentAuth.stage.auth"))
+                        }
+                    } else {
+                        ProgressView(t("assistant.ai.finishing"))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                } else if method.interactive, let service = assistantService, !ApplePlatform.isDesktop {
                     assistantInteractive(service)
                 } else if method.interactive {
                     Form {

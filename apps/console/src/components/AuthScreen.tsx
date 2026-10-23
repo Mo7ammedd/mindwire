@@ -175,6 +175,16 @@ export function AuthScreen({
                   {socials.length > 0 && (
                     <>
                       <div className="space-y-2">
+                        {socials.includes("apple") && (
+                          <SocialButton
+                            label="Continue with Apple"
+                            icon={<AppleIcon />}
+                            busy={social === "apple"}
+                            disabled={locked}
+                            onClick={() => onSocial("apple")}
+                            apple
+                          />
+                        )}
                         {socials.includes("github") && (
                           <SocialButton
                             label="Continue with GitHub"
@@ -579,18 +589,20 @@ function SocialButton({
   busy,
   disabled,
   onClick,
+  apple = false,
 }: {
   label: string;
   icon: ReactNode;
   busy: boolean;
   disabled: boolean;
   onClick: () => void;
+  apple?: boolean;
 }) {
   return (
     <Button
       type="button"
       variant="outline"
-      className="h-12 w-full justify-center gap-2.5"
+      className={`h-12 w-full justify-center gap-2.5 ${apple ? "bg-foreground text-background hover:bg-foreground/90 hover:text-background" : ""}`}
       disabled={disabled}
       onClick={onClick}
     >
@@ -630,6 +642,14 @@ function Dot() {
 // Brand marks. GitHub's is genuinely monochrome, so it rides `currentColor` (flips with the theme like
 // the rest of the ink). Google's is its official four-color "G" — a deliberate brand-color exception
 // (like the agent brand marks), never recolored, so it stays instantly recognizable.
+function AppleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
+      <path d="M17.05 12.04c-.03-2.66 2.17-3.94 2.27-4.01-1.24-1.81-3.17-2.06-3.85-2.09-1.64-.17-3.2.96-4.03.96-.83 0-2.11-.94-3.47-.91-1.79.03-3.44 1.04-4.36 2.64-1.86 3.23-.48 8.01 1.33 10.63.88 1.28 1.93 2.72 3.31 2.67 1.33-.05 1.83-.86 3.44-.86 1.61 0 2.06.86 3.47.83 1.43-.03 2.34-1.31 3.22-2.6 1.01-1.49 1.43-2.93 1.45-3.01-.03-.01-2.79-1.07-2.82-4.24zM14.47 4.4c.73-.89 1.22-2.12 1.09-3.35-1.05.04-2.32.7-3.07 1.58-.67.78-1.26 2.03-1.1 3.23 1.17.09 2.36-.6 3.08-1.46z" />
+    </svg>
+  );
+}
+
 function GitHubIcon({ className = "size-4" }: { className?: string }) {
   return (
     <svg

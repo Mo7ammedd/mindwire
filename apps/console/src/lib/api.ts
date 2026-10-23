@@ -1,4 +1,4 @@
-import type { PublicConfig, SocialProvider } from "@shared/api";
+import type { PublicConfig, SocialProvider, AccountDeletionOptions, AccountDeletionRequest, AccountDeletionProgress } from "@shared/api";
 
 export interface AuthUser {
   id: string;
@@ -38,12 +38,13 @@ export async function request<T>(
   url: string,
   method = "GET",
   body?: unknown,
+  headers?: Record<string, string>,
 ): Promise<T> {
   const response = await fetch(url, {
     method,
     credentials: "same-origin",
     signal: AbortSignal.timeout(30000),
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const text = await response.text();
@@ -85,6 +86,9 @@ export const api = {
   removeNotificationDevice: (id: number) =>
     request(`/api/notifications/devices/${id}`, "DELETE"),
   account: {
+    deletionOptions: () => request<AccountDeletionOptions>("/api/portal/account/deletion"),
+    delete: (userId: string, password?: string) => request<AccountDeletionRequest>("/api/portal/account/deletion", "POST", { confirmation: "DELETE", expectedUserId: userId, ...(password ? { password } : {}) }),
+    deletionProgress: (receipt: string) => request<AccountDeletionProgress>("/api/portal/account/deletion/status", "GET", undefined, { "X-Deletion-Receipt": receipt }),
     me: () => request<{ user: AuthUser } | null>("/api/account/get-session"),
     signUp: (email: string, password: string, name: string) =>
       request<{ user: AuthUser }>("/api/account/sign-up/email", "POST", {

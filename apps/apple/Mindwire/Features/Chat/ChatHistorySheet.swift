@@ -326,6 +326,7 @@ struct ChatHistorySheet: View {
         Button { onNewBotChat?(bot) } label: { Label(t("assistant.newChat"), icon: Icon.edit) }
         Button { historyBot = bot } label: { Label(t("assistant.history"), systemImage: "clock") }
         Button { schedulingBot = bot } label: { Label("Schedules", icon: .calendar) }
+            .accessibilityIdentifier("bot.schedules")
         Button { inspectingBot = bot } label: { Label(t("assistant.bots.about"), systemImage: "info.circle") }
         Button { changingBotIcon = bot } label: { Label(t("assistant.icons.change"), systemImage: "face.smiling") }
         Button { editingBot = bot } label: { Label(t("common.edit"), systemImage: "slider.horizontal.3") }

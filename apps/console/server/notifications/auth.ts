@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import { userIdFromRequest } from "../auth";
 import { env } from "../env";
 import { PushError } from "./types";
+import { accountDeletionPending } from "../account/deletion-state";
 
 export function bearer(c: Context): string {
   const match = /^Bearer ([^\s]+)$/.exec(c.req.header("Authorization") ?? "");
@@ -16,6 +17,7 @@ export async function pushOwner(c: Context): Promise<string> {
   if (c.req.header("Cookie") || c.req.header("Authorization")) {
     const id = await userIdFromRequest(c);
     if (id) {
+      if (await accountDeletionPending(id)) throw new PushError(409, "account_deletion_pending");
       if (c.req.header("Cookie") && !["GET", "HEAD"].includes(c.req.method)) {
         const origin = c.req.header("Origin");
         if (!origin || !env.trustedOrigins.includes(origin)) throw new PushError(403, "untrusted_origin");

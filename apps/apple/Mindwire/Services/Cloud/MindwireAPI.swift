@@ -1,5 +1,18 @@
 import Foundation
 
+struct AccountDeletionOptions: Decodable, Sendable {
+    let status: String
+    let message: String?
+    let hasPassword: Bool
+    let needsSignIn: Bool
+}
+
+struct AccountDeletionProgress: Decodable, Sendable {
+    let status: String
+    let message: String
+    let receipt: String?
+}
+
 enum APIError: LocalizedError {
     case http(status: Int, detail: String?)
     case transport(String)
@@ -64,6 +77,25 @@ actor MindwireAPI {
         clearToken()
     }
 
+    func accountDeletionOptions() async throws -> AccountDeletionOptions {
+        guard let data = try await accountRequest("GET", "/api/portal/account/deletion") else { throw APIError.transport("account") }
+        return try JSONDecoder().decode(AccountDeletionOptions.self, from: data)
+    }
+
+    func deleteAccount(expectedUserID: String, password: String? = nil) async throws -> AccountDeletionProgress {
+        var value = ["confirmation": "DELETE", "expectedUserId": expectedUserID]
+        if let password, !password.isEmpty { value["password"] = password }
+        let body = try JSONSerialization.data(withJSONObject: value)
+        guard let data = try await accountRequest("POST", "/api/portal/account/deletion", body: body) else { throw APIError.transport("account") }
+        return try JSONDecoder().decode(AccountDeletionProgress.self, from: data)
+    }
+
+    func accountDeletionProgress(receipt: String) async throws -> AccountDeletionProgress {
+        guard let data = try await accountRequest("GET", "/api/portal/account/deletion/status", authenticated: false,
+                                                 extraHeaders: ["X-Deletion-Receipt": receipt]) else { throw APIError.transport("account") }
+        return try JSONDecoder().decode(AccountDeletionProgress.self, from: data)
+    }
+
     @discardableResult
     func send(_ method: String, _ path: String, body: Data? = nil, retrying: Bool = false, logResponseBody: Bool = true) async throws -> Data? {
         guard path.hasPrefix("/"), !path.hasPrefix("//"), !path.contains("\\") else { throw APIError.badURL(path) }
@@ -71,7 +103,7 @@ actor MindwireAPI {
     }
 
     @discardableResult
-    func accountRequest(_ method: String, _ path: String, body: Data? = nil, authenticated: Bool = true) async throws -> Data? {
+    func accountRequest(_ method: String, _ path: String, body: Data? = nil, authenticated: Bool = true, extraHeaders: [String: String] = [:]) async throws -> Data? {
         guard path.hasPrefix("/api/"), !path.contains("\\"), let url = URL(string: base + path), url.host == URL(string: base)?.host else {
             throw APIError.badURL(path)
         }
@@ -81,6 +113,7 @@ actor MindwireAPI {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(base, forHTTPHeaderField: "Origin")
         if authenticated { request.setValue("Bearer \(try token())", forHTTPHeaderField: "Authorization") }
+        for (key, value) in extraHeaders { request.setValue(value, forHTTPHeaderField: key) }
         if let body { request.httpBody = body; request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         APILog.request(request)
         let data: Data, response: URLResponse

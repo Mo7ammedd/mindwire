@@ -157,6 +157,7 @@ struct AssistantComputerPicker: View {
     var repository: WorkspaceRepository = .shared
     let onChoose: (Workspace) -> Void
     let onAdd: () -> Void
+    @Environment(\.stores) private var stores
     @State private var loading = true
     @State private var inventoryAccountID: String?
     @State private var loadError: String?
@@ -219,7 +220,7 @@ struct AssistantComputerPicker: View {
                 if !computers.isEmpty && (!isCloud || auth.authenticated) {
                     VStack(spacing: 12) {
                         ForEach(computers) { computer in
-                            AssistantOption(title: computer.name, detail: t("onboarding.computer.verify"), icon: destination.icon) { onChoose(computer) }
+                            AssistantOption(title: computer.name, detail: t("onboarding.computer.verify"), icon: icon(for: computer)) { onChoose(computer) }
                         }
                     }
                 }
@@ -233,17 +234,13 @@ struct AssistantComputerPicker: View {
                 // loads this account's inventory, including sign-ins started elsewhere.
                 CloudSignIn(onboarding: true)
             } else if isCloud {
-                if inventoryReady {
-                    if computers.isEmpty {
-                        AssistantPrimaryButton(title: t("assistant.setup.createCloud"), icon: .plus, action: onAdd)
-                            .accessibilityIdentifier("onboarding.cloud.create")
-                        Text(t("assistant.cloud.costHint")).font(.footnote).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    } else {
-                        Button(t("assistant.setup.addCloud"), icon: .plus, action: onAdd)
-                            .buttonStyle(.glass).controlSize(.large).tint(.primary)
-                            .accessibilityIdentifier("onboarding.cloud.add")
-                    }
+                // Existing customers choose their saved computer. Creation is
+                // offered only after this account's inventory confirms none exist.
+                if inventoryReady && computers.isEmpty {
+                    AssistantPrimaryButton(title: t("assistant.setup.createCloud"), icon: .plus, action: onAdd)
+                        .accessibilityIdentifier("onboarding.cloud.create")
+                    Text(t("assistant.cloud.costHint")).font(.footnote).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
             } else {
                 AssistantPrimaryButton(title: t("assistant.setup.addComputer"), icon: .plus, action: onAdd)
@@ -253,6 +250,11 @@ struct AssistantComputerPicker: View {
         .task(id: isCloud ? auth.user?.id : nil) { await refresh() }
         .refreshable { await refresh(force: true) }
         .mindwireSignIn(isPresented: $switchingAccount)
+    }
+
+    private func icon(for computer: Workspace) -> AppIconName {
+        if let serverID = computer.runtime.serverId, stores.connections.get(serverID)?.remote != nil { return .server }
+        return destination.icon
     }
 
     private func refresh(force: Bool = false) async {

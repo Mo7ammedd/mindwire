@@ -84,3 +84,15 @@ export const cloudLegacyAccount = sqliteTable("cloud_legacy_account", {
   nextRefreshAt: integer("next_refresh_at").notNull().default(0),
   createdAt: integer("created_at").notNull(),
 }, t => [uniqueIndex("cloud_legacy_account_owner").on(t.ownerId), index("cloud_legacy_account_refresh").on(t.nextRefreshAt)]);
+
+export const accountDeletion = sqliteTable("account_deletion", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").unique(),
+  receiptHash: text("receipt_hash").notNull().unique(),
+  status: text("status").notNull().default("pending"),
+  requestedAt: integer("requested_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+  leaseToken: text("lease_token"),
+  leaseUntil: integer("lease_until").notNull().default(0),
+  errorCode: text("error_code"),
+}, t => [index("account_deletion_due").on(t.status, t.updatedAt)]);

@@ -48,17 +48,9 @@ final class AppExperience {
             : hasExistingConversation || (defaults.string(forKey: "mindwire.assistant.agent") != nil
                 && !(defaults.dictionary(forKey: "mindwire.assistant.projects") ?? [:]).isEmpty)
         let savedMode = defaults.string(forKey: Self.modeKey).flatMap(AppExperienceMode.init(rawValue:))
-        #if targetEnvironment(macCatalyst)
-        // Desktop begins with the local personal assistant. Keep an existing explicit
-        // mode preference; switching remains available in the shared Settings screen.
+        // Both platforms start in General. Saved computers or profiles from an
+        // unfinished setup must never silently select Developer mode.
         mode = savedMode ?? .general
-        #else
-        mode = savedMode ?? (hasExistingData ? .developer : nil)
-        // Upgrades retain the familiar interface. Fresh installations choose explicitly.
-        if savedMode == nil, hasExistingData {
-            defaults.set(AppExperienceMode.developer.rawValue, forKey: Self.modeKey)
-        }
-        #endif
         assistantAgentID = defaults.string(forKey: "mindwire.assistant.agent")
         pendingWorkspaceID = defaults.string(forKey: "mindwire.assistant.setup.workspace")
         pendingAgentID = defaults.string(forKey: "mindwire.assistant.setup.agent")

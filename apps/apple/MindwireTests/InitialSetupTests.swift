@@ -31,7 +31,7 @@ final class InitialSetupTests: XCTestCase {
         XCTAssertTrue(incomplete.needsInitialSetup)
         let returning = AppExperience(defaults: try defaults(), hasExistingData: true, hasExistingConversation: true)
         XCTAssertFalse(returning.needsInitialSetup)
-        XCTAssertEqual(returning.mode, .developer)
+        XCTAssertEqual(returning.mode, .general)
     }
 
     func testOnlyMatchingAgentAndProjectFinishSetupAndPreserveTheirIDs() throws {

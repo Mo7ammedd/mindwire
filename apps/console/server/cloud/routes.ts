@@ -11,13 +11,14 @@ import { CloudError, contract, publicComputer, type ComputerRow } from "./types"
 import { hostedUrl } from "./provider";
 import { cloudAccount, cloudBody, cloudRawBody } from "./access";
 import { registerComputerGateway } from "./gateway";
+import { accountSession } from "../account/access";
 
 export function registerCloud(root: Hono, service = new ComputerService()) {
   const app = new Hono();
   app.onError(operationError);
   app.get("/api/cloud/catalog", c => c.json({ version: COMPUTER_CATALOG_VERSION, currency: "usd", interval: "monthly", plans: COMPUTER_PLANS, available: service.provider.configured() }));
   app.get("/api/cloud/account", async c => {
-    const user = await cloudAccount(c);
+    const { user } = await accountSession(c);
     return c.json({ authenticated: true, user: { id: user.id, email: user.email, name: user.name, image: user.image } });
   });
   app.get("/api/cloud/computers", async c => c.json({ computers: (await service.store.list((await cloudAccount(c)).id)).map(publicComputer) }));

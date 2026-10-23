@@ -4,8 +4,10 @@ import { consoleRows, postgres } from "../database";
 import { COMPUTER_CATALOG_VERSION, type ComputerPlan } from "../../shared/cloud";
 import { CloudError, contract, type ComputerRow } from "./types";
 import { operationFailure } from "../errors";
+import { requireActiveAccount } from "../account/deletion-state";
 
 export class ComputerStore {
+  constructor(private readonly deletingAccount = false) {}
   async list(owner: string): Promise<ComputerRow[]> {
     return consoleRows<ComputerRow>(sql`SELECT * FROM cloud_computer WHERE owner_id=${owner} AND state<>'deleted' ORDER BY created_at DESC`);
   }
@@ -27,6 +29,8 @@ export class ComputerStore {
     const insertion = sql`INSERT INTO cloud_computer(id,owner_id,request_key,namespace,name,contract,created_at,updated_at)
       SELECT ${id},${owner},${key},${namespace},${name},${saved},${now},${now}
       WHERE (SELECT count(*) FROM cloud_computer WHERE owner_id=${owner} AND state IN ('draft','checkout_pending','payment_pending'))<10
+      AND EXISTS (SELECT 1 FROM "user" WHERE id=${owner})
+      AND NOT EXISTS (SELECT 1 FROM account_deletion WHERE owner_id=${owner})
       ON CONFLICT(owner_id,request_key) DO NOTHING RETURNING id`;
     if (postgres) await postgres.transaction(async tx => {
       await tx.execute(sql`SELECT id FROM "user" WHERE id=${owner} FOR UPDATE`);
@@ -42,6 +46,7 @@ export class ComputerStore {
   }
   /** Cross-replica lease with fencing. External calls also use stable idempotency keys. */
   async locked<T>(owner: string, id: string, work: (row: ComputerRow, save: (next: ComputerRow) => Promise<void>) => Promise<T>): Promise<T> {
+    if (!this.deletingAccount) await requireActiveAccount(owner);
     const token = randomUUID(), now = Date.now();
     const row = (await consoleRows<ComputerRow>(sql`UPDATE cloud_computer SET lease_token=${token},lease_until=${now + 120000}
       WHERE id=${id} AND owner_id=${owner} AND lease_until<${now} RETURNING *`))[0];

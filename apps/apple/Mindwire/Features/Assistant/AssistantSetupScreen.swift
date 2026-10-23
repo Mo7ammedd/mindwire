@@ -28,10 +28,11 @@ struct AssistantSetupScreen: View {
     @State private var computerPreparation = AssistantComputerPreparation()
     @State private var computerAttempt = 0
     @State private var mode: AppExperienceMode = .general
-    @State private var choosingMode = false
+    @State private var connectionTask: Task<Void, Never>?
+    @State private var connectionError: String?
 
     private enum SetupStep: String, Hashable {
-        case destinations, computer, pairComputer, cloud, createCloud, prepareComputer, account
+        case destinations, computer, addComputer, pairComputer, sshServer, cloud, createCloud, prepareComputer, account, mode
     }
 
     private var workspace: Workspace? { workspaceID.flatMap(repository.get) }
@@ -68,11 +69,15 @@ struct AssistantSetupScreen: View {
                     case .computer:
                         if repository.all.contains(where: AssistantComputerDestination.computer.includes) {
                             AssistantComputerPicker(destination: .computer, repository: repository, onChoose: choose) {
-                                path.append(.pairComputer)
+                                path.append(.addComputer)
                             }
-                        } else { pairComputer }
+                        } else { connectionMethods }
+                    case .addComputer:
+                        connectionMethods
                     case .pairComputer:
                         pairComputer
+                    case .sshServer:
+                        AddServerScreen(presetType: .ssh, assistantSetup: true, embedded: true, onSaved: connected)
                     case .cloud:
                         AssistantComputerPicker(destination: .cloud, repository: repository, onChoose: choose) {
                             path.append(.createCloud)
@@ -83,6 +88,8 @@ struct AssistantSetupScreen: View {
                         prepareComputer
                     case .account:
                         account
+                    case .mode:
+                        modeChoice
                     }
                 }
                 .toolbar(.visible, for: .navigationBar)
@@ -92,12 +99,17 @@ struct AssistantSetupScreen: View {
         .environment(\.assistantTheme, .website)
         .environment(\.appExperienceMode, .general)
         .interactiveDismissDisabled(required || finishing)
-        .onDisappear { finishTask?.cancel() }
+        .onDisappear { finishTask?.cancel(); connectionTask?.cancel() }
+        .alert(t("onboarding.computer.connectionFailed"), isPresented: Binding(
+            get: { connectionError != nil }, set: { if !$0 { connectionError = nil } }
+        )) {
+            Button(t("common.ok"), role: .cancel) {}
+        } message: { Text(connectionError ?? "") }
         .task {
             defer { preparingLocalComputer = false }
             if !restored {
                 restored = true
-                mode = stores.experience.mode ?? .general
+                mode = required ? .general : stores.experience.mode ?? .general
                 let pending = stores.experience.pendingWorkspaceID.flatMap(repository.get)
                 if let pending {
                     let pendingAgent = stores.experience.pendingAgentID.flatMap(stores.agents.get)
@@ -140,7 +152,14 @@ struct AssistantSetupScreen: View {
                 #endif
                 AssistantDestinationCard(destination: .cloud) { path.append(.cloud) }
             }
-            #if !targetEnvironment(macCatalyst)
+            #if targetEnvironment(macCatalyst)
+            Button { path.append(.addComputer) } label: {
+                Label(t("onboarding.computer.another"), icon: .plus)
+                    .font(theme.font(15, weight: .medium, relativeTo: .subheadline))
+            }
+            .buttonStyle(.plain).foregroundStyle(theme.muted).padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            #else
             Button { path.append(.pairComputer) } label: {
                 Label(t("onboarding.existing"), icon: .scan)
                     .font(theme.font(15, weight: .medium, relativeTo: .subheadline))
@@ -165,8 +184,44 @@ struct AssistantSetupScreen: View {
     #endif
 
     private var pairComputer: some View {
-        AddServerScreen(presetType: .local, assistantSetup: true, embedded: true) { connection in
-            if let workspace = stores.workspaces(forServerId: connection.id).first { choose(workspace) }
+        AddServerScreen(presetType: .local, assistantSetup: true, embedded: true, onSaved: connected)
+    }
+
+    private var connectionMethods: some View {
+        AssistantPage {
+            AssistantSetupProgress(step: 0)
+            AssistantHeading(title: t("onboarding.computer.connect"))
+            VStack(spacing: 14) {
+                AssistantOption(title: t("onboarding.computer.pair"), detail: t("onboarding.computer.pair.body"), icon: .laptop) {
+                    path.append(.pairComputer)
+                }
+                .accessibilityIdentifier("onboarding.computer.pair")
+                AssistantOption(title: t("onboarding.computer.server"), detail: t("onboarding.computer.server.body"), icon: .server) {
+                    path.append(.sshServer)
+                }
+                .accessibilityIdentifier("onboarding.computer.server")
+            }
+        }
+    }
+
+    private func connected(_ connection: Connection) {
+        if let workspace = stores.workspaces(forServerId: connection.id).first(where: { $0.runtime.sandbox == nil }) {
+            choose(workspace)
+            return
+        }
+        connectionTask?.cancel()
+        connectionError = nil
+        connectionTask = Task { @MainActor in
+            defer { connectionTask = nil }
+            // The shared repository adopts the verified SSH connection and queues
+            // its normal service setup; onboarding only observes that same work.
+            let workspace = await repository.adopt(name: connection.name, runtime: .server(serverId: connection.id), spec: nil)
+            guard !Task.isCancelled else { return }
+            guard let workspace else {
+                connectionError = t("onboarding.computer.adoptionFailed")
+                return
+            }
+            choose(workspace)
         }
     }
 
@@ -180,8 +235,8 @@ struct AssistantSetupScreen: View {
             }
             if let error = computerPreparation.error {
                 AssistantSetupIssue(message: error)
-            } else {
-                AssistantSetupStatus(title: t("assistant.setup.preparingComputer.body"))
+            } else if let workspaceID {
+                AssistantComputerProgress(workspaceID: workspaceID)
             }
         } footer: {
             if computerPreparation.error != nil {
@@ -268,20 +323,14 @@ struct AssistantSetupScreen: View {
             } else if preparedProject == nil {
                 AssistantSetupStatus(title: t("onboarding.ready.preparing"))
             }
-            if preparedProject != nil && required {
-                DisclosureGroup(t("onboarding.mode.optional"), isExpanded: $choosingMode) {
-                    AssistantModeChoice(selection: $mode).padding(.top, 16)
-                }
-                .font(.subheadline.weight(.medium)).tint(.primary)
-                .disabled(finishing)
-            }
         } footer: {
             if let preparedProject {
                 AssistantPrimaryButton(
-                    title: finishTitle,
+                    title: required ? t("common.continue") : finishTitle,
                     icon: .chevronRight, busy: finishing
                 ) {
-                    finish(agent: agent, project: preparedProject)
+                    if required { path.append(.mode) }
+                    else { finish(agent: agent, project: preparedProject) }
                 }
                 .accessibilityIdentifier("onboarding.finish")
             } else if error != nil {
@@ -300,6 +349,16 @@ struct AssistantSetupScreen: View {
             } catch {
                 if !error.isRequestCancellation { self.error = error.localizedDescription }
             }
+        }
+    }
+
+    @ViewBuilder private var modeChoice: some View {
+        if let agent = readyAgent, let project = preparedProject {
+            ExperienceOnboardingScreen(initialSelection: mode, working: finishing, error: error) { selection in
+                mode = selection
+                finish(agent: agent, project: project)
+            }
+            .navigationBarBackButtonHidden(finishing)
         }
     }
 

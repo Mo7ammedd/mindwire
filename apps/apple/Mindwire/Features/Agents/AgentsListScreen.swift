@@ -136,6 +136,7 @@ struct AgentsListScreen: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button("Schedules", icon: .calendar) { schedulingBot = entry.bot }
+                .accessibilityIdentifier("bot.schedules")
         }
         .accessibilityIdentifier("bots.bot.\(entry.id)")
         .accessibilityValue(isWorking(entry) ? t("chat.running") : "")

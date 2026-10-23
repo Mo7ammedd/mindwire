@@ -111,6 +111,7 @@ final class DaemonSession {
     var loginForm: DaemonAuthFormSchema { .init(fields: loginFields, sections: loginSections) }
     /// Completion of the current login attempt, independent of an existing signed-in account.
     private(set) var completedAuthMethod: String?
+    var confirmingInteractive: Bool { finishingInteractiveAttemptID != nil }
 
     private var backend: Backend?
     @ObservationIgnored private weak var gitStores: Stores?
@@ -144,6 +145,7 @@ final class DaemonSession {
     private var pollTask: Task<Void, Never>?
     private var interactiveAttemptID: UUID?
     private var finishingInteractiveAttemptID: UUID?
+    private var interactiveCompletionTask: Task<Void, Never>?
     private var loginFlowID: String?
     private var interactiveInputRevision = 0
     private var authCancelTask: Task<Void, Never>?
@@ -1047,23 +1049,27 @@ final class DaemonSession {
         }
     }
 
-    private func poll(attemptID: UUID) {
+    private func poll(attemptID: UUID, immediately: Bool = false) {
+        pollTask?.cancel()
         pollTask = Task { [weak self] in
             guard let self else { return }
             let expiresAt = Date().addingTimeInterval(11 * 60)
             var failures = 0
+            var checkImmediately = immediately
             // Native login expires after 10 minutes. Let the service report that
             // expiry instead of abandoning a valid browser flow at five minutes.
             while true {
-                if Task.isCancelled { return }
-                try? await Task.sleep(for: .seconds(2))
-                if Task.isCancelled { return }
+                if Task.isCancelled || self.finishingInteractiveAttemptID == attemptID { return }
+                if !checkImmediately { try? await Task.sleep(for: .seconds(2)) }
+                checkImmediately = false
+                if Task.isCancelled || self.finishingInteractiveAttemptID == attemptID { return }
                 do {
                     // Direct transport (not `call`): the daemon is up during an active login; a
                     // re-ensure here would restart it and drop the in-flight flow.
                     let revision = self.interactiveInputRevision
                     let state = try await self.transport.authStep(self.loginInput())
-                    guard self.interactiveAttemptID == attemptID, !Task.isCancelled else { return }
+                    guard self.interactiveAttemptID == attemptID, self.finishingInteractiveAttemptID != attemptID,
+                          !Task.isCancelled else { return }
                     failures = 0
                     self.connectError = nil
                     guard revision == self.interactiveInputRevision, !self.loginSubmitting else { continue }
@@ -1149,10 +1155,15 @@ final class DaemonSession {
         interactiveInputRevision += 1
         let state = try await transport.authStep(["_flowId": flowID, "_callbackUrl": url.absoluteString])
         guard interactiveAttemptID == attemptID else { throw CancellationError() }
+        guard finishingInteractiveAttemptID != attemptID else { return }
         interactiveInputRevision += 1
         apply(state)
         if state.status == "complete" || state.status == "error" {
             await finishInteractive(state, attemptID: attemptID)
+        } else {
+            // The callback can arrive just before the native completion event.
+            // Wake the existing observer instead of waiting for its next timer.
+            poll(attemptID: attemptID, immediately: true)
         }
         if state.status == "error" { throw BackendError.message(t("agentAuth.failed")) }
     }
@@ -1170,11 +1181,24 @@ final class DaemonSession {
     private func finishInteractive(_ state: DaemonAuthState, attemptID: UUID) async {
         guard interactiveAttemptID == attemptID, finishingInteractiveAttemptID != attemptID else { return }
         finishingInteractiveAttemptID = attemptID
-        defer { if finishingInteractiveAttemptID == attemptID { finishingInteractiveAttemptID = nil } }
         // Close Safari as soon as native completion arrives; refreshing account
         // metadata must not leave a finished browser session on screen.
         working = false
-        if state.status == "complete" { await refresh() }
+        // Closing Safari also closes its loopback request. Account confirmation
+        // belongs to this session so that transport cleanup cannot cancel it.
+        let completion = Task { await self.completeInteractive(state, attemptID: attemptID) }
+        interactiveCompletionTask = completion
+        await completion.value
+    }
+
+    private func completeInteractive(_ state: DaemonAuthState, attemptID: UUID) async {
+        defer {
+            if finishingInteractiveAttemptID == attemptID {
+                finishingInteractiveAttemptID = nil
+                interactiveCompletionTask = nil
+            }
+        }
+        let verified = state.status == "complete" ? await confirmInteractiveAuthentication(attemptID: attemptID) : false
         guard interactiveAttemptID == attemptID else { return }
         working = false
         activeMethod = nil
@@ -1186,15 +1210,43 @@ final class DaemonSession {
             connectError = state.message ?? t("agentAuth.failed")
         } else if let loadError {
             connectError = loadError
-        } else if !isConfigured {
+        } else if !verified || !isConfigured {
             connectError = status?.detail ?? t("agentAuth.failed")
         } else {
             completedAuthMethod = state.method
         }
     }
 
+    /// Setup already verified the CLI before sign-in. Only recheck its account
+    /// here; a full /setup + /agent refresh repeats unrelated discovery work.
+    private func confirmInteractiveAuthentication(attemptID: UUID) async -> Bool {
+        let authRevision = authenticationRevision
+        let sharedRevision = workCoordinator.authenticationRevision(for: toolsKey)
+        loading = true
+        defer { if finishingInteractiveAttemptID == attemptID { loading = false } }
+        do {
+            let verified = try await transport.authStatus()
+            guard interactiveAttemptID == attemptID, authenticationRevision == authRevision,
+                  workCoordinator.authenticationRevision(for: toolsKey) == sharedRevision else { return false }
+            info?.authStatus = verified
+            info?.configured = verified.configured
+            fallbackStatus = verified
+            workCoordinator.recordAuthentication(verified, for: toolsKey)
+            loadError = nil
+        } catch {
+            guard interactiveAttemptID == attemptID, authenticationRevision == authRevision else { return false }
+            loadError = error.localizedDescription
+        }
+        loading = false
+        settlePhase()
+        return loadError == nil
+    }
+
     func cancelInteractive(notifyRemote: Bool = true) {
         if notifyRemote { cancelRemoteLogin(loginFlowID) }
+        interactiveCompletionTask?.cancel()
+        interactiveCompletionTask = nil
+        if finishingInteractiveAttemptID != nil { loading = false }
         pollTask?.cancel()
         pollTask = nil
         interactiveAttemptID = nil

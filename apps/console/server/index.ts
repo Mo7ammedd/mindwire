@@ -5,12 +5,13 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 
 import { env } from "./env";
-import { initAuth, publicConfig } from "./auth";
+import { auth, initAuth, publicConfig } from "./auth";
 import { registerAuth } from "./guard";
 import { registerComputerDirectory, startDirectoryMaintenance } from "./computer-directory/routes";
 import { registerNotifications } from "./notifications/routes";
 import { registerCloud, startComputerReconciliation } from "./cloud/routes";
 import { registerAccountPortal } from "./account/routes";
+import { startAccountDeletion } from "./account/deletion";
 
 const app = new Hono();
 
@@ -88,6 +89,7 @@ initAuth()
   .then(() => {
     startDirectoryMaintenance();
     startComputerReconciliation();
+    startAccountDeletion(auth);
     serve({ fetch: app.fetch, port: env.port }, (info) => {
       console.log(`[console] listening on http://127.0.0.1:${info.port}`);
     });

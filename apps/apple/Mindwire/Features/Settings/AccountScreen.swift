@@ -1,4 +1,4 @@
-// Account screen — reflects the shared, observable Oblien session (MindwireAuth): signed-in user or
+// Account screen — reflects the shared, observable Mindwire session: signed-in user or
 // a sign-in CTA. Reactive, so signing in/out anywhere updates it (and Settings) immediately.
 import SwiftUI
 
@@ -11,6 +11,10 @@ struct AccountScreen: View {
     @State private var pendingPurchase: CloudComputer?
     @State private var portal: IdentifiedURL?
     @State private var errorMessage: String?
+    @State private var showDeletion = false
+    @State private var deletionUserID: String?
+    @State private var deletionPending = false
+    @State private var deletionCompleted = false
 
     var body: some View {
         Form {
@@ -34,6 +38,20 @@ struct AccountScreen: View {
             }
         }
         .sheet(item: $portal) { item in SafariView(url: item.url) }
+        .sheet(isPresented: $showDeletion, onDismiss: { Task { await reload() } }) {
+            if let userID = deletionUserID {
+                AccountDeletionSheet(userID: userID) {
+                    showDeletion = false
+                    computers = []
+                    deletionPending = false
+                    auth.markSignedOut()
+                    deletionCompleted = true
+                }
+            }
+        }
+        .alert("Account deleted", isPresented: $deletionCompleted) {
+            Button(t("common.ok"), role: .cancel) {}
+        } message: { Text("Your Mindwire account has been deleted. Your personal computers and separate AI accounts are unchanged.") }
         .alert(t("account.signOut.title"), isPresented: $confirmingSignOut) {
             Button(t("account.signOut"), role: .destructive) { signOut() }
             Button(t("common.cancel"), role: .cancel) {}
@@ -74,7 +92,7 @@ struct AccountScreen: View {
                 signOutButton
             }
         }
-        Section {
+        if !deletionPending { Section {
             if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.secondary) }
             if computers.isEmpty { Text("Each Cloud Computer has its own monthly subscription. Your own computers remain free.").foregroundStyle(.secondary) }
             ForEach(computers) { computer in
@@ -101,8 +119,8 @@ struct AccountScreen: View {
                 }
             }
             Link("Open Mindwire Console", destination: URL(string: AppConstants.mindwireServicesBase + "/computers")!)
-        } header: { Text("Cloud Computers") }
-        if SessionToken.get() != nil {
+        } header: { Text("Cloud Computers") } }
+        if SessionToken.get() != nil && !deletionPending {
             Section {
                 Button("Connect previous cloud account") {
                     Task {
@@ -112,10 +130,20 @@ struct AccountScreen: View {
                 }
             } footer: { Text("Connect your previous account to keep its computers, files and paid terms. Nothing is moved or deleted.") }
         }
+        Section {
+            Button(deletionPending ? "View deletion status" : "Delete account", role: .destructive) {
+                deletionUserID = auth.user?.id
+                showDeletion = true
+            }
+            .accessibilityIdentifier("account.delete")
+        } footer: {
+            Text(deletionPending ? "Your account is being deleted. Cleanup continues automatically." : "Permanently delete your Mindwire account and Cloud data.")
+        }
     }
 
     private var switchAccountButton: some View {
         Button("Switch account") { showLogin = true }
+            .disabled(deletionPending)
             .tint(.primary).accessibilityIdentifier("account.switch")
     }
 
@@ -165,11 +193,155 @@ struct AccountScreen: View {
     private func reload() async {
         await auth.refresh()
         if auth.authenticated {
-            do { computers = try await CloudComputers.list(); errorMessage = nil }
+            do {
+                deletionPending = try await MindwireAPI.shared.accountDeletionOptions().status == "pending"
+                if deletionPending { computers = [] }
+                else { computers = try await CloudComputers.list() }
+                errorMessage = nil
+            }
             catch { errorMessage = error.localizedDescription }
         } else {
             computers = []
+            deletionPending = false
         }
         loaded = true
+    }
+}
+
+/// Both platforms use the same account API and lifecycle; only the presentation
+/// size changes. No provider credentials or personal-computer stores are touched.
+private struct AccountDeletionSheet: View {
+    let userID: String
+    let onDeleted: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var options: AccountDeletionOptions?
+    @State private var progress: AccountDeletionProgress?
+    @State private var confirmation = ""
+    @State private var password = ""
+    @State private var receipt: String?
+    @State private var busy = false
+    @State private var showLogin = false
+    @State private var error: String?
+
+    private var needsSignIn: Bool { options?.hasPassword == false && options?.needsSignIn == true }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if let progress {
+                    Section {
+                        HStack(alignment: .top, spacing: 12) {
+                            ProgressView()
+                            Text(progress.message).font(.subheadline)
+                        }
+                        .padding(.vertical, 8)
+                    } header: { Text("Deleting account") }
+                } else if let options {
+                    Section {
+                        Text("Your profile, sessions, saved credentials and notification registrations will be deleted.")
+                        Text("Mindwire Cloud renewals will stop. Your Cloud Computers, files, backups and published apps will be permanently removed.")
+                        Text("Your personal computers and separate AI or Oblien accounts stay yours. Billing records required by law may be retained.")
+                    } header: { Text("This is permanent") } footer: { Text("Save anything you want to keep before continuing.") }
+                    if needsSignIn {
+                        Section {
+                            Button("Sign in again") { showLogin = true }
+                                .tint(.primary)
+                        } footer: { Text("Verify your identity, then return here to confirm deletion.") }
+                    } else {
+                        Section {
+                            if options.hasPassword {
+                                SecureField("Mindwire password", text: $password)
+                                    .textContentType(.password)
+                            }
+                            TextField("Type DELETE to confirm", text: $confirmation)
+                                .textInputAutocapitalization(.characters)
+                                .autocorrectionDisabled()
+                        } header: { Text("Confirm deletion") }
+                        Section {
+                            Button(role: .destructive) { Task { await requestDeletion() } } label: {
+                                HStack {
+                                    Spacer()
+                                    if busy { ProgressView() }
+                                    Text("Permanently delete account")
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                            .disabled(busy || confirmation != "DELETE" || (options.hasPassword && password.isEmpty))
+                        } footer: {
+                            Text("Cleanup continues if you close this screen. It usually takes a few minutes; Cloud cleanup can take longer.")
+                        }
+                    }
+                } else {
+                    Section { HStack { Spacer(); ProgressView(); Spacer() } }
+                }
+                if let error {
+                    Section {
+                        Text(error).font(.footnote).foregroundStyle(Palette.danger)
+                        if options == nil { Button("Retry") { Task { await load() } }.tint(.primary) }
+                    }
+                }
+            }
+            .disabled(busy)
+            .navigationTitle(progress == nil ? "Delete account" : "Account deletion")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(progress == nil ? t("common.cancel") : t("common.done")) { dismiss() }
+                        .tint(.primary)
+                        .disabled(busy)
+                }
+            }
+            .task { await load() }
+            .task(id: receipt) { await followProgress() }
+            .mindwireSignIn(isPresented: $showLogin) { Task { await load() } }
+        }
+        .interactiveDismissDisabled(busy)
+        .frame(minWidth: ApplePlatform.isDesktop ? 480 : nil, minHeight: ApplePlatform.isDesktop ? 520 : nil)
+    }
+
+    private func load() async {
+        do {
+            await MindwireAuth.shared.refresh()
+            guard MindwireAuth.shared.user?.id == userID else {
+                options = nil
+                error = "You signed in to a different account. Return to the account you want to delete."
+                return
+            }
+            let value = try await MindwireAPI.shared.accountDeletionOptions()
+            options = value
+            error = nil
+            if value.status == "pending" { await requestDeletion() }
+        } catch { self.error = error.localizedDescription }
+    }
+
+    private func requestDeletion() async {
+        guard !busy, MindwireAuth.shared.user?.id == userID else { return }
+        busy = true; error = nil
+        defer { busy = false }
+        do {
+            let value = try await MindwireAPI.shared.deleteAccount(expectedUserID: userID, password: password)
+            password = ""; confirmation = ""
+            progress = value; receipt = value.receipt
+        } catch { self.error = error.localizedDescription }
+    }
+
+    private func followProgress() async {
+        guard let receipt else { return }
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(for: .seconds(3))
+                let value = try await MindwireAPI.shared.accountDeletionProgress(receipt: receipt)
+                try Task.checkCancellation()
+                if value.status == "deleted" {
+                    await MindwireAPI.shared.clearToken()
+                    onDeleted()
+                    return
+                }
+                progress = value; error = nil
+            } catch is CancellationError { return }
+            catch { self.error = "Progress is temporarily unavailable. Cleanup continues automatically." }
+        }
     }
 }

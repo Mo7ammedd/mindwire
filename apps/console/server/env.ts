@@ -118,11 +118,13 @@ export const env = {
   /**
    * Social (OAuth) sign-in apps. Each provider is offered on
    * the login screen only when both its id and secret are set. The OAuth callback URL to register with
-   * the provider is `${baseUrl}/api/account/callback/{github|google}`. Secrets stay server-side.
+   * the provider is `${baseUrl}/api/account/callback/{github|google|apple}`. Secrets stay server-side.
    */
   social: {
     github: socialCreds("GITHUB"),
     google: socialCreds("GOOGLE"),
+    // Apple uses a signed client-secret JWT, not an Apple ID password or app password.
+    apple: socialCreds("APPLE"),
   },
 
   /** Account email delivery. These settings stay on the Console server. */

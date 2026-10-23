@@ -16,7 +16,9 @@ export async function linkLegacyAccount(owner: string, token: string): Promise<v
   try {
     await consoleWriteBatch([
       sql`INSERT INTO cloud_legacy_account(provider_id,owner_id,credential,next_refresh_at,created_at)
-        VALUES(${String(id)},${owner},${encrypt(token)},${Date.now() + 86400000},${Date.now()}) ON CONFLICT(provider_id) DO UPDATE SET credential=excluded.credential,next_refresh_at=excluded.next_refresh_at
+        SELECT ${String(id)},${owner},${encrypt(token)},${Date.now() + 86400000},${Date.now()}
+        WHERE EXISTS (SELECT 1 FROM "user" WHERE id=${owner}) AND NOT EXISTS (SELECT 1 FROM account_deletion WHERE owner_id=${owner})
+        ON CONFLICT(provider_id) DO UPDATE SET credential=excluded.credential,next_refresh_at=excluded.next_refresh_at
         WHERE cloud_legacy_account.owner_id=excluded.owner_id RETURNING provider_id`,
       // If both accounts already named the same delivery channel, retain the
       // previous daemon credential and close its duplicate in this transaction.
@@ -78,7 +80,8 @@ export async function legacyStatus(owner: string) {
  * explicit reconnection or another replica's renewal. Expiry never grants access. */
 export async function refreshLegacyAccounts(): Promise<void> {
   const now = Date.now();
-  const rows = await consoleRows<LegacyRow>(sql`SELECT * FROM cloud_legacy_account WHERE next_refresh_at<${now} ORDER BY next_refresh_at LIMIT 25`);
+  const rows = await consoleRows<LegacyRow>(sql`SELECT * FROM cloud_legacy_account WHERE next_refresh_at<${now}
+    AND NOT EXISTS (SELECT 1 FROM account_deletion WHERE owner_id=cloud_legacy_account.owner_id) ORDER BY next_refresh_at LIMIT 25`);
   for (const row of rows) {
     let delay = 3600000;
     try {

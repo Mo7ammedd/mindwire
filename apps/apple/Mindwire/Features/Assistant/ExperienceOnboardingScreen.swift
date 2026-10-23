@@ -4,11 +4,16 @@ import SwiftUI
 struct ExperienceOnboardingScreen: View {
     @Environment(\.stores) private var stores
     @State private var selection: AppExperienceMode
+    var working: Bool
+    var error: String?
     private let onContinue: ((AppExperienceMode) -> Void)?
 
     init(initialSelection: AppExperienceMode = .general,
+         working: Bool = false, error: String? = nil,
          onContinue: ((AppExperienceMode) -> Void)? = nil) {
         _selection = State(initialValue: initialSelection)
+        self.working = working
+        self.error = error
         self.onContinue = onContinue
     }
 
@@ -16,8 +21,10 @@ struct ExperienceOnboardingScreen: View {
         AssistantPage {
             AssistantHeading(title: t("onboarding.mode.title"), detail: t("onboarding.mode.body"))
             AssistantModeChoice(selection: $selection)
+                .disabled(working)
+            if let error { AssistantSetupIssue(message: error) }
         } footer: {
-            AssistantPrimaryButton(title: t("experience.continue", ["mode": selection.title]), icon: .chevronRight) {
+            AssistantPrimaryButton(title: t("experience.continue", ["mode": selection.title]), icon: .chevronRight, busy: working) {
                 if let onContinue { onContinue(selection) }
                 else { stores.experience.mode = selection }
             }

@@ -3,6 +3,8 @@ import type { Context } from "hono";
 import { betterAuth } from "better-auth";
 import { getMigrations } from "better-auth/db/migration";
 import { bearer, deviceAuthorization } from "better-auth/plugins";
+import { APIError } from "better-auth/api";
+import { accountDeletionPending } from "./account/deletion-state";
 
 import { env } from "./env";
 import { authDatabase, migrateConsoleDatabase } from "./database";
@@ -19,11 +21,28 @@ export const consoleDatabase = authDatabase;
 const socialProviders = {
   ...(env.social.github ? { github: env.social.github } : {}),
   ...(env.social.google ? { google: env.social.google } : {}),
+  ...(env.social.apple ? { apple: env.social.apple } : {}),
 };
 
 /** Console owns Mindwire accounts. Personal computers authenticate independently. */
 export const auth = betterAuth({
   database: consoleDatabase,
+  databaseHooks: {
+    session: { create: { before: async (session) => {
+      if (await accountDeletionPending(session.userId))
+        throw new APIError("FORBIDDEN", { code: "ACCOUNT_DELETION_PENDING", message: "Your Mindwire account is being deleted." });
+    } } },
+    account: {
+      create: { before: async (account) => {
+        if (await accountDeletionPending(account.userId))
+          throw new APIError("FORBIDDEN", { code: "ACCOUNT_DELETION_PENDING", message: "Your Mindwire account is being deleted." });
+      } },
+      update: { before: async (account) => {
+        if (account.userId && await accountDeletionPending(account.userId))
+          throw new APIError("FORBIDDEN", { code: "ACCOUNT_DELETION_PENDING", message: "Your Mindwire account is being deleted." });
+      } },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
@@ -45,7 +64,10 @@ export const auth = betterAuth({
   secret: env.authSecret,
   baseURL: env.baseUrl,
   basePath: AUTH_BASE_PATH,
-  trustedOrigins: env.trustedOrigins,
+  trustedOrigins: [
+    ...env.trustedOrigins,
+    ...(env.social.apple ? ["https://appleid.apple.com"] : []),
+  ],
   plugins: [
     bearer(),
     deviceAuthorization({

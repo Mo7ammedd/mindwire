@@ -108,6 +108,51 @@ struct AssistantSetupStatus: View {
     }
 }
 
+/// Observe the existing computer installer. Setup owns no extra poller or
+/// estimated percentage; only downloads with measured bytes show a percentage.
+struct AssistantComputerProgress: View {
+    let workspaceID: String
+    @Environment(\.assistantTheme) private var theme
+    private let coordinator = DaemonWorkCoordinator.shared
+
+    private var work: DaemonWorkState? { coordinator.states[.init(workspaceId: workspaceID)] }
+    private var progress: DaemonInstallProgress? { work?.running == true ? work?.installProgress : nil }
+
+    private var title: String {
+        switch progress {
+        case .preparing: return t("assistant.setup.progress.preparing")
+        case .downloading: return t("assistant.setup.progress.downloading")
+        case .uploading: return t("assistant.setup.progress.installing")
+        case .waiting: return t("workspace.daemon.progress.waiting")
+        case .starting: return t("assistant.setup.progress.starting")
+        case .verifying: return t("assistant.setup.progress.verifying")
+        case nil:
+            if let title = work?.workspaceStatusTitle { return title }
+            return t(work?.running == true ? "assistant.setup.progress.preparing" : "assistant.setup.progress.checking")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(title).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if let fraction = progress?.transferFraction {
+                    Text(fraction, format: .percent.precision(.fractionLength(0)))
+                        .monospacedDigit().foregroundStyle(theme.muted)
+                }
+            }
+            .font(theme.font(15, weight: .medium, relativeTo: .subheadline))
+            InstallationProgressBar(progress: progress?.transferFraction, color: theme.peach)
+                .animation(.easeOut(duration: 0.2), value: progress?.transferFraction)
+        }
+        .foregroundStyle(theme.ink)
+        .padding(22)
+        .background(theme.subtle, in: .rect(cornerRadius: 24))
+        .accessibilityIdentifier("onboarding.computer.progress")
+    }
+}
+
 struct AssistantOption: View {
     let title: String
     let detail: String

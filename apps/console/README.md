@@ -54,6 +54,29 @@ The pinned Oblien SDK is 2.10.0, which already exposes checkout status. Its miss
 generic cancellation endpoint and capability type stay inside the bounded provider
 adapter, as in OpenShip. Confirmed paid capacity remains required for provisioning.
 
+## Sign in with Apple
+
+Set server-only `APPLE_CLIENT_ID` and `APPLE_CLIENT_SECRET` and redeploy Console.
+The client ID is a **Services ID** configured for Sign in with Apple and linked to
+the Mindwire App ID. The secret is an ES256-signed JWT made with your Apple Team ID,
+Key ID and `.p8` key, with the Services ID as its subject and
+`https://appleid.apple.com` as its audience. Apple limits its lifetime to six months;
+replace it before expiry and redeploy. Do not use an Apple ID password.
+
+Register `console.mindwire.sh` and the exact return URL
+`https://console.mindwire.sh/api/account/callback/apple` in the Services ID's web
+configuration (use the equivalent HTTPS URL for a custom `BASE_URL`). Localhost
+and HTTP callbacks are not supported by Apple.
+
+The existing Better Auth provider owns state validation, token exchange and account
+identity. Its Apple callback accepts the provider's form POST without changing
+session-cookie protections. The same browser flow returns to a native device
+approval when sign-in started from the Mindwire app. The Apple button appears on
+sign-in and sign-up only when both server credentials are configured; no secrets
+are included in public config or client bundles.
+
+Setup reference: [Better Auth's Apple provider](https://better-auth.com/docs/authentication/apple).
+
 ## Password recovery
 
 The sign-in page links to `/forgot-password`; reset links return to `/reset-password`.
@@ -89,6 +112,36 @@ Both use the existing browser-session sign-out action and retain the `/device?us
 URL for the next login. Merely opening the page verifies the code without browser credentials;
 the authenticated verification that claims it runs only after an explicit Sign in or Cancel.
 An already claimed request keeps Better Auth's ownership checks and cannot be reassigned.
+
+## Account deletion
+
+**Account → Delete account** is available in Console and the signed-in native app.
+Both use `/api/portal/account/deletion`, bound to the confirmed user ID. Email/password
+accounts must verify their current password; social accounts need a sign-in from the
+last ten minutes. Neither flow signs out or changes a user's coding-provider account.
+
+Confirmation creates a durable deletion job and immediately blocks new account/Cloud
+mutations and send-only notification tokens. A background worker gives already-admitted
+requests two minutes to drain, then uses the existing fenced computer operations and
+saved checkout identities to confirm cancellation before removing Cloud pages, VMs and
+managed disks. Uncertain payments and upstream outages stay pending and retry every
+30 seconds, including after a restart. Merely accepting a provider delete never counts
+as confirmed cleanup. The UI shows progress and can be closed while cleanup continues.
+
+After Cloud cleanup, the worker revokes Sign in with Apple authorization, erases the
+credential vault and account-owned push/link records, and uses Better Auth's adapter
+to remove device grants, verification records, sessions, provider links and the user.
+Only an anonymous progress receipt remains for seven days. Accounting namespaces lose
+their customer-chosen name; canceled subscription records remain with the billing
+provider for its accounting/retention requirements. Personal-computer pairing and
+independent AI/previous Oblien accounts are preserved. Linking a previous account is
+not permission to delete its separate subscriptions or computers.
+
+The PostgreSQL and SQLite `0005_account_deletion` migrations run at startup. No SMTP
+configuration is required for deletion. If Apple authorization cleanup is deferred,
+check the configured Apple Services ID/client-secret expiry; do not discard the saved
+authorization before revocation succeeds. Worker logs include only a job ID and error
+code, never passwords, provider tokens or the opaque progress receipt.
 
 ## Visual theme
 

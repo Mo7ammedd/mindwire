@@ -53,13 +53,15 @@ struct AgentSetupScreen: View {
             finishIfReady()
         }
         .onChange(of: session?.phase) { finishIfReady() }
+        .onChange(of: session?.loading) { finishIfReady() }
+        .onChange(of: session?.confirmingInteractive) { finishIfReady() }
         .onChange(of: actions.running) { finishIfReady() }
     }
 
     private func finishIfReady() {
         guard !finished, !actions.running, stores.agents.get(agent.id) != nil,
               session?.phase == .ready, session?.loadError == nil,
-              session?.loading == false else { return }
+              session?.loading == false, session?.confirmingInteractive == false else { return }
         finished = true
         onReady()
     }

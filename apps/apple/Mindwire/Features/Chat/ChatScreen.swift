@@ -328,11 +328,7 @@ struct ChatScreen: View {
                                     || model.restoringRun || model.reconnecting || model.checkingOwnership),
                                 bot: chat?.botId.flatMap(stores.bots.get), working: model.thinking)
         }
-        AppToolbarItemGroup(placement: .topBarTrailing) {
-            if experienceMode == .general {
-                Button { showingSchedules = true } label: { AppIcon(.calendar) }
-                    .accessibilityLabel("Schedules").accessibilityIdentifier("chat.schedules")
-            }
+        AppToolbarItem(placement: .topBarTrailing) {
             chatMenu
         }
     }
@@ -341,7 +337,6 @@ struct ChatScreen: View {
         DesktopChatHeader(bot: chat?.botId.flatMap(stores.bots.get), title: desktopConversationTitle,
                           computerName: remoteChatWorkspace?.name, status: desktopStatus,
                           canOpenComputer: remoteChatWorkspace != nil,
-                          openSchedules: { showingSchedules = true },
                           openHistory: { showingCommandHistory = true },
                           openComputer: { showingComputer = true }) { chatMenuActions }
     }

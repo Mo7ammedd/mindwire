@@ -132,7 +132,7 @@ function PortalShell({
             />
             <Route
               path="/account"
-              element={<Account user={user} onUpdated={onUpdated} />}
+              element={<Account user={user} onUpdated={onUpdated} onDeleted={onSignedOut} />}
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

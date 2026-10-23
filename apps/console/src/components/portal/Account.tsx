@@ -5,13 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageTitle, ErrorNotice } from "./common";
+import { AccountDeletion } from "./AccountDeletion";
 
 export function Account({
   user,
   onUpdated,
+  onDeleted,
 }: {
   user: AuthUser;
   onUpdated: () => Promise<void>;
+  onDeleted: () => void;
 }) {
   const [name, setName] = useState(user.name),
     [password, setPassword] = useState(""),
@@ -153,6 +156,7 @@ export function Account({
               </form>
             </CardContent>
           </Card>
+          <AccountDeletion userId={user.id} onDeleted={onDeleted} />
         </div>
         <aside>
           <Card>

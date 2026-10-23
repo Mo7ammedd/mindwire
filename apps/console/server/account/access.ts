@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import { auth } from "../auth";
 import { env } from "../env";
 import { OperationError } from "../errors";
+import { requireActiveAccount } from "./deletion-state";
 
 export async function accountSession(c: Context) {
   const identity = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -21,5 +22,7 @@ export async function accountSession(c: Context) {
 }
 
 export async function accountUser(c: Context) {
-  return (await accountSession(c)).user;
+  const user = (await accountSession(c)).user;
+  await requireActiveAccount(user.id);
+  return user;
 }

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { consoleRows, consoleWriteBatch } from "../database";
 import { encrypt } from "../secrets";
 import type { DeviceRow, TokenRow } from "./types";
+import { PushError } from "./types";
 
 export function tokenHash(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -26,6 +27,13 @@ function canonicalOwner(owner: string) {
   return owner.startsWith("console:") ? sql`COALESCE((SELECT 'oblien:' || provider_id FROM cloud_legacy_account WHERE owner_id=${owner.slice(8)}),${owner})` : sql`${owner}`;
 }
 
+function ownerCanRegister(owner: string) {
+  if (owner.startsWith("console:")) return sql`EXISTS (SELECT 1 FROM "user" WHERE id=${owner.slice(8)})
+    AND NOT EXISTS (SELECT 1 FROM account_deletion WHERE owner_id=${owner.slice(8)})`;
+  return sql`NOT EXISTS (SELECT 1 FROM account_deletion d JOIN cloud_legacy_account a ON a.owner_id=d.owner_id
+    WHERE 'oblien:' || a.provider_id=${owner})`;
+}
+
 /** Shared with account linking. Stable lock order prevents a rotation from
  * racing the moment two authenticated notification owners become aliases. */
 export function pushMutationLocks(owner: string) {
@@ -47,12 +55,15 @@ export class PushStore {
     const now = Date.now();
     // A single upsert preserves the device id across token refreshes. Secrets are
     // encrypted with the existing Console vault key, never returned by reads.
-    return (await pushRows<DeviceRow>(sql`
+    const row = (await pushRows<DeviceRow>(sql`
       INSERT INTO push_device(owner_id,device_id,token_ciphertext,token_hash,platform,device_info,status,created_at,last_seen_at)
-      VALUES(${canonicalOwner(owner)},${deviceId},${encrypt(token)},${tokenHash(token)},${platform},${info ? JSON.stringify(info) : null},'active',${now},${now})
+      SELECT ${canonicalOwner(owner)},${deviceId},${encrypt(token)},${tokenHash(token)},${platform},${info ? JSON.stringify(info) : null},'active',${now},${now}
+      WHERE ${ownerCanRegister(owner)}
       ON CONFLICT(owner_id,device_id) DO UPDATE SET token_ciphertext=excluded.token_ciphertext,
         token_hash=excluded.token_hash,platform=excluded.platform,device_info=excluded.device_info,status='active',last_seen_at=excluded.last_seen_at
       RETURNING *`))[0];
+    if (!row) throw new PushError(409, "account_deletion_pending");
+    return row;
   }
 
   async removeDevice(owner: string, id: number): Promise<void> {
@@ -77,11 +88,13 @@ export class PushStore {
       sql`UPDATE push_token SET status='revoked',revoked_at=${Date.now()} WHERE ${ownerCondition(owner)}
         AND tag=${input.tag} AND owner_id<>${canonicalOwner(owner)} RETURNING id`,
       sql`INSERT INTO push_token(owner_id,workspace_id,tag,token_hash,token_prefix,name,metadata,status,created_at,expires_at)
-      VALUES(${canonicalOwner(owner)},${input.workspace},${input.tag},${tokenHash(secret)},${secret.slice(0,12)},${input.name},${input.metadata ? JSON.stringify(input.metadata) : null},'active',${Date.now()},${input.expires})
+      SELECT ${canonicalOwner(owner)},${input.workspace},${input.tag},${tokenHash(secret)},${secret.slice(0,12)},${input.name},${input.metadata ? JSON.stringify(input.metadata) : null},'active',${Date.now()},${input.expires}
+      WHERE ${ownerCanRegister(owner)}
       ON CONFLICT(owner_id,tag) DO UPDATE SET token_hash=excluded.token_hash,token_prefix=excluded.token_prefix,
         workspace_id=excluded.workspace_id,name=excluded.name,metadata=excluded.metadata,status='active',expires_at=excluded.expires_at,revoked_at=NULL
       RETURNING *`,
     ], pushMutationLocks(owner));
+    if (!results[1][0]) throw new PushError(409, "account_deletion_pending");
     return results[1][0] as TokenRow;
   }
 
