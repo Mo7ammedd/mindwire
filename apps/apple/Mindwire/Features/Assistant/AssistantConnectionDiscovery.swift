@@ -49,7 +49,7 @@ final class AssistantConnectionDiscovery {
         if force { await stores.workspaceData.refresh(workspace) }
         else { await stores.workspaceData.refreshIfNeeded(workspace) }
         guard !Task.isCancelled, requestID == request else { return }
-        if let failure = stores.workspaceData.errors[workspace.id] { error = failure; return }
+        error = stores.workspaceData.errors[workspace.id]
         let catalog: [AgentDescriptor]
         if let providedCatalog { catalog = providedCatalog }
         else { catalog = (try? await stores.workspaceData.agentCatalog(workspaceId: workspace.id).agents) ?? [] }
@@ -68,49 +68,33 @@ final class AssistantConnectionDiscovery {
         let candidates = connections
         guard !candidates.isEmpty else { return }
 
-        await withTaskGroup(of: Probe.self) { group in
+        await withTaskGroup(of: (String, AssistantConnection.Status).self) { group in
             for candidate in candidates {
                 group.addTask { @MainActor in
-                    .result(candidate.id, await Self.status(for: candidate.agent, workspace: workspace, stores: stores))
+                    (candidate.id, await Self.status(for: candidate.agent, workspace: workspace, stores: stores, force: force))
                 }
             }
-            group.addTask { try? await Task.sleep(for: .seconds(12)); return .timeout }
             defer { group.cancelAll() }
-            var remaining = candidates.count
-            for await probe in group {
+            for await (id, status) in group {
                 guard !Task.isCancelled, requestID == request else { return }
-                switch probe {
-                case .result(let id, let status):
-                    if let index = connections.firstIndex(where: { $0.id == id }) { connections[index].status = status }
-                    remaining -= 1
-                    if remaining == 0 { return }
-                case .timeout:
-                    for index in connections.indices where connections[index].status == .checking {
-                        connections[index].status = .unavailable
-                    }
-                    return
-                }
+                if let index = connections.firstIndex(where: { $0.id == id }) { connections[index].status = status }
             }
         }
     }
 
-    private static func status(for agent: Agent, workspace: Workspace, stores: Stores) async -> AssistantConnection.Status {
+    private static func status(for agent: Agent, workspace: Workspace, stores: Stores, force: Bool) async -> AssistantConnection.Status {
         let key = DaemonWorkKey(workspaceId: workspace.id, agentType: agent.agentType.rawValue)
         let coordinator = DaemonWorkCoordinator.shared
-        if let state = coordinator.states[key], let status = state.authentication,
+        if !force, let state = coordinator.states[key], let status = state.authentication,
            let checked = state.authenticationCheckedAt, Date().timeIntervalSince(checked) < 30 {
             return status.configured ? .ready : .signIn
         }
-        let backend = BackendFactory.make(forRuntime: workspace.runtime, stores: stores)
-        let transport = BackendFactory.transport(forBackend: backend, agentType: agent.agentType.rawValue)
         let revision = coordinator.authenticationRevision(for: key)
-        let status = try? await transport.authStatus()
-        await backend.dispose()
+        let status = try? await stores.workspaceData.authenticationStatus(for: agent)
         guard !Task.isCancelled, let status else { return .unavailable }
         if coordinator.authenticationRevision(for: key) == revision { coordinator.recordAuthentication(status, for: key) }
         guard let current = coordinator.states[key]?.authentication else { return .unavailable }
         return current.configured ? .ready : .signIn
     }
 
-    private enum Probe { case result(String, AssistantConnection.Status), timeout }
 }

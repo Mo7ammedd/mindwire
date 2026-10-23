@@ -74,6 +74,17 @@ final class WorkspaceDataRepository {
         }
     }
 
+    /// Account discovery uses the registry's authenticated channel, just like chats.
+    /// Native account checks run outside the workspace mutation queue so a slow
+    /// provider cannot block other accounts, history, or file operations.
+    func authenticationStatus(for agent: Agent) async throws -> DaemonAuthStatus {
+        guard let workspaceID = agent.workspaceId else { throw WorkspaceRegistryError.missing }
+        let (remote, generation) = try await withConversationRemote(workspaceID) { ($0, $1) }
+        let status = try await remote.authenticationStatus(agentType: agent.agentType)
+        guard generation == generations[workspaceID, default: 0] else { throw CancellationError() }
+        return status
+    }
+
     func ensureGeneralBots(agentId: String, projectId: String) async throws -> AssistantBot {
         guard let project = stores.projects.get(projectId) else { throw WorkspaceRegistryError.missing }
         let bot = try await withConversationRemote(project.workspaceId) { remote, generation in

@@ -202,17 +202,13 @@ struct NewAgentScreen: View {
                     AssistantBotAvatar(botId: "mindwire", size: 72)
                     VStack(spacing: 10) {
                         Text(t("assistant.setup.ai")).font(.system(size: 28, weight: .semibold))
-                        Text(t("assistant.setup.ai.body")).font(.subheadline).foregroundStyle(.secondary)
                     }
                     assistantChoices
                 }
             } else {
                 AssistantPage {
                     AssistantSetupProgress(step: 1)
-                    AssistantHeading(title: t("assistant.setup.ai"), detail: t("assistant.setup.ai.body"))
-                    if let workspace = connectionWorkspace {
-                        AssistantConnectionSummary(name: workspace.name, isCloud: workspace.isCloud)
-                    }
+                    AssistantHeading(title: t("assistant.setup.ai"))
                     assistantChoices
                 }
             }
@@ -248,8 +244,10 @@ struct NewAgentScreen: View {
         }
         if checkingConnections || (model.loadingCatalog && availableServices.isEmpty) {
             AssistantSetupStatus(title: t("assistant.setup.checking"))
-        } else {
-            if discovery.error != nil || discovery.connections.contains(where: { $0.status == .unavailable }) {
+        }
+        if !checkingConnections {
+            if readyConnections.isEmpty,
+               discovery.error != nil || discovery.connections.contains(where: { $0.status == .unavailable }) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(t("onboarding.ai.checkFailed"))
                         .font(assistantTheme.font(15, relativeTo: .subheadline)).foregroundStyle(assistantTheme.muted)
@@ -257,36 +255,36 @@ struct NewAgentScreen: View {
                         .buttonStyle(.plain).font(assistantTheme.font(15, weight: .medium, relativeTo: .subheadline))
                 }
             }
-            if !connectableServices.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    if !readyConnections.isEmpty { connectionHeading(t("onboarding.ai.connectAnother")) }
-                    ForEach(connectableServices.filter(\.isPrimary)) { service in
-                        AssistantServiceButton(service: service,
-                                               busy: actions.running && model.agentType == service.agentType) {
-                            connect(service)
-                        }
+        }
+        if !connectableServices.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                if !readyConnections.isEmpty { connectionHeading(t("onboarding.ai.connectAnother")) }
+                ForEach(connectableServices.filter(\.isPrimary)) { service in
+                    AssistantServiceButton(service: service,
+                                           busy: actions.running && model.agentType == service.agentType) {
+                        connect(service)
                     }
-                    if connectableServices.contains(where: { !$0.isPrimary }) {
-                        DisclosureGroup(t("assistant.ai.other"), isExpanded: $showingOtherServices) {
-                            VStack(spacing: 12) {
-                                ForEach(connectableServices.filter { !$0.isPrimary }) { service in
-                                    AssistantServiceButton(service: service,
-                                                           busy: actions.running && model.agentType == service.agentType) {
-                                        connect(service)
-                                    }
+                }
+                if connectableServices.contains(where: { !$0.isPrimary }) {
+                    DisclosureGroup(t("assistant.ai.other"), isExpanded: $showingOtherServices) {
+                        VStack(spacing: 12) {
+                            ForEach(connectableServices.filter { !$0.isPrimary }) { service in
+                                AssistantServiceButton(service: service,
+                                                       busy: actions.running && model.agentType == service.agentType) {
+                                    connect(service)
                                 }
-                            }.padding(.top, 16)
-                        }
-                        .font(assistantTheme.font(15, weight: .medium, relativeTo: .subheadline))
-                        .tint(.primary).padding(.vertical, 8)
+                            }
+                        }.padding(.top, 16)
                     }
+                    .font(assistantTheme.font(15, weight: .medium, relativeTo: .subheadline))
+                    .tint(.primary).padding(.vertical, 8)
                 }
             }
-            if availableServices.isEmpty {
-                AssistantSetupIssue(message: model.catalogError ?? t("assistant.ai.unavailable")) {
-                    discoveryAttempt += 1
-                    Task { await model.loadCatalog() }
-                }
+        }
+        if availableServices.isEmpty && !checkingConnections && !model.loadingCatalog {
+            AssistantSetupIssue(message: model.catalogError ?? t("assistant.ai.unavailable")) {
+                discoveryAttempt += 1
+                Task { await model.loadCatalog() }
             }
         }
     }

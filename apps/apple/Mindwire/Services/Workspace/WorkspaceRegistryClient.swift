@@ -55,6 +55,7 @@ protocol WorkspaceRegistryRemote: AnyObject {
     func appsHTTP() async throws -> DaemonHTTP
     var supportsBots: Bool { get }
     func catalog() async throws -> DaemonCatalog
+    func authenticationStatus(agentType: AgentID) async throws -> DaemonAuthStatus
     func createBot(_ input: AssistantBotCreate) async throws -> AssistantBotMutation
     func botPeerEndpoint() async throws -> BotPeerEndpoint
     func registerBotPeer(_ id: String, registration: BotPeerRegistration) async throws
@@ -118,6 +119,7 @@ extension WorkspaceRegistryRemote {
     func appsHTTP() async throws -> DaemonHTTP { throw WorkspaceRegistryError.updateRequired }
     var supportsBots: Bool { false }
     func catalog() async throws -> DaemonCatalog { throw WorkspaceRegistryError.updateRequired }
+    func authenticationStatus(agentType: AgentID) async throws -> DaemonAuthStatus { throw WorkspaceRegistryError.updateRequired }
     func createBot(_ input: AssistantBotCreate) async throws -> AssistantBotMutation { throw WorkspaceRegistryError.botsUnavailable }
     func botPeerEndpoint() async throws -> BotPeerEndpoint { throw WorkspaceRegistryError.botsUnavailable }
     func registerBotPeer(_ id: String, registration: BotPeerRegistration) async throws { throw WorkspaceRegistryError.botsUnavailable }
@@ -639,6 +641,12 @@ final class WorkspaceRegistryClient: WorkspaceRegistryRemote {
 
     func catalog() async throws -> DaemonCatalog {
         try await requiredHTTP.decode("GET", "/catalog", quiet: true)
+    }
+
+    func authenticationStatus(agentType: AgentID) async throws -> DaemonAuthStatus {
+        let http = try requiredHTTP
+        return try await DaemonHTTP(channel: http.channel, agentType: agentType.rawValue)
+            .decode("GET", "/auth/status", quiet: true)
     }
 
     func ensureBots(agentId: String, projectId: String) async throws -> AssistantBotMutation {
