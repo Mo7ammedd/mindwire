@@ -11,9 +11,10 @@ COPY package.json bun.lock bunfig.toml ./
 COPY packages/sdk/package.json packages/sdk/
 COPY apps/console/package.json apps/console/
 COPY apps/web/package.json apps/web/
-# Install native dependencies for the same Node version and glibc used by the runner.
-# The full Node builder provides the toolchain when a package needs a native build.
-RUN bun install --frozen-lockfile
+# Use a self-contained, hoisted install for the image. Copying the isolated
+# workspace layout can leave dangling links into node_modules/.bun in the runner.
+# Native dependencies use the same Node version and glibc as the runner.
+RUN bun install --frozen-lockfile --linker hoisted
 
 # Now the sources (node_modules/dist are excluded by .dockerignore, so the installed deps survive).
 COPY . .
@@ -27,7 +28,7 @@ ENV NODE_ENV=production \
     PORT=8787 \
     AUTH_DB_PATH=/data/auth.db
 
-# Preserve Bun’s dependency layout, assigning the runtime user ownership even when a
+# Copy the hoisted dependency tree, assigning the runtime user ownership even when a
 # native package or its cache directory was installed with private permissions.
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
@@ -37,21 +38,12 @@ COPY --from=builder /app/apps/console/dist ./apps/console/dist
 COPY --from=builder /app/apps/console/dist-server ./apps/console/dist-server
 COPY --from=builder /app/apps/console/drizzle ./apps/console/drizzle
 
-# Make external dependencies resolvable from the application root.
-RUN for pkg in oblien better-sqlite3; do \
-      if [ ! -e "node_modules/$pkg" ]; then \
-        target="$(readlink -f "apps/console/node_modules/$pkg")"; \
-        ln -s "${target#/app/node_modules/}" "node_modules/$pkg"; \
-      fi; \
-    done
-
 # Run unprivileged. The hosted deployment supplies DATABASE_URL for PostgreSQL.
 RUN mkdir -p /data && chown -R node:node /data
 USER node
 # Verify the copied dependency graph as the runtime user before publishing it.
 # The server imports this driver even when PostgreSQL is configured.
-RUN node --input-type=module -e 'import Database from "better-sqlite3"; const db = new Database(":memory:"); db.close()' \
- || { ls -ld node_modules/better-sqlite3 apps/console/node_modules/better-sqlite3 node_modules/.bun/better-sqlite3*/node_modules/better-sqlite3; exit 1; }
+RUN node --input-type=module -e 'import Database from "better-sqlite3"; const db = new Database(":memory:"); db.close()'
 VOLUME ["/data"]
 EXPOSE 8787
 
