@@ -128,12 +128,14 @@ def export(args, archive):
     if (entitlements.get("get-task-allow") or
             entitlements.get("com.apple.developer.icloud-container-environment") != "Production" or
             entitlements.get("com.apple.developer.aps-environment") != "production" or
+            entitlements.get("com.apple.security.device.audio-input") is not True or
+            entitlements.get("com.apple.security.device.camera") is not True or
             "iCloud.com.oblien.mindwire" not in entitlements.get("com.apple.developer.icloud-container-identifiers", [])):
-        raise ValueError("Distribution signing must preserve production CloudKit and push capabilities")
+        raise ValueError("Distribution signing must preserve CloudKit, push, microphone and camera capabilities")
     info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
     executable = app / "Contents/MacOS" / info["CFBundleExecutable"]
     for binary in (executable, helper):
-        run("lipo", "-verify_arch", "arm64", "x86_64", binary)
+        run("lipo", binary, "-verify_arch", "arm64", "x86_64")
     stage = output / "dmg"
     if stage.exists():
         shutil.rmtree(stage)

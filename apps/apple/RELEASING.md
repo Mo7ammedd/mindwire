@@ -31,7 +31,8 @@ Use the same Apple account and Developer ID certificate as OpenShip:
   cannot replace Developer ID profiles.
 
 Certificate import uses an ephemeral keychain; the keychain is deleted when the
-build job finishes. Credentials never enter source, artifacts or the DMG.
+build job finishes. Private signing keys and Apple account credentials never enter
+source, artifacts or the DMG. Xcode embeds the public distribution profiles in the app.
 
 ## Build locally
 
@@ -46,7 +47,8 @@ python3 scripts/release-macos.py build --version 0.1.59 --build-number 1 \
 Local signing allows Xcode to obtain Developer ID provisioning profiles. CI uses
 the saved profiles and manually selects the imported signing identity. The export
 sets CloudKit's production environment. Code signatures and architecture slices
-are verified before the disk image is created.
+are verified before the disk image is created. Export verification also checks
+that production push, CloudKit, microphone and camera entitlements survive signing.
 
 For compilation without distribution credentials, add `--archive-only`. This
 produces a universal archive, not a distributable installer. An existing archive
