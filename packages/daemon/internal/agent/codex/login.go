@@ -84,22 +84,25 @@ func (m *authModule) runLogin(flow *agent.AuthFlow) {
 	}
 	defer client.close()
 	var login struct {
-		Type            string `json:"type"`
-		LoginID         string `json:"loginId"`
-		VerificationURL string `json:"verificationUrl"`
-		UserCode        string `json:"userCode"`
+		Type    string `json:"type"`
+		LoginID string `json:"loginId"`
+		AuthURL string `json:"authUrl"`
 	}
-	if err := client.call(ctx, "account/login/start", map[string]any{"type": "chatgptDeviceCode"}, &login); err != nil {
+	if err := client.call(ctx, "account/login/start", map[string]any{"type": "chatgpt"}, &login); err != nil {
 		flow.Fail("Couldn't start ChatGPT sign-in: " + err.Error())
 		return
 	}
-	if login.Type != "chatgptDeviceCode" || login.LoginID == "" || login.VerificationURL == "" || login.UserCode == "" {
-		flow.Fail("Codex didn't return a device code. Update Codex and try again.")
+	// Track even an incomplete response so closing this process cancels only
+	// this pending login. Cancellation never signs out an existing account.
+	client.loginID = login.LoginID
+	if login.Type != "chatgpt" || login.LoginID == "" || login.AuthURL == "" {
+		flow.Fail("Codex didn't return a sign-in link. Update Codex and try again.")
 		return
 	}
-	client.loginID = login.LoginID
-	flow.Update(agent.AuthState{Status: "pending", URL: login.VerificationURL, Code: login.UserCode,
-		Message: "Open the sign-in page, enter this code, and sign in with ChatGPT. This page will update automatically."})
+	// The client forwards the native loopback callback over its existing private
+	// computer connection. Codex alone exchanges, persists and refreshes tokens.
+	flow.Update(agent.AuthState{Status: "pending", URL: login.AuthURL,
+		Message: "Sign in with ChatGPT in the browser, then return here. This page will update automatically."})
 	for {
 		frame, err := client.next(ctx)
 		if err != nil {
@@ -257,8 +260,8 @@ func (c *authRPC) call(ctx context.Context, method string, params any, result an
 			continue
 		}
 		if frame.Error != nil {
-			if strings.HasPrefix(method, "account/") && (frame.Error.Code == -32601 || strings.Contains(frame.Error.Message, "chatgptDeviceCode")) {
-				return errors.New("update Codex to use ChatGPT device-code sign-in")
+			if strings.HasPrefix(method, "account/") && frame.Error.Code == -32601 {
+				return errors.New("update Codex to use native ChatGPT sign-in")
 			}
 			return fmt.Errorf("%s", frame.Error.Message)
 		}

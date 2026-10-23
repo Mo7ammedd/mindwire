@@ -9,7 +9,7 @@ import (
 	"github.com/oblien/mindwire/packages/daemon/internal/agent"
 )
 
-// Subscription sign-in uses native app-server device auth: Codex owns the OAuth
+// Subscription sign-in uses native app-server browser auth: Codex owns the OAuth
 // cache and refresh tokens. Field credentials enter runs only through EnvForRun.
 
 // Cred-store keys.
@@ -58,7 +58,7 @@ func (m *authModule) Methods() []agent.AuthMethod {
 	return []agent.AuthMethod{
 		{
 			ID: "login", Label: "Continue with ChatGPT", Scope: agent.ScopeUnified, Interactive: true,
-			Help: "Use the Codex access included with your ChatGPT plan. First enable Device code authorization for Codex in ChatGPT → Settings → Security, or ask your ChatGPT workspace admin to enable it. Then open the sign-in page and enter the code. Mindwire starts the login for you.",
+			Help: "Use the Codex access included with your ChatGPT plan. Open the sign-in page and sign in with ChatGPT. Mindwire connects the browser back to this computer privately; no device-code setting is needed.",
 		},
 		{
 			ID: "apiKey", Label: "API key", Scope: agent.ScopeUnified,

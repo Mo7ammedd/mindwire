@@ -141,13 +141,14 @@ final class ConnectionPortForward: Identifiable {
 
     init(connection: Connection, port: Int, network: ComputerNetworkMonitor = .shared,
          stores: Stores = .shared, desktopSessionId: String? = nil, localPort: Int = 0,
+         id: String? = nil,
          makeListener: ((Int) async throws -> any LocalPortListener)? = nil) {
         self.connection = connection; remotePort = port; self.network = network
         self.stores = stores; self.desktopSessionId = desktopSessionId
         boundPort = localPort; self.makeListener = makeListener
         // Reopening the app can renew its previous grant immediately, even if
         // iOS terminated it before it could send Close.
-        id = desktopSessionId.map { "desktop-\($0)" }
+        self.id = id ?? desktopSessionId.map { "desktop-\($0)" }
             ?? connection.pairedComputer.map { "port-\($0.deviceId)-\(port)" } ?? UUID().uuidString
     }
     var url: URL? { localPort.flatMap { URL(string: "http://127.0.0.1:\($0)") } }

@@ -71,6 +71,19 @@ final class SSHConnection {
         return SSHConnection(host: connection.host, port: connection.port, username: connection.username, auth: auth)
     }
 
+    /// A scoped cloud SSH grant, with the same pinned identity for previews and
+    /// native sign-in callbacks. Provider credentials are never persisted here.
+    @MainActor static func cloud(workspaceId: String) async throws -> SSHConnection {
+        let grant = try await MindwireCloud.workspace(workspaceId).ssh.connection()
+        try Task.checkCancellation()
+        guard !grant.ssh.host.isEmpty, !grant.ssh.username.isEmpty, !grant.ssh.password.isEmpty,
+              (1...65535).contains(grant.ssh.port), grant.ssh.hostKeyFingerprint.hasPrefix("SHA256:") else {
+            throw BackendError.message("This computer did not provide a valid private connection.")
+        }
+        return SSHConnection(host: grant.ssh.host, port: grant.ssh.port, username: grant.ssh.username,
+            auth: .password(grant.ssh.password), expectedHostKey: grant.ssh.hostKeyFingerprint)
+    }
+
     static func authentication(method: ServerAuthMethod, secret: String) -> Auth {
         switch method {
         case .password: return .password(secret)

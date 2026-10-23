@@ -52,14 +52,14 @@ func TestCodexNativeAuthProcess(t *testing.T) {
 			}
 			result = map[string]any{"account": account, "requiresOpenaiAuth": true}
 		case "account/login/start":
-			if req.Params["type"] != "chatgptDeviceCode" {
+			if req.Params["type"] != "chatgpt" {
 				os.Exit(4)
 			}
 			if scenario == "unsupported" {
 				_ = enc.Encode(map[string]any{"id": req.ID, "error": map[string]any{"code": -32601, "message": "unsupported method"}})
 				continue
 			}
-			result = map[string]any{"type": "chatgptDeviceCode", "loginId": "native-login", "verificationUrl": "https://auth.openai.com/codex/device", "userCode": "ABCD-12345"}
+			result = map[string]any{"type": "chatgpt", "loginId": "native-login", "authUrl": "https://auth.openai.com/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback"}
 			if scenario != "waiting" {
 				_ = os.WriteFile(os.Getenv("MINDWIRE_AUTH_TEST_STATE"), []byte("native account"), 0600)
 				// Completion may race the start response. Also ignore a different login.
@@ -134,7 +134,7 @@ func TestChatGPTLogoutClearsNativeAccountAndStoredFields(t *testing.T) {
 	}
 }
 
-func TestChatGPTDeviceLoginCompletesAndSurvivesDaemonRestart(t *testing.T) {
+func TestChatGPTBrowserLoginCompletesAndSurvivesDaemonRestart(t *testing.T) {
 	m := codexLoginFixture(t, "complete")
 	st, err := m.Begin(context.Background(), "login")
 	if err != nil || st.FlowID == "" {
@@ -164,10 +164,10 @@ func TestChatGPTPendingLoginIsSharedAndCancellationReachesNativeServer(t *testin
 	flowID := st.FlowID
 	authtest.Eventually(t, func() bool {
 		st, err = m.Step(context.Background(), map[string]string{agent.AuthFlowIDKey: flowID})
-		return err != nil || st.Status == "error" || (st.URL != "" && st.Code != "")
+		return err != nil || st.Status == "error" || st.URL != ""
 	})
-	if err != nil || st.Status != "pending" || st.URL == "" || st.Code == "" || !m.Active() {
-		t.Fatalf("device code: %+v %v", st, err)
+	if err != nil || st.Status != "pending" || st.URL == "" || st.Code != "" || !m.Active() {
+		t.Fatalf("browser sign-in: %+v %v", st, err)
 	}
 	again, _ := m.Begin(context.Background(), "login")
 	if again.FlowID != st.FlowID {

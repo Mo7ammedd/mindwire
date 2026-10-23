@@ -114,6 +114,7 @@ final class DaemonSession {
     private var backend: Backend?
     @ObservationIgnored private weak var gitStores: Stores?
     private var workspaceId: String?
+    var authenticationWorkspace: Workspace? { workspaceId.flatMap { WorkspaceRepository.shared.get($0) } }
     private var connectionMessage: String?
     private let workCoordinator = DaemonWorkCoordinator.shared
     private var daemonKey: DaemonWorkKey { .init(workspaceId: workspaceId ?? agentId) }

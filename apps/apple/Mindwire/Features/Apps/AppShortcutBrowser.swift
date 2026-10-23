@@ -99,15 +99,8 @@ struct AppShortcutBrowser: View {
                 forward = session
                 url = destination.url
             } else if let cloudID = workspace.runtime.workspaceId {
-                let grant = try await MindwireCloud.workspace(cloudID).ssh.connection()
-                try Task.checkCancellation()
-                guard attempt == currentAttempt else { return }
-                guard !grant.ssh.host.isEmpty, !grant.ssh.username.isEmpty, !grant.ssh.password.isEmpty,
-                      (1...65535).contains(grant.ssh.port), grant.ssh.hostKeyFingerprint.hasPrefix("SHA256:") else {
-                    throw BackendError.message("This computer did not provide a valid private connection.")
-                }
-                let connection = SSHConnection(host: grant.ssh.host, port: grant.ssh.port, username: grant.ssh.username,
-                    auth: .password(grant.ssh.password), expectedHostKey: grant.ssh.hostKeyFingerprint)
+                let connection = try await SSHConnection.cloud(workspaceId: cloudID)
+                if Task.isCancelled || attempt != currentAttempt { connection.close(); throw CancellationError() }
                 let opened: SSHLocalForwarder
                 do { opened = try await connection.forwardLocal(host: "127.0.0.1", port: port) }
                 catch { connection.close(); throw error }

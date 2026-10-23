@@ -401,9 +401,15 @@ struct AgentAuthMethodSheet: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.assistantAIService) private var assistantService
     @Environment(\.assistantTheme) private var assistantTheme
+    @Environment(\.stores) private var stores
 
     @State private var values: [String: String] = [:]
     @State private var attemptedSubmit = false
+    @State private var browser: IdentifiedURL?
+    @State private var browserConnection: NativeLoginBrowser?
+    @State private var browserTask: Task<Void, Never>?
+    @State private var browserError: String?
+    @State private var openingBrowser = false
     @FocusState private var focusedField: String?
 
     var body: some View {
@@ -459,7 +465,7 @@ struct AgentAuthMethodSheet: View {
                 }
             }
             .onChange(of: model.completedAuthMethod) { _, completed in
-                if completed == method.id { dismiss() }
+                if completed == method.id { closeBrowser(); dismiss() }
             }
             .task {
                 if method.interactive {
@@ -469,6 +475,57 @@ struct AgentAuthMethodSheet: View {
                 }
             }
         }
+        .sheet(item: $browser, onDismiss: closeBrowser) { item in
+            // Keeping Safari inside the app keeps the private callback tunnel
+            // alive on iOS. Opening external Safari could suspend that tunnel.
+            SafariView(url: item.url) { closeBrowser() }.ignoresSafeArea()
+        }
+        .overlay {
+            if openingBrowser { ProgressView().padding(20).background(.regularMaterial, in: .rect(cornerRadius: 18)) }
+        }
+        .alert(t("agentAuth.failed"), isPresented: Binding(
+            get: { browserError != nil }, set: { if !$0 { browserError = nil } }
+        )) {
+            Button(t("common.ok"), role: .cancel) { browserError = nil }
+        } message: { Text(browserError ?? "") }
+        .onChange(of: model.working) { _, working in if !working { closeBrowser() } }
+        .onChange(of: model.loginURL) { _, _ in closeBrowser() }
+        .onDisappear { closeBrowser() }
+    }
+
+    private func openSignIn(_ url: URL) {
+        // Hosted code handoffs and older device-code methods keep their shared
+        // behavior. Only native loopback browser flows need a private forward.
+        guard NativeLoginBrowser.callback(url) != nil else { openURL(url); return }
+        guard model.working, !openingBrowser else { return }
+        closeBrowser()
+        let connection = NativeLoginBrowser()
+        browserConnection = connection
+        openingBrowser = true
+        browserTask = Task { @MainActor in
+            do {
+                guard let workspace = model.authenticationWorkspace else { throw WorkspaceRegistryError.missing }
+                try await connection.prepare(url: url, workspace: workspace, stores: stores)
+                try Task.checkCancellation()
+                guard browserConnection === connection, model.working, model.loginURL == url.absoluteString else {
+                    connection.close(); return
+                }
+                openingBrowser = false
+                browser = IdentifiedURL(url: url)
+            } catch {
+                connection.close()
+                guard browserConnection === connection else { return }
+                closeBrowser()
+                if !error.isRequestCancellation { browserError = error.localizedDescription }
+            }
+        }
+    }
+
+    private func closeBrowser() {
+        browserTask?.cancel(); browserTask = nil
+        browserConnection?.close(); browserConnection = nil
+        browser = nil
+        openingBrowser = false
     }
 
     // MARK: Interactive method
@@ -505,7 +562,7 @@ struct AgentAuthMethodSheet: View {
                     .font(assistantTheme.font(15, relativeTo: .subheadline)).foregroundStyle(assistantTheme.ink).fixedSize(horizontal: false, vertical: true)
             }
             if !model.loginFields.isEmpty, let url = model.loginURL.flatMap(URL.init(string:)) {
-                AssistantSecondaryButton(title: t("agentAuth.openUrl"), icon: .externalLink) { openURL(url) }
+                AssistantSecondaryButton(title: t("agentAuth.openUrl"), icon: .externalLink) { openSignIn(url) }
                     .accessibilityIdentifier("auth-open-sign-in")
             }
             if let url = model.loginURL.flatMap(URL.init(string:)) {
@@ -557,7 +614,7 @@ struct AgentAuthMethodSheet: View {
                 }
                 .accessibilityIdentifier("auth-submit-code")
             } else if let url = model.loginURL.flatMap(URL.init(string:)) {
-                AssistantPrimaryButton(title: t("agentAuth.openUrl"), icon: .externalLink) { openURL(url) }
+                AssistantPrimaryButton(title: t("agentAuth.openUrl"), icon: .externalLink) { openSignIn(url) }
                     .accessibilityIdentifier("auth-open-sign-in")
             }
         }
@@ -588,7 +645,7 @@ struct AgentAuthMethodSheet: View {
             }
             if let url = model.loginURL, !url.isEmpty {
                 Button {
-                    if let u = URL(string: url) { openURL(u) }
+                    if let u = URL(string: url) { openSignIn(u) }
                 } label: {
                     Label(t("agentAuth.openUrl"), icon: .externalLink)
                 }

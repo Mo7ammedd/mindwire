@@ -6,13 +6,18 @@ Codex and Claude list subscription sign-in first, followed by API/cloud methods.
 
 | Harness | First method | Native flow |
 |---|---|---|
-| Codex | `login` — Continue with ChatGPT | `codex app-server`, `account/login/start` with `type: chatgptDeviceCode` |
+| Codex | `login` — Continue with ChatGPT | `codex app-server`, `account/login/start` with `type: chatgpt` |
 | Claude Code | `login` — Continue with Claude | `claude auth login --claudeai`, browser URL and authorization-code input |
 
-Codex uses a device code so the phone never needs a callback to localhost in the
-remote workspace. ChatGPT may require device-code login to be enabled in account
-security settings or allowed by the organization. Claude's native CLI supplies a
-hosted code callback; the client sends the resulting code to its stdin.
+Codex returns its native browser authorization URL, including a loopback
+`redirect_uri`. The Apple client opens in-app Safari and temporarily forwards that
+exact loopback port over the existing private computer connection (including a
+pinned cloud SSH grant). On the same Mac, the native callback is already local.
+The authorization URL is never rewritten, no callback is exposed publicly, and
+Codex validates OAuth state/PKCE and owns token exchange, storage and refresh.
+This flow does not require enabling device-code authorization in ChatGPT.
+Claude's native CLI supplies a hosted code callback; the client sends the
+resulting code to its stdin.
 
 ## Shared client flow
 
@@ -21,8 +26,13 @@ All routes are authenticated with the daemon bearer token and scoped by
 
 1. Read `GET /auth/methods`. Keep its ordering and open a method by its ID.
 2. Send `POST /auth/begin` with `{"method":"login"}`.
-3. Open `AuthState.url` in the user's browser. `code` is a code to **display/copy**
-   (Codex device auth); `fields` are inputs to **collect** (Claude code handoff).
+3. Open `AuthState.url` in the user's browser. When its `redirect_uri` points to
+   loopback on a remote computer, first privately forward the callback's exact
+   port to that computer. Keep the tunnel alive for the browser session; on iOS,
+   use in-app Safari so opening the browser does not suspend the app's tunnel.
+   If the port is occupied, report the conflict rather than changing the redirect
+   URI. `code` is a code to **display/copy** for methods that provide one;
+   `fields` are inputs to **collect** (Claude code handoff).
 4. Poll `POST /auth/step` with `{"_flowId":"<flowId>"}`. Render returned `fields`
    and `sections` with the same controls/validation as other authentication forms.
    For Claude, submit `{"_flowId":"<flowId>","authorizationCode":"<code>"}`.
@@ -34,7 +44,7 @@ All routes are authenticated with the daemon bearer token and scoped by
 `pending` and `needs_input` are both active states. Login lasts up to ten minutes;
 the HTTP request lifetime does not control the native process. Concurrent opens
 reuse the pending attempt. A native failure, timeout, or cancellation clears the
-URL, device code, and fields. Changing to another auth method cancels that attempt.
+URL, display code, and fields. Changing to another auth method cancels that attempt.
 Empty polls remain supported for older clients; cancellation requires a flow ID.
 
 Keep the presentation alive while loading the URL/code and while the user visits
@@ -45,7 +55,7 @@ changes so they cannot undo a completed sign-in or sign-out.
 
 TypeScript exposes `auth.begin`, `auth.step`, `auth.poll`, `auth.cancel`, `auth.logout`, and
 `auth.status`. The embedded Go SDK has the corresponding `Auth` methods. iOS uses
-the same protocol for device codes and browser/code forms, including cancellation
+the same protocol for browser/code forms and native callback forwarding, including cancellation
 when a sheet closes before a slow begin response arrives.
 
 ## Sign-out
@@ -78,8 +88,10 @@ provider overrides from runs. Claude subscriptions connected by an older
 selection with native credential management. Stored API/provider credentials
 remain available for switching back and are not copied into subscription runs.
 
-This requires the daemon release containing the login methods and the updated
-iOS interactive-form UI. CLI selection remains governed by the harness catalog;
+This requires both the daemon release containing browser login and the updated
+Apple client with native callback forwarding. Other SDK clients must forward the
+native loopback callback themselves when using a remote computer. CLI selection
+remains governed by the harness catalog;
 the tested Codex model/settings protocol is 0.155.1; Claude's subscription baseline
 is 2.1.246. Model and reasoning controls are described in [SETTINGS.md](SETTINGS.md).
 
