@@ -33,5 +33,9 @@ else
 fi
 chmod 755 "$runtime_destination/mindwired"
 if [ "$CODE_SIGNING_ALLOWED" != "NO" ]; then
-    /usr/bin/codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --options runtime --timestamp=none "$runtime_destination/mindwired"
+    if [ "$CONFIGURATION" = "Release" ]; then
+        /usr/bin/codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --options runtime --timestamp "$runtime_destination/mindwired"
+    else
+        /usr/bin/codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --options runtime --timestamp=none "$runtime_destination/mindwired"
+    fi
 fi

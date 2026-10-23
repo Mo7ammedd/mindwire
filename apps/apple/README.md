@@ -22,6 +22,8 @@ Apple contributions carry the explicit copyright grant in section 5 of the licen
 
 ## Requirements
 
+For the downloadable universal Mac installer and release setup, see [Mac releases](RELEASING.md).
+
 - **Xcode 26 or newer** (the Liquid Glass APIs — `glassEffect`, `GlassEffectContainer`,
   `.buttonStyle(.glass)`, the glass `TabView` — are in the iOS 26 SDK).
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) — the

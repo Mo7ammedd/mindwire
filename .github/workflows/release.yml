@@ -3,13 +3,15 @@ name: Release
 # Tag-driven release. Push a tag `vX.Y.Z` (where X.Y.Z == packages/sdk/package.json version) and this:
 #   1. runs the release gate (Go suite + SDK unit + real E2E) — a red gate blocks everything below;
 #   2. builds the daemon for Linux, macOS, and Windows and attaches checksummed binaries to a GitHub Release;
-#   3. downloads and boots the released daemon, then publishes the `mindwire` SDK to npm.
+#   3. builds, signs and notarizes the universal Mac app and includes Mindwire.dmg in that same release;
+#   4. downloads and boots the released daemon, then publishes the `mindwire` SDK to npm.
 #
 # npm is the one IMMUTABLE artifact, so it publishes LAST and every publish is idempotent (skip a
 # version already on the registry). A partial failure can then be re-run under the SAME tag without a
 # version bump. `workflow_dispatch` re-publishes npm for the current version only (no GitHub release).
 #
-# Prerequisite secret: NPM_TOKEN (an npm automation token with publish rights). Absent it, the build +
+# Apple distribution prerequisites are documented in apps/apple/RELEASING.md and are required for
+# tag releases. NPM_TOKEN is an npm automation token with publish rights. Absent it, the build +
 # packaged-install smoke still run (a useful dry run), but the actual `npm publish` steps skip cleanly.
 #
 # The SDK, daemon and GitHub Release share one release version. The build job refuses a
@@ -34,6 +36,12 @@ jobs:
   gate:
     name: Release gate
     uses: ./.github/workflows/release-gate.yml
+
+  macos:
+    name: Mac app
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/release-macos.yml
+    secrets: inherit
 
   build-daemon:
     name: Build daemon binaries
@@ -70,7 +78,7 @@ jobs:
           cp packages/daemon/dist/latest/catalog.json "dist/catalog-${TAG}.json"
           cd dist
           : > checksums.txt
-          for f in mindwired-${TAG}-* "catalog-${TAG}.json"; do
+          for f in "mindwired-${TAG}-"* "catalog-${TAG}.json"; do
             sha256sum "$f" >> checksums.txt
             sha256sum "$f" > "$f.sha256"
           done
@@ -85,7 +93,7 @@ jobs:
   publish-release:
     name: Publish GitHub release
     if: github.event_name == 'push'
-    needs: [gate, build-daemon]
+    needs: [gate, build-daemon, macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -95,6 +103,14 @@ jobs:
         with:
           name: daemon-release
           path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: macos-release
+          path: dist
+      - name: Verify and include the Mac installer checksum
+        run: |
+          (cd dist && sha256sum -c Mindwire.dmg.sha256)
+          cat dist/Mindwire.dmg.sha256 >> dist/checksums.txt
       - name: Tag the relocated Go module
         run: |
           set -euo pipefail
@@ -118,6 +134,8 @@ jobs:
           PRERELEASE_FLAG=""
           if [[ "${TAG}" == *-* ]]; then PRERELEASE_FLAG="--prerelease"; fi
           ASSETS=(
+            "dist/Mindwire.dmg"
+            "dist/Mindwire.dmg.sha256"
             "dist/mindwired-${TAG}-linux-amd64"
             "dist/mindwired-${TAG}-linux-amd64.sha256"
             "dist/mindwired-${TAG}-linux-arm64"
@@ -277,8 +295,8 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
-          NPM_TAG=""
-          if [[ "${TAG}" == *-* ]]; then NPM_TAG="--tag next"; fi
+          NPM_TAG=()
+          if [[ "${TAG}" == *-* ]]; then NPM_TAG=(--tag next); fi
           NAME="$(npm pkg get name | tr -d '"')"
           VERSION="$(npm pkg get version | tr -d '"')"
           if [ -n "$(npm view "$NAME@$VERSION" version 2>/dev/null || true)" ]; then
@@ -286,4 +304,4 @@ jobs:
             exit 0
           fi
           echo "publishing $NAME@$VERSION"
-          npm publish --access public --provenance ${NPM_TAG}
+          npm publish --access public --provenance "${NPM_TAG[@]}"

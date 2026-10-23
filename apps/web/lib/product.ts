@@ -10,8 +10,7 @@ export const cloudDashboardUrl = consoleOrigin() + "/computers";
 export const cloudPricingUrl = "/pricing";
 export const cloudRatesUrl = "https://console.mindwire.sh/computers";
 
-// Native download buttons only appear once a public release URL is configured.
-// The download page offers setup guidance and the CLI while a release is pending.
+// Store availability is configured independently of the GitHub desktop release.
 function iosDownload() {
   const value = process.env.NEXT_PUBLIC_IOS_APP_URL?.trim();
   if (!value) return null;
@@ -32,8 +31,8 @@ function iosDownload() {
 
 export const iosApp = iosDownload();
 function macDownload() {
-  const value = process.env.NEXT_PUBLIC_MAC_APP_URL?.trim();
-  if (!value) return null;
+  const value = process.env.NEXT_PUBLIC_MAC_APP_URL?.trim()
+    || `${githubUrl}/releases/latest/download/Mindwire.dmg`;
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" || url.username || url.password) return null;

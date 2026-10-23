@@ -49,7 +49,7 @@ settings:
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "10"
     DEVELOPMENT_LANGUAGE: en
-    MINDWIRE_DESKTOP_DOWNLOAD_URL: "" # Set to the published desktop installer/landing URL when available.
+    MINDWIRE_DESKTOP_DOWNLOAD_URL: "https://github.com/oblien/mindwire/releases/latest/download/Mindwire.dmg"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: "5Q877873WD" # Abdelhamed Mohamed; inherited by every target.
     ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -144,6 +144,7 @@ targets:
         INFOPLIST_FILE: Mindwire/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: Mindwire/Resources/Mindwire.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Mindwire/Resources/MindwireMac.entitlements
+        "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "$(MINDWIRE_MAC_APP_PROFILE)"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: Accent
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -223,6 +224,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.oblien.mindwire.notifyservice
         "TARGETED_DEVICE_FAMILY[sdk=macosx*]": "6"
         CODE_SIGN_ENTITLEMENTS: NotifyService/NotifyService.entitlements
+        "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "$(MINDWIRE_MAC_EXTENSION_PROFILE)"
         INFOPLIST_FILE: NotifyService/Info.plist
         GENERATE_INFOPLIST_FILE: NO
 

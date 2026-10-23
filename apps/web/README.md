@@ -71,10 +71,11 @@ served as a static image and needs no image-generation service at runtime.
 ### Native app download links
 
 Set `NEXT_PUBLIC_IOS_APP_URL` to the public HTTPS App Store or TestFlight URL before
-building. Set `NEXT_PUBLIC_MAC_APP_URL` to the public HTTPS Mac installer or Mac
-App Store URL. `/download/` shows a coming-soon state for either app until its URL
-is configured, and offers the available CLI and setup guides. It never substitutes
-a daemon binary for the native app or invents a store listing.
+building. Mac downloads default to the signed universal installer at
+`https://github.com/oblien/mindwire/releases/latest/download/Mindwire.dmg`.
+Set `NEXT_PUBLIC_MAC_APP_URL` to override it with another HTTPS installer or Mac
+App Store URL. The iOS download shows a coming-soon state until its URL is configured.
+The native Mac installer and the CLI runtime are separate downloads.
 
 Docker Compose passes both variables as web build arguments. With a direct Docker
 build, pass `--build-arg NEXT_PUBLIC_IOS_APP_URL=...` and

@@ -1,0 +1,144 @@
+name: Mac release
+
+on:
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and sign universal Mac installer
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+      APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_PROVISIONING_PROFILES_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILES_BASE64 }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require distribution credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          for name in APPLE_IDENTITY APPLE_TEAM_ID APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_PROVISIONING_PROFILES_BASE64; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name. See apps/apple/RELEASING.md; unsigned installers are not published."
+              exit 1
+            fi
+          done
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: packages/daemon/go.mod
+          cache-dependency-path: packages/daemon/go.sum
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Import distribution certificate and profiles
+        shell: bash
+        run: |
+          set -euo pipefail
+          signing_keychain="$RUNNER_TEMP/mindwire-signing.keychain-db"
+          signing_password="$(openssl rand -base64 24)"
+          certificate="$RUNNER_TEMP/mindwire-certificate.p12"
+          printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$certificate"
+          security create-keychain -p "$signing_password" "$signing_keychain"
+          security set-keychain-settings -lut 21600 "$signing_keychain"
+          security unlock-keychain -p "$signing_password" "$signing_keychain"
+          security import "$certificate" -k "$signing_keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$signing_password" "$signing_keychain" >/dev/null
+          security list-keychains -d user -s "$signing_keychain" "$HOME/Library/Keychains/login.keychain-db"
+          rm -f "$certificate"
+          export MINDWIRE_PROFILES_DIR="$RUNNER_TEMP/mindwire-profiles"
+          echo "MINDWIRE_PROFILES_DIR=$MINDWIRE_PROFILES_DIR" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import base64, io, os, pathlib, zipfile
+          target = pathlib.Path(os.environ['MINDWIRE_PROFILES_DIR'])
+          installed = pathlib.Path.home() / 'Library/Developer/Xcode/UserData/Provisioning Profiles'
+          target.mkdir(parents=True, exist_ok=True)
+          installed.mkdir(parents=True, exist_ok=True)
+          archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(os.environ['APPLE_PROVISIONING_PROFILES_BASE64'])))
+          for entry in archive.infolist():
+              name = pathlib.PurePosixPath(entry.filename)
+              if len(name.parts) != 1 or name.suffix != '.provisionprofile':
+                  raise ValueError('Expected a flat ZIP of Developer ID provisioning profiles')
+              content = archive.read(entry)
+              (target / name.name).write_bytes(content)
+              (installed / name.name).write_bytes(content)
+          PY
+      - name: Build, sign and package both Mac architectures
+        run: |
+          python3 scripts/release-macos.py build --output "$RUNNER_TEMP/mac-release" \
+            --version "${GITHUB_REF_NAME#v}" --build-number "$GITHUB_RUN_NUMBER"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-signed
+          path: |
+            ${{ runner.temp }}/mac-release/Mindwire.dmg
+            ${{ runner.temp }}/mac-release/Mindwire.dmg.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/mindwire-signing.keychain-db" || true
+
+  submit:
+    name: Submit Mac installer to Apple
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: macos-signed
+          path: dist
+      - name: Verify and submit installer
+        run: |
+          (cd dist && shasum -a 256 -c Mindwire.dmg.sha256)
+          python3 scripts/release-macos.py submit --output dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-notary
+          path: dist/Mindwire.dmg.notary.json
+          if-no-files-found: error
+          retention-days: 14
+
+  finish:
+    name: Verify Apple acceptance and staple Mac installer
+    needs: submit
+    runs-on: macos-26
+    timeout-minutes: 70
+    env:
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: macos-signed
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: macos-notary
+          path: dist
+      - name: Resume notarization and validate Gatekeeper acceptance
+        run: |
+          (cd dist && shasum -a 256 -c Mindwire.dmg.sha256)
+          python3 scripts/release-macos.py finish --output dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-release
+          path: |
+            dist/Mindwire.dmg
+            dist/Mindwire.dmg.sha256
+          if-no-files-found: error
+          retention-days: 14
