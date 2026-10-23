@@ -509,6 +509,9 @@ struct ChatScreen: View {
     /// run errors live in the transcript and are not duplicated here.
     private var bottomBar: some View {
         VStack(spacing: Spacing.sm) {
+            if let workspaceID = agent?.workspaceId {
+                ServiceUpdateNotice(workspaceId: workspaceID)
+            }
             if let error = composerError, !showingInteractions {
                 ChatErrorDisclosure(detail: error) { model.turnError = nil }
                     .id(error)

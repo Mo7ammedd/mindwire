@@ -1,5 +1,59 @@
 import SwiftUI
 
+/// Observes the shared update receipt; rendering a chat never starts an update or a poller.
+struct ServiceUpdateNotice: View {
+    let workspaceId: String
+    var repository: WorkspaceRepository = .shared
+    var coordinator: DaemonWorkCoordinator = .shared
+    @Environment(\.stores) private var stores
+    @Environment(\.assistantChatTheme) private var theme
+    @State private var presentation = ServiceUpdatePresentation()
+
+    private var updates: ServiceUpdateScheduler { stores.serviceUpdates }
+    private var work: DaemonWorkState? { coordinator.states[.init(workspaceId: workspaceId)] }
+    private var failed: Bool {
+        work?.updateOperation?.status == "failed"
+            || (work?.activity == .updatingDaemon && work?.error != nil && work?.running != true)
+    }
+    private var visible: Bool {
+        updates.active.contains(workspaceId) || work?.updateOperation?.isActive == true
+            || work?.updateWaiting == true || work?.changingService == true || failed
+    }
+    private var waiting: Bool {
+        work?.updateOperation?.status == "waiting" || work?.updateWaiting == true
+    }
+
+    var body: some View {
+        Group {
+            if visible, let workspace = repository.get(workspaceId) {
+                Button { presentation.show(workspace: workspace) } label: {
+                    HStack(spacing: 10) {
+                        if failed { AppIcon(.warning, size: 15).foregroundStyle(Palette.danger) }
+                        else if waiting { AppIcon(.clock, size: 15).foregroundStyle(theme.muted) }
+                        else { ProgressView().controlSize(.small).chatActivityTint() }
+                        Text(failed ? t("agentUpdates.failed") : WorkspaceDaemonStatusLabel.title(for: work, preparing: false,
+                                                             scheduled: updates.active.contains(workspaceId)))
+                            .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                        if !failed, !waiting, let progress = work?.installProgress?.transferFraction {
+                            Text(progress, format: .percent.precision(.fractionLength(0)))
+                                .monospacedDigit().foregroundStyle(theme.muted)
+                        }
+                        AppIcon(.chevronRight, size: 13).foregroundStyle(theme.muted)
+                    }
+                    .font(.footnote).foregroundStyle(theme.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 10)
+                    .contentShape(.rect(cornerRadius: 14))
+                    .background(theme.subtle, in: .rect(cornerRadius: 14))
+                }
+                .buttonStyle(.plain).tint(.primary)
+                .accessibilityHint(t("workspace.daemon.info"))
+                .accessibilityIdentifier("chat.serviceUpdate")
+            }
+        }
+        .serviceUpdatePresentation(repository: repository, coordinator: coordinator, presentation: presentation)
+    }
+}
+
 /// A compact entry point; both actions use the app's existing workspace update queue.
 struct ServiceUpdatesMenu: View {
     let workspaces: [Workspace]
@@ -108,7 +162,7 @@ private struct ServiceAutomaticUpdatesToggle: View {
 
     var body: some View {
         Toggle(t("settings.serviceUpdates"), isOn: $enabled)
-            .tint(Palette.success)
+            .tint(Palette.accent)
             .accessibilityIdentifier("service-automatic-updates")
     }
 }

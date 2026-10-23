@@ -59,9 +59,9 @@ struct SettingsScreen: View {
                         }
                     }
                 }
-
-                ServiceUpdatesSettingsSection()
             }
+
+            ServiceUpdatesSettingsSection()
 
             Section(t("settings.appearance")) {
                 if experienceMode == .general {

@@ -200,17 +200,17 @@ const authStatusTimeout = 15 * time.Second // generous: a cold `node` start can 
 // authStatus mirrors the `claude auth status --json` payload.
 type authStatus struct {
 	LoggedIn     bool   `json:"loggedIn"`
-	AuthMethod   string `json:"authMethod"`   // e.g. "api_key", "oauth"
+	AuthMethod   string `json:"authMethod"`   // current "claude.ai" / "oauth_token", or legacy "oauth"
 	APIProvider  string `json:"apiProvider"`  // e.g. "firstParty", "bedrock", "vertex"
 	APIKeySource string `json:"apiKeySource"` // e.g. "ANTHROPIC_API_KEY", "apiKeyHelper"
 }
 
 // methodLabel is the cosmetic "apiKey" vs "login" tag, taken from the CLI's reported authMethod.
 func (s authStatus) methodLabel() string {
-	switch strings.ToLower(s.AuthMethod) {
-	case "api_key", "apikey":
+	switch strings.ToLower(strings.TrimSpace(s.AuthMethod)) {
+	case "api_key", "apikey", "api_key_helper":
 		return "apiKey"
-	case "oauth", "claude_ai", "claudeai", "subscription", "token":
+	case "claude.ai", "oauth_token", "oauth", "claude_ai", "claudeai", "subscription", "token":
 		return "login"
 	default:
 		return s.AuthMethod

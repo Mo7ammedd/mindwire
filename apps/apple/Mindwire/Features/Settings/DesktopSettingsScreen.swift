@@ -95,7 +95,7 @@ struct DesktopSettingsScreen: View {
     @State private var navigation = DesktopSettingsNavigation.shared
 
     private var panes: [DesktopSettingsPane] {
-        DesktopSettingsPane.allCases.filter { experienceMode == .developer || ($0 != .github && $0 != .updates) }
+        DesktopSettingsPane.allCases.filter { experienceMode == .developer || $0 != .github }
     }
 
     var body: some View {

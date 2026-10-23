@@ -38,6 +38,27 @@ func TestParseAuthStatus(t *testing.T) {
 			wantDetail: "Signed in",
 		},
 		{
+			name:       "current claude subscription",
+			in:         `{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"}`,
+			wantLogged: true,
+			wantMethod: "login",
+			wantDetail: "Signed in",
+		},
+		{
+			name:       "current subscription token",
+			in:         `{"loggedIn":true,"authMethod":"oauth_token","apiProvider":"firstParty"}`,
+			wantLogged: true,
+			wantMethod: "login",
+			wantDetail: "Signed in",
+		},
+		{
+			name:       "native API key helper remains an API connection",
+			in:         `{"loggedIn":true,"authMethod":"api_key_helper","apiProvider":"firstParty"}`,
+			wantLogged: true,
+			wantMethod: "apiKey",
+			wantDetail: "Signed in",
+		},
+		{
 			name:       "oauth subscription",
 			in:         `{"loggedIn":true,"authMethod":"oauth","apiProvider":"firstParty"}`,
 			wantLogged: true,

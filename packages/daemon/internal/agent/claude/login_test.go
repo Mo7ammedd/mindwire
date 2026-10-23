@@ -38,7 +38,7 @@ func TestClaudeNativeAuthProcess(t *testing.T) {
 	}
 	if strings.Contains(args, "auth status --json") {
 		_, err := os.Stat(os.Getenv("MINDWIRE_AUTH_TEST_STATE"))
-		method := "oauth"
+		method := "claude.ai"
 		if os.Getenv("MINDWIRE_AUTH_TEST_CASE") == "wrong-account" {
 			method = "api_key"
 		}
