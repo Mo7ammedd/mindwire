@@ -144,8 +144,8 @@ struct AssistantScene: View {
         }
         #if !targetEnvironment(macCatalyst)
         .task(id: botPreparationContext) {
-            guard let context = botPreparationContext, preparedBots != context else { return }
             botPreparationError = nil
+            guard let context = botPreparationContext, preparedBots != context else { return }
             do {
                 try await prepareBots(context)
                 if app.assistantChatID == nil { newChat() }
@@ -398,7 +398,8 @@ struct AssistantScene: View {
         return desktopStartup.error
         #else
         if let botPreparationError { return botPreparationError }
-        if botPreparationContext == nil, repository.hasRefreshed, !repository.isRefreshing {
+        if botPreparationContext == nil, repository.hasRefreshed, !repository.isRefreshing,
+           !stores.bots.list().contains(where: { !$0.archived && repository.get($0.workspaceId) != nil }) {
             return "Choose a computer and AI connection to load your bots."
         }
         return nil

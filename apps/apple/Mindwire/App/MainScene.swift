@@ -5,12 +5,31 @@ struct MainScene: View {
     var repository: WorkspaceRepository = .shared
     @Environment(\.stores) private var stores
     @Environment(AppModel.self) private var app
+    @State private var recoveringComputer = false
+
+    private var needsComputerRecovery: Bool {
+        guard stores.experience.mode == .general else { return false }
+        let inventoryResolved = MindwireAuth.shared.isSignedOut
+            || (repository.hasRefreshed && repository.refreshError == nil)
+        return recoveringComputer || (inventoryResolved && repository.all.isEmpty)
+    }
 
     var body: some View {
         Group {
             #if !targetEnvironment(macCatalyst)
             if stores.experience.needsInitialSetup {
                 AssistantSetupScreen(repository: repository, required: true, showsWelcome: true, onReady: {})
+            } else if needsComputerRecovery {
+                AssistantSetupScreen(repository: repository, required: true, recoveringConnection: true) {
+                    recoveringComputer = false
+                }
+                .onAppear {
+                    // Adding a computer must not dismiss recovery before its AI setup finishes.
+                    recoveringComputer = true
+                    app.assistantChatID = nil
+                    app.assistantBotID = nil
+                    app.assistantAppsVisible = false
+                }
             } else {
                 application
             }
@@ -19,7 +38,7 @@ struct MainScene: View {
             #endif
         }
         .environment(\.appExperienceMode, stores.experience.mode ?? .general)
-        .sheet(item: Binding(get: { stores.experience.needsInitialSetup && !ApplePlatform.isDesktop ? nil : app.presentedAppShortcut }, set: { app.presentedAppShortcut = $0 })) {
+        .sheet(item: Binding(get: { (stores.experience.needsInitialSetup || needsComputerRecovery) && !ApplePlatform.isDesktop ? nil : app.presentedAppShortcut }, set: { app.presentedAppShortcut = $0 })) {
             AppShortcutDestination(shortcut: $0)
         }
         .onChange(of: stores.apps.revision) { app.resolvePendingAppShortcut() }

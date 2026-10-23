@@ -7,6 +7,7 @@ struct AssistantSetupScreen: View {
     var required = false
     var showsWelcome = false
     var startsConversation = false
+    var recoveringConnection = false
     var onReady: () -> Void
     @Environment(\.stores) private var stores
     @Environment(AppModel.self) private var app
@@ -37,6 +38,7 @@ struct AssistantSetupScreen: View {
 
     private var workspace: Workspace? { workspaceID.flatMap(repository.get) }
     private var opensConversation: Bool { startsConversation || (required && mode == .general) }
+    private var choosesMode: Bool { required && !recoveringConnection }
     private var finishTitle: String {
         if finishing && opensConversation { return t("onboarding.chat.opening") }
         if required && mode == .developer { return t("onboarding.openWorkspace") }
@@ -109,7 +111,7 @@ struct AssistantSetupScreen: View {
             defer { preparingLocalComputer = false }
             if !restored {
                 restored = true
-                mode = required ? .general : stores.experience.mode ?? .general
+                mode = choosesMode ? .general : stores.experience.mode ?? .general
                 let pending = stores.experience.pendingWorkspaceID.flatMap(repository.get)
                 if let pending {
                     let pendingAgent = stores.experience.pendingAgentID.flatMap(stores.agents.get)
@@ -326,10 +328,10 @@ struct AssistantSetupScreen: View {
         } footer: {
             if let preparedProject {
                 AssistantPrimaryButton(
-                    title: required ? t("common.continue") : finishTitle,
+                    title: choosesMode ? t("common.continue") : finishTitle,
                     icon: .chevronRight, busy: finishing
                 ) {
-                    if required { path.append(.mode) }
+                    if choosesMode { path.append(.mode) }
                     else { finish(agent: agent, project: preparedProject) }
                 }
                 .accessibilityIdentifier("onboarding.finish")

@@ -6,13 +6,28 @@ struct WorkspaceUnavailableView: View {
     let repository: WorkspaceRepository
     var projectPath: String?
     var removeProject: (() -> Void)?
+    var onChooseComputer: (() -> Void)? = nil
 
     @Environment(AppModel.self) private var app
     @State private var showLogin = false
 
     var body: some View {
         Group {
-            if repository.requiresSignIn(for: workspaceId) {
+            if let onChooseComputer, repository.hasRefreshed || repository.requiresSignIn(for: workspaceId) {
+                AssistantPage {
+                    AssistantArtwork()
+                    AssistantHeading(title: "Connect a computer", detail: "This chat’s computer isn’t connected.")
+                    if repository.requiresSignIn(for: workspaceId) {
+                        AssistantOption(title: "Mindwire Cloud", detail: "Sign in to reconnect.", icon: .cloud) {
+                            showLogin = true
+                        }
+                    }
+                } footer: {
+                    AssistantPrimaryButton(title: "Choose a computer", icon: .laptop, action: onChooseComputer)
+                }
+                .environment(\.assistantTheme, .website)
+                .accessibilityIdentifier("chat.computerRequired")
+            } else if repository.requiresSignIn(for: workspaceId) {
                 MindwireSignInPrompt(bodyKey: "workspace.signIn.body") { showLogin = true }
                     .accessibilityIdentifier("workspace-sign-in-required")
             } else if !repository.hasRefreshed || repository.isRefreshing {

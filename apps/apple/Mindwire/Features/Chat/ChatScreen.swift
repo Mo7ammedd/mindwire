@@ -29,6 +29,7 @@ struct ChatScreen: View {
     @State private var chatRemoved = false
     @State private var agent: Agent?
     @State private var computerName: String?
+    @State private var lastComputerID: String?
     @State private var composer: ChatDraft
     @State private var composerBound = false
     @State private var images = ChatImageDraft()
@@ -71,6 +72,7 @@ struct ChatScreen: View {
     @State private var showingSchedules = false
     @State private var showingInteractions = false
     @State private var showingNativeInfo = false
+    @State private var showingConnectionSetup = false
     @State private var selectedInteractionID: ChatInteractionRequest.ID?
     @FocusState private var composerFocused: Bool
     @AppStorage(StorageKey.chatTextSize) private var chatTextSize = ChatTextSize.medium.rawValue
@@ -92,27 +94,67 @@ struct ChatScreen: View {
     private var canSend: Bool {
         (!input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !images.items.isEmpty)
             && (!model.thinking || model.canSendWhileRunning)
-            && model.canSendToConversation
+            && model.canSendToConversation && !computerUnavailable && !needsAuthentication
             && !model.submittingInput && !model.cancelling && !model.preparing && !model.loadingHistory && !images.importing && !resolvingCommand
     }
 
-    var body: some View {
-        Group {
-            if chatRemoved {
-                ContentUnavailableView(t("chat.missing.title"), icon: .message,
-                                       description: Text(t("chat.missing.body")))
-            } else {
-                thread.modifier(ChatLinks(project: chat.flatMap { stores.projects.get($0.projectId) },
-                                          workspace: model.session?.workspace))
-            }
+    private var computerID: String? {
+        if let id = agent?.workspaceId ?? lastComputerID { return id }
+        guard let saved = chat ?? stores.chats.get(chatId) else { return nil }
+        return stores.agents.get(saved.agentId)?.workspaceId ?? stores.projects.get(saved.projectId)?.workspaceId
+    }
+
+    private var computerUnavailable: Bool {
+        computerID.map { WorkspaceRepository.shared.get($0) == nil } ?? false
+    }
+
+    private var needsAuthentication: Bool { model.session?.phase == .needsAuth }
+
+    private struct ConnectionRequest: Hashable {
+        let background: Bool
+        let computerUnavailable: Bool
+        let needsAuthentication: Bool
+    }
+
+    private var connectionRequest: ConnectionRequest {
+        .init(background: scenePhase == .background, computerUnavailable: computerUnavailable,
+              needsAuthentication: needsAuthentication)
+    }
+
+    @ViewBuilder private var chatContent: some View {
+        if computerUnavailable, let computerID {
+            WorkspaceUnavailableView(workspaceId: computerID, repository: .shared,
+                onChooseComputer: experienceMode == .general ? { showingConnectionSetup = true } : nil)
+        } else if chatRemoved {
+            ContentUnavailableView(t("chat.missing.title"), icon: .message,
+                                   description: Text(t("chat.missing.body")))
+        } else if needsAuthentication, let agent, let session = model.session {
+            AgentConnectGate(agent: agent, model: session)
+        } else {
+            thread.modifier(ChatLinks(project: chat.flatMap { stores.projects.get($0.projectId) },
+                                      workspace: model.session?.workspace))
         }
+    }
+
+    private var chatSurface: some View {
+        // A status refresh must not cancel the browser sheet that owns sign-in.
+        AgentAuthPresenter(model: model.session) { chatContent }
+            .environment(\.assistantTheme, chatTheme)
+            .environment(\.assistantAIService,
+                experienceMode == .general ? agent.flatMap { AssistantAIService(agentType: $0.agentType) } : nil)
             .background(desktopMessenger ? AssistantDesktopStyle.canvas : chatTheme.isWebsite ? chatTheme.canvas : Color.clear)
             .safeAreaInset(edge: .top, spacing: 0) { if desktopMessenger { desktopHeader } }
             .safeAreaBar(edge: .bottom, spacing: 0) {
-                if !chatRemoved { bottomBar.environment(\.colorScheme, colorScheme) }
+                if !chatRemoved, !computerUnavailable, !needsAuthentication {
+                    bottomBar.environment(\.colorScheme, colorScheme)
+                }
             }
             .ignoresSafeArea(.container, edges: desktopMessenger ? .top : [])
             .sensoryFeedback(.impact(weight: .medium), trigger: sendCount)
+    }
+
+    private var presentedChat: some View {
+        chatSurface
         .environment(\.desktopWorkspaceID, agent?.workspaceId)
         .environment(\.chatAttachmentSession, model.session)
         .toolbar(.hidden, for: .tabBar) // immersive thread — no bottom tab bar
@@ -254,6 +296,11 @@ struct ChatScreen: View {
         .sheet(isPresented: $showingSchedules) {
             ChatSchedulesSheet(chatID: chatId)
         }
+        .sheet(isPresented: $showingConnectionSetup) {
+            AssistantSetupScreen(startsConversation: true, recoveringConnection: true) {
+                showingConnectionSetup = false
+            }
+        }
         .sheet(isPresented: $showingInteractions) {
             ChatInteractionSheet(model: model, selectedID: $selectedInteractionID)
         }
@@ -268,8 +315,19 @@ struct ChatScreen: View {
             }
             Button(t("common.ok"), role: .cancel) { }
         } message: { Text(images.error ?? "") }
+    }
+
+    var body: some View {
+        presentedChat
         .onChange(of: chatRemoved) { _, removed in
             if removed { showingInteractions = false; showingTools = false; showingVoice = false; showingVoiceRecording = false }
+        }
+        .onChange(of: computerUnavailable || needsAuthentication) { _, blocked in
+            guard blocked else { return }
+            stores.chatDrafts.persist(chatId)
+            composerFocused = false
+            showingInteractions = false; showingTools = false; showingVoice = false; showingVoiceRecording = false
+            model.viewDidDisappear(viewerID)
         }
         .onAppear(perform: reload)
         .visibleChatForNotifications(chatId)
@@ -285,8 +343,8 @@ struct ChatScreen: View {
             // Keep its transcript and stream intact until it actually leaves the foreground.
             if phase == .background { model.viewDidEnterBackground(viewerID) }
         }
-        .task(id: scenePhase == .background) {
-            guard scenePhase != .background, !chatRemoved else { return }
+        .task(id: connectionRequest) {
+            guard scenePhase != .background, !chatRemoved, !computerUnavailable, !needsAuthentication else { return }
             reload()
             model.viewDidAppear(viewerID)
             await model.load()
@@ -295,12 +353,14 @@ struct ChatScreen: View {
             await loadAgentSettings()
         }
         .task(id: model.latestRequestRevision) {
-            guard model.latestRequestRevision > 0, scenePhase != .background, !chatRemoved else { return }
+            guard model.latestRequestRevision > 0, scenePhase != .background, !chatRemoved,
+                  !computerUnavailable, !needsAuthentication else { return }
             await model.load()
         }
         .observeChatActivity(agentIds: chat.map { [$0.agentId] } ?? [])
         .task(id: activity.summaries[chatId]?.lastRunId) {
             guard !Task.isCancelled, scenePhase != .background, !chatRemoved,
+                  !computerUnavailable, !needsAuthentication,
                   activity.status(chatId) == .running, !model.thinking,
                   !model.preparing, !model.loadingHistory else { return }
             await model.load(force: true)
@@ -896,6 +956,7 @@ struct ChatScreen: View {
         let previouslyPresent = chat != nil
         chat = stores.chats.get(chatId)
         agent = chat.flatMap { stores.agents.get($0.agentId) }
+        if let id = agent?.workspaceId { lastComputerID = id }
         computerName = agent?.workspaceId.flatMap { WorkspaceRepository.shared.get($0)?.name }
         if previouslyPresent && chat == nil { chatRemoved = true; model.dispose() }
     }
@@ -931,6 +992,7 @@ struct ChatScreen: View {
             APILog.note("chat[\(chatId)]: no local chat record — deep-link to a chat not in this install, or store not loaded yet")
         }
         agent = chat.flatMap { stores.agents.get($0.agentId) }
+        if let id = agent?.workspaceId { lastComputerID = id }
         computerName = agent?.workspaceId.flatMap { WorkspaceRepository.shared.get($0)?.name }
         model.bind(chat: chat, stores: stores)
     }
