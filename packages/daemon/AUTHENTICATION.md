@@ -10,11 +10,17 @@ Codex and Claude list subscription sign-in first, followed by API/cloud methods.
 | Claude Code | `login` — Continue with Claude | `claude auth login --claudeai`, browser URL and authorization-code input |
 
 Codex returns its native browser authorization URL, including a loopback
-`redirect_uri`. The Apple client opens in-app Safari and temporarily forwards that
-exact loopback port over the existing private computer connection (including a
-pinned cloud SSH grant). On the same Mac, the native callback is already local.
-The authorization URL is never rewritten, no callback is exposed publicly, and
-Codex validates OAuth state/PKCE and owns token exchange, storage and refresh.
+`redirect_uri`, and advertises that native endpoint as `AuthState.callbackUrl`.
+The Apple client opens in-app Safari after binding that exact port to loopback.
+It relays only the browser's callback through the existing authenticated daemon
+`auth/step` connection. The native adapter validates the target, path, port and
+OAuth state before delivering it to its own native callback listener. No second
+SSH connection or public port is needed: cloud/Oblien, paired computers, custom
+SSH and Docker workspaces use the same flow. On the same Mac, the native callback
+is already local. The authorization URL is never rewritten. Codex owns OAuth
+validation, token exchange, storage and refresh; native HTML and redirects never
+cross the auth API. On iPhone and iPad, Safari closes as soon as native completion
+is reported.
 This flow does not require enabling device-code authorization in ChatGPT.
 Claude's native CLI supplies a hosted code callback; the client sends the
 resulting code to its stdin.
@@ -26,12 +32,17 @@ All routes are authenticated with the daemon bearer token and scoped by
 
 1. Read `GET /auth/methods`. Keep its ordering and open a method by its ID.
 2. Send `POST /auth/begin` with `{"method":"login"}`.
-3. Open `AuthState.url` in the user's browser. When its `redirect_uri` points to
-   loopback on a remote computer, first privately forward the callback's exact
-   port to that computer. Keep the tunnel alive for the browser session; on iOS,
-   use in-app Safari so opening the browser does not suspend the app's tunnel.
-   If the port is occupied, report the conflict rather than changing the redirect
-   URI. `code` is a code to **display/copy** for methods that provide one;
+3. Open `AuthState.url` in the user's browser. For a remote native browser flow,
+   bind the declared `callbackUrl` to loopback before opening in-app Safari, then
+   send the full received callback URL to `auth/step` as
+   `{"_flowId":"<flowId>","_callbackUrl":"<received callback URL>"}`.
+   The target is fixed by the native login; callers cannot select another
+   loopback service or forward arbitrary requests. Callback URLs are bounded,
+   flow-scoped, never logged, and never echoed in errors. No native response body
+   or Location header is returned. Completion still comes from native login
+   notifications. Keep the receiver alive while Safari is visible; report an
+   occupied port instead of changing the redirect URI.
+   `code` is a code to **display/copy** for methods that provide one;
    `fields` are inputs to **collect** (Claude code handoff).
 4. Poll `POST /auth/step` with `{"_flowId":"<flowId>"}`. Render returned `fields`
    and `sections` with the same controls/validation as other authentication forms.
@@ -53,7 +64,7 @@ failures keep the same flow ID and retry; only explicit cancellation or a native
 terminal state ends the attempt. Discard older status reads after authentication
 changes so they cannot undo a completed sign-in or sign-out.
 
-TypeScript exposes `auth.begin`, `auth.step`, `auth.poll`, `auth.cancel`, `auth.logout`, and
+TypeScript exposes `auth.begin`, `auth.step`, `auth.poll`, `auth.callback`, `auth.cancel`, `auth.logout`, and
 `auth.status`. The embedded Go SDK has the corresponding `Auth` methods. iOS uses
 the same protocol for browser/code forms and native callback forwarding, including cancellation
 when a sheet closes before a slow begin response arrives.
@@ -89,8 +100,9 @@ selection with native credential management. Stored API/provider credentials
 remain available for switching back and are not copied into subscription runs.
 
 This requires both the daemon release containing browser login and the updated
-Apple client with native callback forwarding. Other SDK clients must forward the
-native loopback callback themselves when using a remote computer. CLI selection
+Apple client with native callback forwarding. Other SDK clients can receive the
+native callback locally and use `auth.callback`, or forward the native loopback
+port privately. CLI selection
 remains governed by the harness catalog;
 the tested Codex model/settings protocol is 0.155.1; Claude's subscription baseline
 is 2.1.246. Model and reasoning controls are described in [SETTINGS.md](SETTINGS.md).

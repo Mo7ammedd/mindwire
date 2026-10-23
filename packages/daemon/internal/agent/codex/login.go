@@ -99,9 +99,14 @@ func (m *authModule) runLogin(flow *agent.AuthFlow) {
 		flow.Fail("Codex didn't return a sign-in link. Update Codex and try again.")
 		return
 	}
-	// The client forwards the native loopback callback over its existing private
-	// computer connection. Codex alone exchanges, persists and refreshes tokens.
-	flow.Update(agent.AuthState{Status: "pending", URL: login.AuthURL,
+	callbackURL, err := bindLoginCallback(flow, login.AuthURL)
+	if err != nil {
+		flow.Fail("Codex didn't return a valid sign-in callback. Update Codex and try again.")
+		return
+	}
+	// Codex alone exchanges, persists and refreshes tokens. The authenticated
+	// client relays only this attempt's callback through the shared auth API.
+	flow.Update(agent.AuthState{Status: "pending", URL: login.AuthURL, CallbackURL: callbackURL,
 		Message: "Sign in with ChatGPT in the browser, then return here. This page will update automatically."})
 	for {
 		frame, err := client.next(ctx)

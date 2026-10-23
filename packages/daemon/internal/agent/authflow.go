@@ -12,13 +12,15 @@ import (
 // AuthFlow owns a native login's lifetime and generic client state. Both device
 // codes and browser/code handoffs use it; credentials stay with the native CLI.
 type AuthFlow struct {
-	mu     sync.Mutex
-	state  AuthState
-	ctx    context.Context
-	cancel context.CancelFunc
-	input  func(string) error
-	ready  chan struct{}
-	once   sync.Once
+	mu              sync.Mutex
+	state           AuthState
+	ctx             context.Context
+	cancel          context.CancelFunc
+	input           func(string) error
+	callback        func(string) error
+	callbackRunning bool
+	ready           chan struct{}
+	once            sync.Once
 }
 
 func NewAuthFlow(method string) *AuthFlow {
@@ -81,6 +83,47 @@ func (f *AuthFlow) SetInput(input func(string) error) {
 	f.input = input
 }
 
+// SetCallback binds delivery to this native attempt. The adapter validates the
+// exact callback target and OAuth state; this is never an arbitrary HTTP proxy.
+func (f *AuthFlow) SetCallback(deliver func(string) error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.state.Status == "complete" || f.state.Status == "error" {
+		return
+	}
+	f.callback = deliver
+}
+
+func (f *AuthFlow) deliverCallback(id, rawURL string) (AuthState, error) {
+	f.mu.Lock()
+	if id == "" || id != f.state.FlowID {
+		f.mu.Unlock()
+		return AuthState{}, errors.New("callback requires the current sign-in flow ID")
+	}
+	if f.state.Status == "complete" || f.state.Status == "error" || f.callbackRunning {
+		state := f.state
+		f.mu.Unlock()
+		return state, nil
+	}
+	if f.callback == nil || f.state.CallbackURL == "" || len(rawURL) == 0 || len(rawURL) > 8192 || strings.ContainsAny(rawURL, "\r\n\x00") {
+		f.mu.Unlock()
+		return AuthState{}, errors.New("invalid sign-in callback")
+	}
+	deliver := f.callback
+	f.callbackRunning = true
+	f.mu.Unlock()
+	// Native completion and timeout must remain able to finish this flow while
+	// its local HTTP callback performs the provider's token exchange.
+	err := deliver(rawURL)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.callbackRunning = false
+	if err != nil && f.state.Status != "complete" && f.state.Status != "error" {
+		return AuthState{}, errors.New("couldn't deliver the sign-in callback; return to Mindwire and retry")
+	}
+	return f.state, nil
+}
+
 // Complete commits the selected method only while this attempt is active. A
 // canceled or superseded login can never change the daemon's selected account.
 func (f *AuthFlow) Complete(commit func() error) {
@@ -113,11 +156,18 @@ func (f *AuthFlow) Cancel() { f.Fail("Sign-in canceled.") }
 func (f *AuthFlow) finishLocked(status, message string) {
 	f.state = AuthState{Method: f.state.Method, FlowID: f.state.FlowID, Status: status, Message: message}
 	f.input = nil
+	f.callback = nil
 	f.once.Do(func() { close(f.ready) })
 	f.cancel()
 }
 
 func (f *AuthFlow) Step(input map[string]string) (AuthState, error) {
+	if rawURL, ok := input[AuthCallbackKey]; ok {
+		if input[AuthActionKey] != "" || input[AuthCodeKey] != "" {
+			return AuthState{}, errors.New("submit the sign-in callback separately")
+		}
+		return f.deliverCallback(input[AuthFlowIDKey], rawURL)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if id := input[AuthFlowIDKey]; id != "" && id != f.state.FlowID {

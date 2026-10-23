@@ -1,13 +1,11 @@
 import Foundation
 
-/// Keep a native harness's loopback callback reachable while in-app Safari is
-/// open. The authorization URL and redirect stay exactly as issued by the CLI;
-/// OAuth state, PKCE, token exchange and storage remain entirely with the CLI.
+/// Receive a native harness's callback while in-app Safari stays in front. The
+/// response travels through the existing authenticated daemon connection, so no
+/// runtime needs a separate SSH connection or an exposed callback port.
 @MainActor
 final class NativeLoginBrowser {
-    private var forward: ConnectionPortForward?
-    private var ssh: SSHConnection?
-    private var listener: SSHLocalForwarder?
+    private var listener: NativeLoginCallbackListener?
     private var closed = false
 
     static func callback(_ url: URL) -> URL? {
@@ -20,30 +18,18 @@ final class NativeLoginBrowser {
         return callback
     }
 
-    func prepare(url: URL, workspace: Workspace, stores: Stores) async throws {
-        guard let callback = Self.callback(url), let port = callback.port else { return }
+    func prepare(url: URL, callbackURL: String?, workspace: Workspace?,
+                 deliver: @escaping @MainActor @Sendable (URL) async throws -> Void) async throws {
+        guard let callback = Self.callback(url) else { return }
         guard !closed else { throw CancellationError() }
-        if workspace.runtime.isLocal, ApplePlatform.isDesktop { return }
+        if workspace?.runtime.isLocal == true, ApplePlatform.isDesktop { return }
+        guard callbackURL == callback.absoluteString else {
+            throw BackendError.message("Update the Mindwire service on this computer to finish browser sign-in.")
+        }
         do {
-            if workspace.runtime.sandbox == nil, let id = workspace.runtime.serverId,
-               let connection = stores.connections.get(id) {
-                let forward = ConnectionPortForward(connection: connection, port: port, stores: stores,
-                    localPort: port, id: "auth-\(UUID().uuidString)")
-                self.forward = forward
-                let bound = try await forward.ready()
-                guard bound == port else {
-                    throw BackendError.message("Another connection is using the sign-in port. Close it and try again.")
-                }
-            } else if let cloudID = workspace.runtime.workspaceId {
-                let ssh = try await SSHConnection.cloud(workspaceId: cloudID)
-                if closed || Task.isCancelled { ssh.close(); throw CancellationError() }
-                self.ssh = ssh
-                let listener = try await ssh.forwardLocal(host: "127.0.0.1", port: port, localPort: port)
-                if closed || Task.isCancelled { listener.close(); throw CancellationError() }
-                self.listener = listener
-            } else {
-                throw BackendError.message("Browser sign-in needs a private connection to this computer.")
-            }
+            let listener = NativeLoginCallbackListener(callback: callback, deliver: deliver)
+            self.listener = listener
+            try await listener.open()
             try Task.checkCancellation()
             guard !closed else { throw CancellationError() }
         } catch {
@@ -54,8 +40,6 @@ final class NativeLoginBrowser {
 
     func close() {
         closed = true
-        forward?.stop(); forward = nil
         listener?.close(); listener = nil
-        ssh?.close(); ssh = nil
     }
 }

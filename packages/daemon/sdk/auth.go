@@ -59,6 +59,12 @@ func (a *Auth) Poll(ctx context.Context, flowID string, opts ...ScopedOption) (A
 	return a.Step(ctx, map[string]string{agent.AuthFlowIDKey: flowID}, opts...)
 }
 
+// Callback delivers this attempt's browser response to the native loopback
+// listener. The adapter validates its target and OAuth state before delivery.
+func (a *Auth) Callback(ctx context.Context, flowID, callbackURL string, opts ...ScopedOption) (AuthState, error) {
+	return a.Step(ctx, map[string]string{agent.AuthFlowIDKey: flowID, agent.AuthCallbackKey: callbackURL}, opts...)
+}
+
 // Cancel stops the native login represented by AuthState.FlowID.
 func (a *Auth) Cancel(ctx context.Context, flowID string, opts ...ScopedOption) (AuthState, error) {
 	return a.Step(ctx, map[string]string{agent.AuthFlowIDKey: flowID, agent.AuthActionKey: "cancel"}, opts...)

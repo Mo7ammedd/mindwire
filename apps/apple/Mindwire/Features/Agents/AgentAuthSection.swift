@@ -398,10 +398,8 @@ struct AgentAuthMethodSheet: View {
     let method: DaemonAuthMethod
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @Environment(\.assistantAIService) private var assistantService
     @Environment(\.assistantTheme) private var assistantTheme
-    @Environment(\.stores) private var stores
 
     @State private var values: [String: String] = [:]
     @State private var attemptedSubmit = false
@@ -476,8 +474,7 @@ struct AgentAuthMethodSheet: View {
             }
         }
         .sheet(item: $browser, onDismiss: closeBrowser) { item in
-            // Keeping Safari inside the app keeps the private callback tunnel
-            // alive on iOS. Opening external Safari could suspend that tunnel.
+            // In-app Safari keeps the callback receiver in the foreground.
             SafariView(url: item.url) { closeBrowser() }.ignoresSafeArea()
         }
         .overlay {
@@ -489,14 +486,14 @@ struct AgentAuthMethodSheet: View {
             Button(t("common.ok"), role: .cancel) { browserError = nil }
         } message: { Text(browserError ?? "") }
         .onChange(of: model.working) { _, working in if !working { closeBrowser() } }
-        .onChange(of: model.loginURL) { _, _ in closeBrowser() }
+        .onChange(of: model.loginURL) { _, value in
+            closeBrowser()
+            if let value, let url = URL(string: value), model.working { openSignIn(url) }
+        }
         .onDisappear { closeBrowser() }
     }
 
     private func openSignIn(_ url: URL) {
-        // Hosted code handoffs and older device-code methods keep their shared
-        // behavior. Only native loopback browser flows need a private forward.
-        guard NativeLoginBrowser.callback(url) != nil else { openURL(url); return }
         guard model.working, !openingBrowser else { return }
         closeBrowser()
         let connection = NativeLoginBrowser()
@@ -504,8 +501,11 @@ struct AgentAuthMethodSheet: View {
         openingBrowser = true
         browserTask = Task { @MainActor in
             do {
-                guard let workspace = model.authenticationWorkspace else { throw WorkspaceRegistryError.missing }
-                try await connection.prepare(url: url, workspace: workspace, stores: stores)
+                try await connection.prepare(url: url, callbackURL: model.loginCallbackURL,
+                                             workspace: model.authenticationWorkspace) { callback in
+                    guard model.loginURL == url.absoluteString else { throw CancellationError() }
+                    try await model.deliverLoginCallback(callback)
+                }
                 try Task.checkCancellation()
                 guard browserConnection === connection, model.working, model.loginURL == url.absoluteString else {
                     connection.close(); return

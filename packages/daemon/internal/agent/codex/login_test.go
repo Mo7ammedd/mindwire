@@ -59,7 +59,7 @@ func TestCodexNativeAuthProcess(t *testing.T) {
 				_ = enc.Encode(map[string]any{"id": req.ID, "error": map[string]any{"code": -32601, "message": "unsupported method"}})
 				continue
 			}
-			result = map[string]any{"type": "chatgpt", "loginId": "native-login", "authUrl": "https://auth.openai.com/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback"}
+			result = map[string]any{"type": "chatgpt", "loginId": "native-login", "authUrl": "https://auth.openai.com/authorize?state=native-state&redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback"}
 			if scenario != "waiting" {
 				_ = os.WriteFile(os.Getenv("MINDWIRE_AUTH_TEST_STATE"), []byte("native account"), 0600)
 				// Completion may race the start response. Also ignore a different login.

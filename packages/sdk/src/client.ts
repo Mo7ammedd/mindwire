@@ -667,6 +667,11 @@ export class AuthApi {
     return this.step({ _flowId: flowId }, scoped);
   }
 
+  /** Deliver the browser response to this native login over the authenticated daemon connection. */
+  callback(flowId: string, callbackUrl: string, scoped?: AgentScoped): Promise<AuthState> {
+    return this.step({ _flowId: flowId, _callbackUrl: callbackUrl }, scoped);
+  }
+
   /** Cancel this native login without affecting a newer sign-in attempt. */
   cancel(flowId: string, scoped?: AgentScoped): Promise<AuthState> {
     return this.step({ _flowId: flowId, _action: "cancel" }, scoped);

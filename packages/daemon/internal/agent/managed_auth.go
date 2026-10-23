@@ -162,6 +162,24 @@ func (m *ManagedAuth) Begin(ctx context.Context, method string) (AuthState, erro
 }
 
 func (m *ManagedAuth) Step(ctx context.Context, input map[string]string) (AuthState, error) {
+	if rawURL, provided := input[AuthCallbackKey]; provided {
+		if len(input) != 2 || input[AuthFlowIDKey] == "" {
+			return AuthState{}, errors.New("callback requires only the sign-in flow ID and callback URL")
+		}
+		callback, supported := m.AuthModule.(AuthCallbackModule)
+		if !supported {
+			return AuthState{}, errors.New("this sign-in does not accept browser callbacks")
+		}
+		m.mu.Lock()
+		m.autoAttempted, m.autoError = true, ""
+		m.mu.Unlock()
+		// The flow owns its lifetime and synchronization. Holding the general
+		// auth lock across native HTTP would prevent cancel from interrupting it.
+		state, err := callback.Callback(ctx, input[AuthFlowIDKey], rawURL)
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		return m.finish(ctx, state, err)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.autoAttempted = true

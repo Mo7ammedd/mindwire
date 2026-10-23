@@ -2254,6 +2254,10 @@
         "type": "object",
         "description": "The current step of an in-progress auth flow.",
         "properties": {
+          "callbackUrl": {
+            "type": "string",
+            "description": "Native loopback callback for this attempt. A client may receive it locally and deliver the full browser response through auth/step as {_flowId: id, _callbackUrl: url}. The adapter restricts delivery to the exact native target and OAuth state."
+          },
           "flowId": {
             "type": "string",
             "description": "Interactive attempt ID. Echo as _flowId in step inputs, polls, and cancellation."
@@ -10682,7 +10686,7 @@
           "Auth"
         ],
         "summary": "Advance an auth method",
-        "description": "Submit field values, or poll an interactive login. Echo AuthState.flowId as _flowId when provided. Send {_flowId: id, _action: cancel} to cancel that native attempt. For browser code handoff, submit the declared authorizationCode field with _flowId. Empty polls remain supported for older clients.",
+        "description": "Submit field values, or poll an interactive login. Echo AuthState.flowId as _flowId when provided. Send {_flowId: id, _action: cancel} to cancel that native attempt. For browser code handoff, submit the declared authorizationCode field with _flowId. When callbackUrl is advertised, send {_flowId: id, _callbackUrl: fullBrowserCallbackUrl} to deliver that exact native callback over this authenticated connection. The adapter validates its target and OAuth state. Empty polls remain supported for older clients.",
         "parameters": [
           {
             "$ref": "#/components/parameters/agent"

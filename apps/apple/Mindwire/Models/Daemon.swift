@@ -393,18 +393,20 @@ struct DaemonAuthState: Codable, Hashable {
     let status: String   // "needs_input" | "pending" | "complete" | "error"
     var flowId: String?
     var url: String?
+    var callbackUrl: String?
     var code: String?
     var message: String?
     var fields: [DaemonField]
     var sections: [DaemonAuthSection]
 
-    enum CodingKeys: String, CodingKey { case method, status, flowId, url, code, message, fields, sections }
+    enum CodingKeys: String, CodingKey { case method, status, flowId, url, callbackUrl, code, message, fields, sections }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         method = try c.decode(String.self, forKey: .method)
         status = try c.decode(String.self, forKey: .status)
         flowId = try c.decodeIfPresent(String.self, forKey: .flowId)
         url = try c.decodeIfPresent(String.self, forKey: .url)
+        callbackUrl = try c.decodeIfPresent(String.self, forKey: .callbackUrl)
         code = try c.decodeIfPresent(String.self, forKey: .code)
         message = try c.decodeIfPresent(String.self, forKey: .message)
         fields = try c.decodeIfPresent([DaemonField].self, forKey: .fields) ?? []

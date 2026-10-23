@@ -758,6 +758,8 @@ export interface AuthState {
   /** Echo as `_flowId` in step inputs, or use auth.poll/auth.cancel. */
   flowId?: string;
   url?: string;
+  /** Native loopback callback. Forward only this attempt's browser response with auth.callback. */
+  callbackUrl?: string;
   code?: string;
   message?: string;
   /** Inputs the client should collect next. */

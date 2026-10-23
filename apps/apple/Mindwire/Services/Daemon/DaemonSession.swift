@@ -102,6 +102,7 @@ final class DaemonSession {
     var connectError: String?
     var activeMethod: String?
     var loginURL: String?
+    private(set) var loginCallbackURL: String?
     var loginCode: String?
     var loginMessage: String?
     var loginFields: [DaemonField] = []
@@ -142,6 +143,7 @@ final class DaemonSession {
     private let now: () -> Date
     private var pollTask: Task<Void, Never>?
     private var interactiveAttemptID: UUID?
+    private var finishingInteractiveAttemptID: UUID?
     private var loginFlowID: String?
     private var interactiveInputRevision = 0
     private var authCancelTask: Task<Void, Never>?
@@ -1012,7 +1014,7 @@ final class DaemonSession {
         working = true
         connectError = nil
         activeMethod = method.id
-        loginURL = nil; loginCode = nil; loginMessage = nil
+        loginURL = nil; loginCallbackURL = nil; loginCode = nil; loginMessage = nil
         await authCancelTask?.value
         guard interactiveAttemptID == attemptID else { return }
         guard !Task.isCancelled else { cancelInteractive(); return }
@@ -1139,9 +1141,26 @@ final class DaemonSession {
         return [:] // older services still accept unscoped polls
     }
 
+    /// A native browser callback rides the same authenticated transport as the
+    /// rest of this login. Its destination is validated inside the daemon.
+    func deliverLoginCallback(_ url: URL) async throws {
+        guard let attemptID = interactiveAttemptID, let flowID = loginFlowID, working,
+              loginCallbackURL != nil else { throw CancellationError() }
+        interactiveInputRevision += 1
+        let state = try await transport.authStep(["_flowId": flowID, "_callbackUrl": url.absoluteString])
+        guard interactiveAttemptID == attemptID else { throw CancellationError() }
+        interactiveInputRevision += 1
+        apply(state)
+        if state.status == "complete" || state.status == "error" {
+            await finishInteractive(state, attemptID: attemptID)
+        }
+        if state.status == "error" { throw BackendError.message(t("agentAuth.failed")) }
+    }
+
     private func apply(_ state: DaemonAuthState) {
         if let flowID = state.flowId { loginFlowID = flowID }
         if let url = state.url, !url.isEmpty { loginURL = url }
+        loginCallbackURL = state.callbackUrl
         if let code = state.code, !code.isEmpty { loginCode = code }
         if let msg = state.message, !msg.isEmpty { loginMessage = msg }
         loginFields = state.fields
@@ -1149,6 +1168,12 @@ final class DaemonSession {
     }
 
     private func finishInteractive(_ state: DaemonAuthState, attemptID: UUID) async {
+        guard interactiveAttemptID == attemptID, finishingInteractiveAttemptID != attemptID else { return }
+        finishingInteractiveAttemptID = attemptID
+        defer { if finishingInteractiveAttemptID == attemptID { finishingInteractiveAttemptID = nil } }
+        // Close Safari as soon as native completion arrives; refreshing account
+        // metadata must not leave a finished browser session on screen.
+        working = false
         if state.status == "complete" { await refresh() }
         guard interactiveAttemptID == attemptID else { return }
         working = false
@@ -1156,7 +1181,7 @@ final class DaemonSession {
         interactiveAttemptID = nil
         loginFlowID = nil
         loginFields = []; loginSections = []; loginSubmitting = false
-        loginURL = nil; loginCode = nil
+        loginURL = nil; loginCallbackURL = nil; loginCode = nil
         if state.status == "error" {
             connectError = state.message ?? t("agentAuth.failed")
         } else if let loadError {
@@ -1173,13 +1198,14 @@ final class DaemonSession {
         pollTask?.cancel()
         pollTask = nil
         interactiveAttemptID = nil
+        finishingInteractiveAttemptID = nil
         loginFlowID = nil
         loginFields = []; loginSections = []; loginSubmitting = false
         interactiveInputRevision += 1
         completedAuthMethod = nil
         working = false
         activeMethod = nil
-        loginURL = nil; loginCode = nil; loginMessage = nil
+        loginURL = nil; loginCallbackURL = nil; loginCode = nil; loginMessage = nil
     }
 
     private func cancelRemoteLogin(_ flowID: String?) {
