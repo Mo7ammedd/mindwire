@@ -491,10 +491,16 @@ struct ChatScreen: View {
             .gesture(ChatKeyboardDismissTap(onDismiss: dismissComposer))
     }
 
+    private var plainDeveloperAgent: Agent? {
+        experienceMode == .developer && chat?.botId == nil ? agent : nil
+    }
+
     @ViewBuilder private var assistantGlyph: some View {
         if experienceMode == .general {
             AssistantBrandMark(size: 36)
                 .frame(width: 48, height: 48)
+        } else if let agent = plainDeveloperAgent {
+            AgentLogo(id: agent.agentType, size: 64)
         } else {
             AppLogo(size: 20)
                 .frame(width: 30, height: 30)
@@ -523,6 +529,8 @@ struct ChatScreen: View {
             VStack(spacing: 18) {
                 if let bot = chat?.botId.flatMap(stores.bots.get) {
                     AssistantBotAvatar(botId: bot.id, icon: bot.icon, size: 54)
+                } else if plainDeveloperAgent != nil {
+                    assistantGlyph
                 } else { AssistantBrandMark(size: 46).frame(height: 54) }
                 Text(t("assistant.welcome")).font(.title2.weight(.medium))
                     .multilineTextAlignment(.center)
