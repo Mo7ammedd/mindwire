@@ -383,11 +383,12 @@ struct AssistantConversationLabel: View {
     }
 }
 
-/// Bot identity and live status, with separate destinations for chatting and conversation history.
-struct AssistantBotConversationRow: View {
-    let bot: AssistantBot
+/// Saved bots and plain harnesses share the same sidebar interaction and live status.
+struct AssistantAgentConversationRow: View {
+    let identity: AgentListIdentity
     let chat: Chat?
     var selected = false
+    var working: Bool? = nil
     let open: () -> Void
     let history: () -> Void
     @Environment(\.stores) private var stores
@@ -396,8 +397,8 @@ struct AssistantBotConversationRow: View {
     @State private var hovered = false
     @Environment(\.desktopSidebarCompact) private var compact
     @Environment(\.assistantChatTheme) private var theme
-    private var botColor: BotColor { AssistantBotIcon.resolve(botId: bot.id, icon: bot.icon).color }
-    private var isWorking: Bool { chat.map { activity.status($0.id) == .running } ?? false }
+    private var botColor: BotColor? { identity.bot.map { AssistantBotIcon.resolve(botId: $0.id, icon: $0.icon).color } }
+    private var isWorking: Bool { working ?? (chat.map { activity.status($0.id) == .running } ?? false) }
 
     var body: some View {
         Group {
@@ -407,7 +408,7 @@ struct AssistantBotConversationRow: View {
                         .background(rowBackground, in: .rect(cornerRadius: 13))
                         .contentShape(.rect(cornerRadius: 13))
                 }
-                .help(bot.name).accessibilityLabel(bot.name)
+                .help(identity.name).accessibilityLabel(identity.name)
                 .accessibilityValue(isWorking ? t("chat.running") : "")
                 .accessibilityAddTraits(selected ? .isSelected : [])
             } else { expandedRow }
@@ -419,8 +420,8 @@ struct AssistantBotConversationRow: View {
     }
 
     private var avatar: some View {
-        AssistantBotAvatar(botId: bot.id, icon: bot.icon,
-                           size: compact ? 30 : ApplePlatform.isDesktop ? 34 : 40, isWorking: isWorking)
+        AgentIdentityAvatar(identity: identity, size: compact ? 30 : ApplePlatform.isDesktop ? 34 : 40,
+                            isWorking: isWorking)
             .overlay(alignment: .topTrailing) {
                 if let chat, activity.status(chat.id) == .error {
                     Circle().fill(.red).frame(width: 9, height: 9)
@@ -432,12 +433,12 @@ struct AssistantBotConversationRow: View {
     private var expandedRow: some View {
         HStack(spacing: 2) {
             Button(action: open) {
-                identity
+                identityContent
                     .padding(.vertical, ApplePlatform.isDesktop ? 10 : 12)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(.rect)
             }
-            .accessibilityLabel(bot.name)
+            .accessibilityLabel(identity.name)
             .accessibilityValue(isWorking ? t("chat.running") : "")
             .accessibilityAddTraits(selected ? .isSelected : [])
             if experienceMode == .general {
@@ -447,9 +448,9 @@ struct AssistantBotConversationRow: View {
                         .frame(width: ApplePlatform.isDesktop ? 32 : 44, height: 44)
                         .contentShape(.rect)
                 }
-                .help("\(bot.name) · \(t("assistant.history"))")
-                .accessibilityLabel("\(t("assistant.history")): \(bot.name)")
-                .accessibilityIdentifier("assistant.bot.history.\(bot.id)")
+                .help("\(identity.name) · \(t("assistant.history"))")
+                .accessibilityLabel("\(t("assistant.history")): \(identity.name)")
+                .accessibilityIdentifier("assistant.bot.history.\(identity.bot?.id ?? identity.agentId)")
             }
         }
         .padding(.leading, 10).padding(.trailing, experienceMode == .general ? 2 : 10)
@@ -457,15 +458,16 @@ struct AssistantBotConversationRow: View {
         .contentShape(.rect(cornerRadius: rowRadius, style: .continuous))
     }
 
-    private var identity: some View {
+    private var identityContent: some View {
         HStack(spacing: 12) {
             avatar
             VStack(alignment: .leading, spacing: ApplePlatform.isDesktop ? 4 : 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(bot.name)
+                    Text(identity.name)
                         .font(ApplePlatform.isDesktop ? .system(size: 15) : theme.isWebsite ? theme.font(17, weight: .medium) : .body)
                         .foregroundStyle(theme.ink).lineLimit(1)
-                        .accessibilityIdentifier("assistant.bot.name.\(bot.id)")
+                        .accessibilityIdentifier(identity.bot.map { "assistant.bot.name." + $0.id }
+                            ?? "assistant.agent.name." + identity.agentId)
                     Spacer(minLength: 0)
                     if experienceMode != .general, let chat, let date = activity.lastActivity(chat) {
                         RelativeTimestamp(date: date).font(ApplePlatform.isDesktop ? .system(size: 11) : .caption2)
@@ -490,7 +492,7 @@ struct AssistantBotConversationRow: View {
 
     private var subtitle: String {
         if experienceMode == .general {
-            return bot.purpose.trimmingCharacters(in: .whitespacesAndNewlines)
+            return identity.purpose.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         if let chat {
             if let text = stores.chatSessions.cached(chat.id)?.messages.last(where: { !$0.text.isEmpty })?.text {
@@ -498,6 +500,6 @@ struct AssistantBotConversationRow: View {
             }
             return activity.title(chat)
         }
-        return bot.purpose.isEmpty ? t("assistant.bots.noChats") : bot.purpose
+        return identity.purpose.isEmpty ? t("assistant.bots.noChats") : identity.purpose
     }
 }

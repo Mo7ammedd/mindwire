@@ -6,6 +6,7 @@ struct ChatHistorySheet: View {
     var projectId: String? = nil
     var botId: String? = nil
     var agentId: String? = nil
+    var plainOnly = false
     var workspaceId: String? = nil
     var conversationRepository: ConversationRepository? = nil
     var onOpenChat: ((Chat) -> Void)? = nil
@@ -42,6 +43,8 @@ struct ChatHistorySheet: View {
     @State private var showingService = false
     @State private var showingIssues = false
     @State private var bots: [AssistantBot] = []
+    @State private var developerEntries: [AgentListEntry] = []
+    @State private var historyAgent: Agent?
     @State private var inspectingBot: AssistantBot?
     @State private var changingBotIcon: AssistantBot?
     @State private var editingBot: AssistantBot?
@@ -94,6 +97,7 @@ struct ChatHistorySheet: View {
         .onChange(of: repository.revision) { reload() }
         .onChange(of: stores.bots.revision) { reload() }
         .onChange(of: stores.chats.revision) { reload() }
+        .onChange(of: experienceMode) { reload() }
         .observeChatActivity(agentIds: chats.map(\.agentId))
         .task(id: HistoryRequest(workspaceID: globalWorkspaceId, agentID: agentId, search: search)) {
             guard let workspaceId = globalWorkspaceId else { return }
@@ -123,6 +127,12 @@ struct ChatHistorySheet: View {
         .sheet(item: $historyBot) { bot in
             ChatHistorySheet(repository: repository, botId: bot.id, onOpenChat: { chat in
                 historyBot = nil
+                open(chat)
+            })
+        }
+        .sheet(item: $historyAgent) { agent in
+            ChatHistorySheet(repository: repository, agentId: agent.id, plainOnly: true, onOpenChat: { chat in
+                historyAgent = nil
                 open(chat)
             })
         }
@@ -201,28 +211,17 @@ struct ChatHistorySheet: View {
         AssistantHistorySidebar(search: $search, close: close, newChat: onNewChat,
                                 settings: onSettings, account: onAccount, newBot: onNewBot,
                                 archivedBots: bots.contains(where: \.archived) ? { showingArchivedBots = true } : nil,
-                                groupedByBots: experienceMode == .general || !bots.isEmpty,
+                                groupedByBots: experienceMode == .general || !developerEntries.isEmpty,
                                 developerSection: desktopDeveloper ? Binding(get: { app.selectedTab }, set: { app.selectDesktopSection($0) }) : nil,
                                 newProject: { showingNewProject = true }, newComputer: { showingNewComputer = true },
                                 apps: experienceMode == .general ? onApps : nil, appsSelected: appsSelected) {
-            if compactSidebar { botGroups }
+            if compactSidebar {
+                if experienceMode == .general { botGroups } else { developerAgentGroups }
+            }
             else if desktopDeveloper, app.selectedTab == .projects || app.selectedTab == .workspaces {
                 DesktopDeveloperItems(section: app.selectedTab, search: search)
             } else if experienceMode == .general { generalBotRows }
-            else if bots.isEmpty { historyRows }
-            else {
-                botGroups
-                if desktopDeveloper {
-                    let unassigned = filteredChats.filter { $0.botId == nil }
-                    if !unassigned.isEmpty {
-                        Section("Project conversations") {
-                            ForEach(unassigned) { chat in
-                                row(chat).listRowInsets(sidebarInsets).listRowBackground(Color.clear).listRowSeparator(.hidden)
-                            }
-                        }
-                    }
-                }
-            }
+            else { developerAgentGroups }
         }
         .refreshable { await refresh() }
     }
@@ -277,8 +276,13 @@ struct ChatHistorySheet: View {
             }
         }
         if let history, history.total != nil {
-            if history.items.isEmpty { emptyState }
-            ForEach(history.items) { conversation in
+            let conversations = history.items.filter { conversation in
+                guard plainOnly else { return true }
+                let saved = conversation.chatId.flatMap { savedChats[$0] } ?? savedChats[conversation.id]
+                return saved?.botId == nil
+            }
+            if conversations.isEmpty && history.nextCursor == nil { emptyState }
+            ForEach(conversations) { conversation in
                 conversationRow(conversation)
                     .listRowInsets(sidebarInsets)
                     .listRowBackground(onCloseSidebar == nil ? nil : Color.clear)
@@ -338,7 +342,7 @@ struct ChatHistorySheet: View {
         let selectedID = appsSelected ? nil : app.assistantChatID.flatMap { savedChats[$0]?.botId } ?? app.assistantBotID
         if matchingBots.isEmpty && !compactSidebar { emptyState }
         ForEach(matchingBots) { bot in
-            AssistantBotConversationRow(bot: bot, chat: latest[bot.id], selected: selectedID == bot.id) {
+            AssistantAgentConversationRow(identity: .bot(bot), chat: latest[bot.id], selected: selectedID == bot.id) {
                 if let chat = latest[bot.id] { open(chat) }
                 else { onNewBotChat?(bot) }
             } history: {
@@ -349,6 +353,48 @@ struct ChatHistorySheet: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .accessibilityIdentifier("assistant.bot.group.\(bot.id)")
+        }
+    }
+
+    private var matchingDeveloperEntries: [AgentListEntry] {
+        let query = compactSidebar ? "" : search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return developerEntries.filter { entry in
+            !entry.identity.archived && (query.isEmpty || entry.identity.name.localizedCaseInsensitiveContains(query)
+                || entry.identity.purpose.localizedCaseInsensitiveContains(query)
+                || entry.workspace.name.localizedCaseInsensitiveContains(query)
+                || entry.chatIDs.contains { id in
+                    savedChats[id].map { activity.title($0).localizedCaseInsensitiveContains(query) } ?? false
+                })
+        }
+    }
+
+    @ViewBuilder private var developerAgentGroups: some View {
+        let current = app.assistantChatID.flatMap { savedChats[$0] }
+        let entries = matchingDeveloperEntries
+        if entries.isEmpty && !compactSidebar { emptyState }
+        ForEach(entries) { entry in
+            let selected = !appsSelected && (entry.identity.bot.map {
+                $0.id == (current?.botId ?? app.assistantBotID)
+            } ?? (current?.botId == nil && current?.agentId == entry.identity.agentId))
+            AssistantAgentConversationRow(identity: entry.identity, chat: entry.latest, selected: selected,
+                working: entry.chatIDs.contains { activity.status($0) == .running }) {
+                if let chat = entry.latest { open(chat) }
+                else if let bot = entry.identity.bot { onNewBotChat?(bot) }
+            } history: {
+                if let bot = entry.identity.bot { historyBot = bot }
+                else { historyAgent = entry.identity.agent }
+            }
+            .contextMenu {
+                if let bot = entry.identity.bot { botMenu(bot) }
+                else if let agent = entry.identity.agent {
+                    Button(t("assistant.history"), icon: Icon.history) { historyAgent = agent }
+                    Button(t("tabs.settings"), icon: Icon.settings) { app.openAgent(agent.id) }
+                }
+            }
+            .listRowInsets(EdgeInsets(top: 2, leading: sidebarInset, bottom: 2, trailing: sidebarInset))
+            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .accessibilityIdentifier(entry.identity.bot.map { "assistant.bot.group." + $0.id }
+                ?? "assistant.agent.group." + entry.identity.agentId)
         }
     }
 
@@ -474,8 +520,13 @@ struct ChatHistorySheet: View {
             if left.isAppBuilder != right.isAppBuilder { return left.isAppBuilder }
             return left.name.localizedStandardCompare(right.name) == .orderedAscending
         }
+        developerEntries = experienceMode == .developer ? AgentListEntry.make(bots: connectedBots,
+            agents: Array(agents.values), chats: all, workspaces: repository.all,
+            preferredAgentId: stores.experience.assistantAgentID, projectIDs: stores.experience.projectIDs,
+            includePlain: true) : []
         savedChats = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         chats = all.filter { chat in
+            if plainOnly && chat.botId != nil { return false }
             if let botId, chat.botId != botId { return false }
             if let projectId { return chat.projectId == projectId }
             if let agentId { return chat.agentId == agentId }

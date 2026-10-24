@@ -86,7 +86,8 @@ current draft. The sidebar uses a light wordmark, capsule search, white circular
 Creating bots and linking computers require `botsVersion: 3`; bot notification preferences and the expanded avatar catalog require version 4; existing profiles can be viewed on
 older bot-capable services. Mindwire is the default bot and can create, delegate to, inspect and revise
 bots conversationally. Profiles, memory, document knowledge and chat membership
-are daemon-owned; both modes show the same flat bot list. Bot actions and
+are daemon-owned. Both modes share saved bots; Developer also lists plain harnesses
+with direct chats, keeping their native history separate from bot conversations. Bot actions and
 knowledge limits are documented in [BOTS.md](../../packages/daemon/BOTS.md).
 
 Set `MINDWIRE_DESKTOP_DOWNLOAD_URL` to the real HTTPS desktop-app installer or download page when

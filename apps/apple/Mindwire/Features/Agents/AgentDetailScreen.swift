@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// One agent persona: a header (logo + name + type), its recent chats (across the workspace's
-/// projects), and details (including its owning workspace). The agent is owned by a workspace; a chat
-/// still runs in its project's cwd. A manage menu + settings sheet live in the toolbar.
+/// One plain harness profile and its own recent chats across project directories.
+/// Named bots own their separate histories; authentication and native settings
+/// still belong to this computer's shared harness profile.
 struct AgentDetailScreen: View {
     let agentId: String
 
@@ -46,7 +46,7 @@ struct AgentDetailScreen: View {
                 }
             }
             .sheet(isPresented: $showAllChats) {
-                ChatHistorySheet(agentId: agentId)
+                ChatHistorySheet(agentId: agentId, plainOnly: true)
             }
             .sheet(isPresented: $showingNewChat, onDismiss: {
                 reload()
@@ -184,13 +184,14 @@ struct AgentDetailScreen: View {
     }
 
     private func projectName(_ id: String) -> String {
-        stores.projects.get(id)?.name ?? t("agentDetail.noProject")
+        guard let project = stores.projects.get(id) else { return t("agentDetail.noProject") }
+        return project.isAssistantWorkspace ? WorkspaceRepository.shared.get(project.workspaceId)?.name ?? "" : project.name
     }
 
     private func reload() {
         loaded = true
         agent = stores.agents.get(agentId)
-        chats = stores.chats(forAgentId: agentId)
+        chats = stores.chats(forAgentId: agentId).filter { $0.botId == nil }
     }
 
     /// A chat needs a project: open it directly when there is one, otherwise offer a native menu.
