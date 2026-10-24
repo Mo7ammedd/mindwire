@@ -94,7 +94,7 @@ private struct WorkspaceActionPresentation: ViewModifier {
                         : "Remove \(computer.name) and its cached projects and chats from this device? Files, chats and running programs on the computer are kept.")
                 } else {
                     Text(t(workspace.runtime.sandbox == nil ? "workspace.delete.body" : "workspace.delete.sandboxBody", [
-                        "projects": "\(stores.projects(forWorkspaceId: workspace.id).count)",
+                        "projects": "\(stores.developerProjects(workspaceId: workspace.id).count)",
                     ]))
                 }
             }

@@ -140,7 +140,7 @@ struct ProjectFolderMembersSheet: View {
             }
             .onAppear {
                 guard !loaded else { return }
-                let projects = workspaceId.map { stores.projects(forWorkspaceId: $0) } ?? stores.projectsByRecency()
+                let projects = workspaceId.map { stores.developerProjects(workspaceId: $0) } ?? stores.projectsByRecency()
                 hasProjects = !projects.isEmpty
                 candidates = library.sorted(library.eligibleMembers(projects, in: folderId))
                 selected = Set(candidates.filter { library.folderId(for: $0) == folderId }.map(\.id))

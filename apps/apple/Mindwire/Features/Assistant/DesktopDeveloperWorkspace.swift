@@ -255,7 +255,7 @@ struct DesktopDeveloperItems: View {
     private func reload() {
         connections = stores.connections.list()
         let ids = Set(repository.all.map(\.id))
-        projects = stores.projects.list().filter { ids.contains($0.workspaceId) }.sorted {
+        projects = stores.developerProjects().filter { ids.contains($0.workspaceId) }.sorted {
             let lhs = $0.lastUsedAt ?? $0.createdAt, rhs = $1.lastUsedAt ?? $1.createdAt
             return lhs == rhs ? $0.name.localizedStandardCompare($1.name) == .orderedAscending : lhs > rhs
         }

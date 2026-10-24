@@ -339,7 +339,7 @@ struct WorkspaceDetailScreen: View {
                 }
                 HStack(spacing: 12) {
                     Button { app.selectDesktopSection(.projects) } label: {
-                        Label("\(stores.projects(forWorkspaceId: workspaceId).count) projects", icon: .folder)
+                        Label("\(stores.developerProjects(workspaceId: workspaceId).count) projects", icon: .folder)
                     }
                     Button { showChats = true } label: { Label(t("agentDetail.chats"), icon: Icon.history) }
                 }.buttonStyle(.bordered).controlSize(.regular)
@@ -357,7 +357,7 @@ struct WorkspaceDetailScreen: View {
 
     /// Overview only shows the cached count. Project rows are rendered after opening the list.
     private var projectsSection: some View {
-        let entries = ProjectListEntry.merge(projects: stores.projects(forWorkspaceId: workspaceId),
+        let entries = ProjectListEntry.merge(projects: stores.developerProjects(workspaceId: workspaceId),
             operations: [workspaceId: stores.workspaceData.projectOperations[workspaceId] ?? []])
         return Section {
             Button { showChats = true } label: {

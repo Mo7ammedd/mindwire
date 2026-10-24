@@ -332,7 +332,7 @@ struct ProjectsScreen: View {
     }
 
     private func reload() {
-        projects = workspaceId.map { stores.projects(forWorkspaceId: $0) } ?? stores.projectsByRecency()
+        projects = workspaceId.map { stores.developerProjects(workspaceId: $0) } ?? stores.projectsByRecency()
         library.reconcile(projects: stores.projects.list())
     }
 }

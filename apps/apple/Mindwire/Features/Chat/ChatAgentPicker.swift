@@ -88,7 +88,7 @@ struct ChatAgentPicker: View {
             ?? repository.all.first?.id
     }
     private var projects: [Project] {
-        effectiveWorkspaceID.map { stores.projects(forWorkspaceId: $0) } ?? []
+        effectiveWorkspaceID.map { stores.developerProjects(workspaceId: $0) } ?? []
     }
     private var project: Project? {
         if let projectId { return stores.projects.get(projectId) }

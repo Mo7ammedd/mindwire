@@ -25,7 +25,7 @@ struct WorkspaceRow: View {
     }
 
     private var subtitle: String {
-        let count = stores.projects(forWorkspaceId: workspace.id).count
+        let count = stores.developerProjects(workspaceId: workspace.id).count
         let projects = count == 1 ? t("workspaces.oneProject") : t("workspaces.projectCount", ["count": "\(count)"])
         return [workspace.computerKind(in: stores), projects].joined(separator: " · ")
     }

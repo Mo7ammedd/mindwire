@@ -11,7 +11,7 @@ extension Stores {
     /// Projects an agent can work in = the projects on the agent's workspace.
     func projects(forAgentId id: String) -> [Project] {
         guard let workspaceId = agents.get(id)?.workspaceId else { return [] }
-        return projects(forWorkspaceId: workspaceId)
+        return developerProjects(workspaceId: workspaceId)
             .sorted { ($0.lastUsedAt ?? $0.createdAt) > ($1.lastUsedAt ?? $1.createdAt) }
     }
 
@@ -19,9 +19,17 @@ extension Stores {
         projects.list().filter { $0.workspaceId == id }
     }
 
+    /// One presentation inventory for project browsers, pickers and counts on both
+    /// platforms. Registry consumers still see the General workspace and its chats.
+    func developerProjects(workspaceId: String? = nil) -> [Project] {
+        projects.list().filter {
+            !$0.isAssistantWorkspace && (workspaceId == nil || $0.workspaceId == workspaceId)
+        }
+    }
+
     func projectsByRecency() -> [Project] {
         let preferred = defaults.dictionary(forKey: "mindwire:project-replicas:selected") as? [String: String] ?? [:]
-        let sorted = projects.list().sorted { ($0.lastUsedAt ?? $0.createdAt) > ($1.lastUsedAt ?? $1.createdAt) }
+        let sorted = developerProjects().sorted { ($0.lastUsedAt ?? $0.createdAt) > ($1.lastUsedAt ?? $1.createdAt) }
         let groups = Dictionary(grouping: sorted) { $0.syncId ?? $0.id }
         return groups.values.compactMap { copies in
             guard let first = copies.first else { return nil }

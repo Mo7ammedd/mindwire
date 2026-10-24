@@ -45,6 +45,7 @@ struct ProjectListEntry: Identifiable {
                 entries[key] = .init(workspaceId: workspaceId, projectId: projectId, project: project, operation: operation)
             }
         }
-        return entries.values.sorted { ($0.date, $0.id) > ($1.date, $1.id) }
+        return entries.values.filter { !Project.isAssistantWorkspacePath($0.path) }
+            .sorted { ($0.date, $0.id) > ($1.date, $1.id) }
     }
 }

@@ -183,7 +183,7 @@ struct ProjectDetailScreen: View {
 
     private func desktopProject(_ project: Project, _ workspace: Workspace) -> some View {
         let context = DesktopProjectContext(project: project,
-            projects: stores.projects.list().sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending },
+            projects: stores.developerProjects().sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending },
             tool: desktopTool, tools: ProjectTool.available(workspaceId: workspace.id, repository: repository),
             changedFiles: gitChangeCount, selectTool: selectDesktopTool,
             newChat: AnyView(newChatAction), actions: AnyView(manageMenu))

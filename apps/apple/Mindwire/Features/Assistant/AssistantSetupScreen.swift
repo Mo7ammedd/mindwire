@@ -448,8 +448,8 @@ struct AssistantSetupScreen: View {
     }
 }
 
-/// One ordinary project in the authoritative registry. Repeated setup reuses its directory
-/// and project; it never moves existing files or creates a parallel conversation store.
+/// A managed working directory in the authoritative registry, kept out of Developer
+/// project browsers. Repeated setup reuses its files and conversation ownership.
 enum AssistantContext {
     @MainActor static func prepare(agent: Agent, stores: Stores) async throws -> Project {
         try await withThrowingTaskGroup(of: Project.self) { group in
@@ -472,7 +472,7 @@ enum AssistantContext {
         guard home.hasPrefix("/"), !home.contains("\n"), !home.contains("\0") else {
             throw BackendError.message(t("assistant.setup.homeError"))
         }
-        let path = (home as NSString).appendingPathComponent(".mindwire-workspace")
+        let path = (home as NSString).appendingPathComponent(Project.assistantWorkspaceDirectoryName)
         try Task.checkCancellation()
         try await stores.workspaceData.requireProjectSupport(workspaceId: workspaceID)
         let result = try await service.exec(service.shell.command("umask 077; " + service.shell.makeDir(path)))

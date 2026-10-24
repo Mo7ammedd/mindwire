@@ -171,7 +171,9 @@ final class AppModel {
         guard snapshot.version == AppNavigationSnapshot.currentVersion else { return }
         assistantChatID = snapshot.assistantChatID
         assistantBotID = snapshot.assistantBotID
-        desktopProjectID = snapshot.desktopProjectID
+        desktopProjectID = snapshot.desktopProjectID.flatMap { id in
+            stores.projects.get(id)?.isAssistantWorkspace == true ? nil : id
+        }
         desktopWorkspaceID = snapshot.desktopWorkspaceID
         chatLocations.removeAll()
         sidebarPaths.removeAll()
@@ -231,6 +233,10 @@ final class AppModel {
     }
 
     func openProject(_ id: String) {
+        if let project = stores.projects.get(id), project.isAssistantWorkspace {
+            openWorkspace(project.workspaceId)
+            return
+        }
         if ApplePlatform.isDesktop && desktopHasUnsavedFileEdits {
             pendingDesktopNavigation = { self.openProject(id) }; return
         }

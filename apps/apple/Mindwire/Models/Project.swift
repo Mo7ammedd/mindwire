@@ -29,6 +29,16 @@ struct Project: Codable, Identifiable, Hashable {
 }
 
 extension Project {
+    /// General bots share this managed working directory. Its registry record keeps
+    /// conversations attached to their files; it is not a user-facing Developer project.
+    static let assistantWorkspaceDirectoryName = ".mindwire-workspace"
+
+    static func isAssistantWorkspacePath(_ path: String) -> Bool {
+        (path as NSString).lastPathComponent == assistantWorkspaceDirectoryName
+    }
+
+    var isAssistantWorkspace: Bool { Self.isAssistantWorkspacePath(path) }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
